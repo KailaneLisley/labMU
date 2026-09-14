@@ -32,3 +32,10 @@ O **labMU** é o sistema de gestão do Laboratório de Prototipagem do MUSARQ, d
 11. **Relatório Mensal de Empréstimos:** Estatísticas e histórico de movimentações de empréstimos de equipamentos por mês[cite: 1].
 
 > **⚠️ Observação importante:** As máquinas fixas do laboratório (impressoras 3D e scanners) **não são passíveis de empréstimo**; apenas os itens devidamente cadastrados na categoria de empréstimo portáteis podem ser retirados[cite: 1].
+
+## EQUIPE
+- Arthur Amaral
+- Christian Lucas
+- Lucas Mendes
+- Quézia Beatriz
+- Kailane Lisley
