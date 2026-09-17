@@ -1,4 +1,4 @@
-# 🚀 README — labMU
+ # 🚀 README — labMU
 > **Sistema de Gestão de Equipamentos — Laboratório de Prototipagem (MUSARQ)**  
 > **Equipe:** 07 | **Metodologia:** Scrum 
 
