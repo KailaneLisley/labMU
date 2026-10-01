@@ -5,9 +5,14 @@
      CONFIGURAÇÃO
      - USE_MOCK = true  → autentica com usuários de teste locais
      - USE_MOCK = false → envia para a API real (API_URL)
+     - AUTO_REDIRECT = false → ao abrir o login, a sessão anterior
+       é encerrada (ideal para testar vários perfis em sequência)
+     - AUTO_REDIRECT = true  → se já houver sessão, vai direto
+       para o painel do perfil logado
      ========================================================== */
   const CONFIG = {
     USE_MOCK: true,
+    AUTO_REDIRECT: false,
     API_URL: "/api/auth/login",
     EMAIL_DOMAIN: "@unicap.br",
     MIN_PASSWORD_LENGTH: 6,
@@ -95,6 +100,36 @@
     btnLabel.textContent = isLoading ? "Entrando..." : "Entrar no Sistema";
   }
 
+  /* ---------- Sessão ---------- */
+  function readSession() {
+    const raw = localStorage.getItem(STORAGE.SESSION) || sessionStorage.getItem(STORAGE.SESSION);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function clearSession() {
+    localStorage.removeItem(STORAGE.SESSION);
+    sessionStorage.removeItem(STORAGE.SESSION);
+  }
+
+  function saveSession(data, persist) {
+    clearSession();
+    const storage = persist ? localStorage : sessionStorage;
+    storage.setItem(STORAGE.SESSION, JSON.stringify(data));
+  }
+
+  function saveRememberedData(email, role, remember) {
+    if (remember) {
+      localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ email, role }));
+    } else {
+      localStorage.removeItem(STORAGE.REMEMBER);
+    }
+  }
+
   /* ---------- Validação ---------- */
   function validateEmail() {
     const value = emailInput.value.trim().toLowerCase();
@@ -170,21 +205,6 @@
     return response.json(); // esperado: { token, user: { name, email, role } }
   }
 
-  function saveSession(data, persist) {
-    const storage = persist ? localStorage : sessionStorage;
-    localStorage.removeItem(STORAGE.SESSION);
-    sessionStorage.removeItem(STORAGE.SESSION);
-    storage.setItem(STORAGE.SESSION, JSON.stringify(data));
-  }
-
-  function saveRememberedData(email, role, remember) {
-    if (remember) {
-      localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ email, role }));
-    } else {
-      localStorage.removeItem(STORAGE.REMEMBER);
-    }
-  }
-
   /* ---------- Eventos ---------- */
   toggleBtn.addEventListener("click", () => {
     const isHidden = passwordInput.type === "password";
@@ -196,10 +216,12 @@
     passwordInput.focus();
   });
 
-  roleInputs.forEach((input) => input.addEventListener("change", () => {
-    updatePlaceholder();
-    clearAlert();
-  }));
+  roleInputs.forEach((input) =>
+    input.addEventListener("change", () => {
+      updatePlaceholder();
+      clearAlert();
+    })
+  );
 
   emailInput.addEventListener("blur", () => emailInput.value && validateEmail());
   emailInput.addEventListener("input", () => emailInput.hasAttribute("aria-invalid") && validateEmail());
@@ -239,21 +261,27 @@
 
   /* ---------- Inicialização ---------- */
   function init() {
-    // Se já existe sessão ativa, vai direto para o painel
-    const rawSession = localStorage.getItem(STORAGE.SESSION) || sessionStorage.getItem(STORAGE.SESSION);
-    if (rawSession) {
-      try {
-        const { user } = JSON.parse(rawSession);
-        if (user && CONFIG.ROUTES[user.role]) {
-          window.location.replace(CONFIG.ROUTES[user.role]);
-          return;
-        }
-      } catch {
-        /* sessão corrompida: ignora */
+    const params = new URLSearchParams(window.location.search);
+    const forceLogout = params.has("logout");
+
+    // Logout explícito (?logout=1) ou modo de teste (AUTO_REDIRECT desligado):
+    // encerra qualquer sessão anterior e mostra a tela de login normalmente.
+    if (forceLogout || !CONFIG.AUTO_REDIRECT) {
+      clearSession();
+      if (forceLogout) {
+        // Limpa o parâmetro da URL sem recarregar a página
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    } else {
+      // Se já existe sessão ativa, vai direto para o painel do perfil logado
+      const session = readSession();
+      if (session && session.user && CONFIG.ROUTES[session.user.role]) {
+        window.location.replace(CONFIG.ROUTES[session.user.role]);
+        return;
       }
     }
 
-    // Restaura e-mail e perfil lembrados
+    // Restaura e-mail e perfil lembrados (somente se "Lembrar de mim" foi marcado)
     const rawRemember = localStorage.getItem(STORAGE.REMEMBER);
     if (rawRemember) {
       try {
