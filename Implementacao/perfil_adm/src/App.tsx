@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import DashboardPage from './pages/DashboardPage'
+import UserManagementPage from './pages/UserManagementPage'
+import MaintenanceManagementPage from './pages/MaintenanceManagementPage'
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
 import MachinesPage from './pages/MachinesPage'
@@ -12,6 +14,8 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/usuarios" element={<UserManagementPage />} />
+          <Route path="/manutencao" element={<MaintenanceManagementPage />} />
           <Route path="/perfil" element={<ProfilePage />} />
           <Route path="/editar-perfil" element={<EditProfilePage />} />
           <Route path="/maquinas" element={<MachinesPage />} />
