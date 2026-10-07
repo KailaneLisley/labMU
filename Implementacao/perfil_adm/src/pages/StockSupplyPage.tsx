@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Search, Download } from "lucide-react";
 
 interface Supply {
@@ -124,6 +125,7 @@ const getStatusLabel = (status: Supply["status"]) => {
 };
 
 export const StockSupplyPage = (): JSX.Element => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
 
   const totalStock = mockSupplies.reduce((sum, s) => sum + s.balance, 0);
@@ -140,7 +142,10 @@ export const StockSupplyPage = (): JSX.Element => {
               Gestão simplificada de insumos e histórico de aquisições do atelier.
             </p>
           </div>
-          <button className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
+          <button
+            onClick={() => navigate("/estoque/registrar-entrada")}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors"
+          >
             <Plus className="w-4 h-4" />
             + Cadastrar Suprimento
           </button>
