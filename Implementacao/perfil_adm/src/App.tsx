@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
 import MachinesPage from './pages/MachinesPage'
 import RegisterSupplyEntryPage from './pages/RegisterSupplyEntryPage'
+import ReportsPage from './pages/ReportsPage'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/editar-perfil" element={<EditProfilePage />} />
           <Route path="/maquinas" element={<MachinesPage />} />
           <Route path="/estoque/registrar-entrada" element={<RegisterSupplyEntryPage />} />
+          <Route path="/relatorios" element={<ReportsPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>
