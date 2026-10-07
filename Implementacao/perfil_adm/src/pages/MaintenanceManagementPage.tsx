@@ -117,7 +117,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
               </div>
               <span className="text-3xl">⚙️</span>
             </div>
-            <p className="text-xs text-[#7a6e70]">Meta semestral atingida (>95%)</p>
+            <p className="text-xs text-[#7a6e70]">Meta semestral atingida (&gt;95%)</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
