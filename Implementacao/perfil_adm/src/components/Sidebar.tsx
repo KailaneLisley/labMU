@@ -6,7 +6,7 @@ const navigationItems = [
   { id: "usuarios", label: "Gestão de Usuários", icon: Users, path: "/usuarios" },
   { id: "maquinas", label: "Máquinas", icon: Wrench, path: "/maquinas" },
   { id: "manutencao", label: "Manutenção", icon: Home, path: "/manutencao" },
-  { id: "estoque", label: "Estoque e Suprimentos", icon: Package, path: "/estoque" },
+  { id: "estoque", label: "Estoque e Suprimentos", icon: Package, path: "/estoque/registrar-entrada" },
   { id: "emprestimo", label: "Empréstimo", icon: Share2, path: "/emprestimo" },
   { id: "relatorios", label: "Relatórios Gerenciais", icon: FileText, path: "/relatorios" },
 ];
