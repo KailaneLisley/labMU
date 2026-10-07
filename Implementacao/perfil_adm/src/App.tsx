@@ -4,6 +4,7 @@ import DashboardPage from './pages/DashboardPage'
 import UserManagementPage from './pages/UserManagementPage'
 import MaintenanceManagementPage from './pages/MaintenanceManagementPage'
 import StockSupplyPage from './pages/StockSupplyPage'
+import LoanEquipmentPage from './pages/LoanEquipmentPage'
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
 import MachinesPage from './pages/MachinesPage'
@@ -18,6 +19,7 @@ function App() {
           <Route path="/usuarios" element={<UserManagementPage />} />
           <Route path="/manutencao" element={<MaintenanceManagementPage />} />
           <Route path="/estoque" element={<StockSupplyPage />} />
+          <Route path="/emprestimo" element={<LoanEquipmentPage />} />
           <Route path="/perfil" element={<ProfilePage />} />
           <Route path="/editar-perfil" element={<EditProfilePage />} />
           <Route path="/maquinas" element={<MachinesPage />} />
