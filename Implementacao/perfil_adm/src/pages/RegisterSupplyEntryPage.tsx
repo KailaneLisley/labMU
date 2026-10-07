@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, ArrowLeft, Copy } from "lucide-react";
 
 interface Supply {
@@ -36,6 +37,7 @@ const guidelines = [
 ];
 
 export const RegisterSupplyEntryPage = (): JSX.Element => {
+  const navigate = useNavigate();
   const [selectedSupplyId, setSelectedSupplyId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [units, setUnits] = useState<string>("");
@@ -66,7 +68,10 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
       {/* Breadcrumb */}
       <div className="bg-white border-b border-[#efe6e6] px-6 py-3">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-sm">
-          <button className="inline-flex items-center gap-1 text-[#8B1329] hover:text-[#6b0f1f]">
+          <button
+            onClick={() => navigate("/estoque")}
+            className="inline-flex items-center gap-1 text-[#8B1329] hover:text-[#6b0f1f]"
+          >
             <ArrowLeft className="w-4 h-4" />
             Voltar para Estoque & Suprimentos
           </button>
