@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
+import { downloadCsv } from "../lib/exportCsv";
 
 type MaintenanceType = "preventiva" | "corretiva";
 type MaintenanceStatus = "concluida" | "liberada" | "agendada";
@@ -12,6 +13,7 @@ interface MaintenanceRecord {
   type: MaintenanceType;
   technician: string;
   status: MaintenanceStatus;
+  parts: boolean;
 }
 
 const mockRecords: MaintenanceRecord[] = [
@@ -23,6 +25,7 @@ const mockRecords: MaintenanceRecord[] = [
     type: "corretiva",
     technician: "Matheus Silva",
     status: "liberada",
+    parts: true,
   },
   {
     id: "2",
@@ -32,6 +35,7 @@ const mockRecords: MaintenanceRecord[] = [
     type: "preventiva",
     technician: "Carla Albuquerque",
     status: "concluida",
+    parts: false,
   },
   {
     id: "3",
@@ -41,6 +45,7 @@ const mockRecords: MaintenanceRecord[] = [
     type: "preventiva",
     technician: "Matheus Silva",
     status: "concluida",
+    parts: true,
   },
   {
     id: "4",
@@ -50,6 +55,7 @@ const mockRecords: MaintenanceRecord[] = [
     type: "corretiva",
     technician: "Juliana Ramos",
     status: "liberada",
+    parts: true,
   },
   {
     id: "5",
@@ -59,12 +65,42 @@ const mockRecords: MaintenanceRecord[] = [
     type: "preventiva",
     technician: "Carla Albuquerque",
     status: "concluida",
+    parts: false,
   },
 ];
 
 export const MaintenanceManagementPage = (): JSX.Element => {
   const [selectedTab, setSelectedTab] = useState<"todos" | "preventivas" | "corretivas" | "pecas">("todos");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
+  const filteredRecords = useMemo(
+    () =>
+      mockRecords.filter((record) => {
+        const typeMatch =
+          selectedTab === "todos" ||
+          (selectedTab === "preventivas" && record.type === "preventiva") ||
+          (selectedTab === "corretivas" && record.type === "corretiva") ||
+          (selectedTab === "pecas" && record.parts);
+        const query = searchQuery.trim().toLowerCase();
+        return typeMatch && `${record.machine} ${record.tag} ${record.technician}`.toLowerCase().includes(query);
+      }),
+    [selectedTab, searchQuery],
+  );
+
+  const exportRecords = () => {
+    downloadCsv("manutencoes-labmu.csv", [
+      ["Máquina", "TAG", "Data", "Tipo", "Técnico", "Status", "Peças"],
+      ...filteredRecords.map((record) => [
+        record.machine,
+        record.tag,
+        record.date,
+        record.type,
+        record.technician,
+        record.status,
+        record.parts ? "Sim" : "Não",
+      ]),
+    ]);
+  };
 
   const getTypeColor = (type: MaintenanceType) => {
     return type === "preventiva" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700";
@@ -97,9 +133,8 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm">
               <span>📅 Semestre 2024.2 (Jul - Dez)</span>
-              <button className="text-[#7a6e70] hover:text-[#1f1a1b]">⌄</button>
             </div>
-            <button className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
+            <button onClick={exportRecords} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
               <Download className="w-4 h-4" />
               Exportar Relatório
             </button>
@@ -212,10 +247,10 @@ export const MaintenanceManagementPage = (): JSX.Element => {
 
           {/* Tabs */}
           <div className="flex gap-4 mb-6 border-b border-[#efe6e6]">
-            {["todos", "preventivas", "corretivas", "pecas"].map((tab) => (
+            {(["todos", "preventivas", "corretivas", "pecas"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setSelectedTab(tab as any)}
+                onClick={() => setSelectedTab(tab)}
                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   selectedTab === tab
                     ? "border-[#8B1329] text-[#8B1329]"
@@ -236,7 +271,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#7a6e70]" />
               <input
                 type="text"
-                placeholder="Filtrar por TAG, Técnico ou p..."
+                placeholder="Filtrar por máquina, TAG ou técnico..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-[#efe6e6] rounded-lg bg-[#f7f0f0] focus:outline-none focus:border-[#8B1329] focus:bg-white"
@@ -246,7 +281,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-[#f3f4f6] border-b border-[#efe6e6]">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Máquina & TAG</th>
@@ -258,7 +293,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {mockRecords.map((record) => (
+                {filteredRecords.map((record) => (
                   <tr key={record.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-[#1f1a1b]">{record.machine}</p>
@@ -279,34 +314,38 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                       <p className="text-sm font-semibold text-[#1f1a1b] capitalize">{record.status}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <button className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">Ver Ficha</button>
+                      <button onClick={() => setSelectedRecord(record)} className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">Ver Ficha</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {filteredRecords.length === 0 && (
+            <p className="py-8 text-center text-sm text-[#7a6e70]">Nenhuma manutenção encontrada.</p>
+          )}
 
           {/* Pagination */}
           <div className="mt-6 flex items-center justify-between text-sm text-[#7a6e70]">
-            <p>Mostrando 5 de 18 intervenções auditadas no semestre</p>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-2 rounded hover:bg-[#f7f0f0]">Anterior</button>
-              {[1, 2, 3].map((page) => (
-                <button
-                  key={page}
-                  className={`px-3 py-2 rounded font-semibold ${
-                    page === 1 ? "bg-[#8B1329] text-white" : "hover:bg-[#f7f0f0]"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <span className="text-[#7a6e70]">Próxima</span>
-            </div>
+            <p>Mostrando {filteredRecords.length} de {mockRecords.length} registros</p>
           </div>
         </div>
       </div>
+
+      {selectedRecord && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="maintenance-detail-title">
+          <div className="w-full max-w-md space-y-3 rounded-xl bg-white p-6 shadow-xl">
+            <h2 id="maintenance-detail-title" className="text-xl font-bold text-[#8B1329]">Ficha de manutenção</h2>
+            <p><strong>Máquina:</strong> {selectedRecord.machine} ({selectedRecord.tag})</p>
+            <p><strong>Data:</strong> {selectedRecord.date}</p>
+            <p><strong>Tipo:</strong> {getTypeLabel(selectedRecord.type)}</p>
+            <p><strong>Técnico:</strong> {selectedRecord.technician}</p>
+            <p><strong>Status:</strong> {selectedRecord.status}</p>
+            <p><strong>Peças utilizadas:</strong> {selectedRecord.parts ? "Sim" : "Não"}</p>
+            <button onClick={() => setSelectedRecord(null)} className="mt-2 rounded-lg bg-[#8B1329] px-4 py-2 font-semibold text-white">Fechar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

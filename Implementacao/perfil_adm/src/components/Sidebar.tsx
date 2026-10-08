@@ -1,5 +1,6 @@
 import { LayoutDashboard, Users, Wrench, Package, Share2, FileText, Home } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getSession } from "../lib/session";
 
 const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -14,18 +15,20 @@ const navigationItems = [
 export const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const session = getSession();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    location.pathname === path || (path !== "/dashboard" && location.pathname.startsWith(`${path}/`));
 
   return (
-    <aside className="w-64 bg-white border-r border-[#efe6e6] h-screen sticky top-0 flex flex-col">
+    <aside className="w-64 shrink-0 bg-white border-r border-[#efe6e6] h-screen sticky top-0 flex flex-col max-md:w-16">
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-[#efe6e6]">
+      <div className="px-6 py-6 border-b border-[#efe6e6] max-md:px-3">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 bg-[#8B1329] rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">Ω</span>
           </div>
-          <div>
+          <div className="max-md:hidden">
             <p className="font-bold text-[#8B1329]">labMU</p>
             <p className="text-xs text-[#7a6e70]">MUSARQ • UNICAP</p>
           </div>
@@ -33,7 +36,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-6">
+      <nav className="flex-1 overflow-y-auto px-3 py-6 max-md:px-2">
         <div className="space-y-2">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -42,14 +45,16 @@ export const Sidebar = () => {
               <button
                 key={item.id}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-all ${
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-all max-md:justify-center max-md:px-2 ${
                   active
                     ? "bg-[#8B1329] text-white"
                     : "text-[#7a6e70] hover:bg-[#fdeaea] hover:text-[#8B1329]"
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <span className="max-md:hidden">{item.label}</span>
               </button>
             );
           })}
@@ -57,16 +62,23 @@ export const Sidebar = () => {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-[#efe6e6] px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#f7f0f0] rounded-full flex items-center justify-center">
+      <div className="border-t border-[#efe6e6] px-6 py-4 max-md:px-3">
+        <button
+          type="button"
+          onClick={() => navigate("/perfil")}
+          className="flex w-full items-center gap-3 text-left min-w-0"
+          aria-label="Abrir meu perfil"
+        >
+          <div className="w-10 h-10 shrink-0 bg-[#f7f0f0] rounded-full flex items-center justify-center">
             <span className="text-lg">👤</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-[#1f1a1b] truncate">Lucas Vasconcel</p>
-            <p className="text-xs text-[#7a6e70] truncate">Técnico de Bancada</p>
+          <div className="flex-1 min-w-0 max-md:hidden">
+            <p className="text-sm font-semibold text-[#1f1a1b] truncate">{session?.user.name}</p>
+            <p className="text-xs text-[#7a6e70] truncate">
+              {session?.user.role === "administrador" ? "Administrador" : "Técnico"}
+            </p>
           </div>
-        </div>
+        </button>
       </div>
     </aside>
   );

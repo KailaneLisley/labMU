@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import UserManagementPage from './pages/UserManagementPage'
 import MaintenanceManagementPage from './pages/MaintenanceManagementPage'
@@ -19,6 +20,7 @@ function App() {
       <Routes>
         {/* Login Route (sem Layout) */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/cadastro" element={<RegisterPage />} />
 
         {/* Protected Routes (com Layout) */}
         <Route
@@ -38,6 +40,7 @@ function App() {
                 <Route path="/estoque/registrar-entrada" element={<RegisterSupplyEntryPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>
           }

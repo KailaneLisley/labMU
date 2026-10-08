@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users, UserPlus, Wrench, Package, FileDown, Clock, AlertCircle, CheckCircle2, AlertTriangle, Clock3 } from "lucide-react";
 
 interface QuickAction {
   id: string;
   label: string;
   icon: string;
+  path: string;
 }
 
 interface Production {
@@ -24,14 +25,15 @@ interface Alert {
   description: string;
   action?: string;
   actionLabel?: string;
+  path?: string;
 }
 
 const quickActions: QuickAction[] = [
-  { id: "1", label: "Novo Cliente", icon: "👤" },
-  { id: "2", label: "Novo Técnico", icon: "👥" },
-  { id: "3", label: "Cadastrar Máquina", icon: "⚙️" },
-  { id: "4", label: "Novo Suprimento", icon: "📦" },
-  { id: "5", label: "Exportar Relatório", icon: "📥" },
+  { id: "1", label: "Novo Cliente", icon: "👤", path: "/usuarios" },
+  { id: "2", label: "Novo Técnico", icon: "👥", path: "/usuarios" },
+  { id: "3", label: "Cadastrar Máquina", icon: "⚙️", path: "/maquinas" },
+  { id: "4", label: "Novo Suprimento", icon: "📦", path: "/estoque/registrar-entrada" },
+  { id: "5", label: "Exportar Relatório", icon: "📥", path: "/relatorios" },
 ];
 
 const kpis = [
@@ -108,6 +110,7 @@ const alerts: Alert[] = [
     description: "Impressora 3D Creality K1 (M02)",
     action: "Gerada há máquina",
     actionLabel: "Agendada",
+    path: "/manutencao",
   },
   {
     id: "2",
@@ -116,6 +119,7 @@ const alerts: Alert[] = [
     description: "Filamento PLA Cinza 1.75mm (1kg)",
     action: "Apenas 1 carretel lacrado restante. Demanda alta para projetos do Ateli 4.",
     actionLabel: "Emitir requisição",
+    path: "/estoque",
   },
   {
     id: "3",
@@ -124,6 +128,7 @@ const alerts: Alert[] = [
     description: "Scanner 3D Portátil EinScan Pro",
     action: "Sob responsabilidade de Beatriz Alencar (TCC Arquitetura e Urbanismo).",
     actionLabel: "Notificar devolução",
+    path: "/emprestimo",
   },
 ];
 
@@ -172,6 +177,7 @@ const getAlertBgColor = (type: Alert["type"]) => {
 };
 
 export const DashboardPage = (): JSX.Element => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
       {/* Page Header */}
@@ -193,6 +199,7 @@ export const DashboardPage = (): JSX.Element => {
           {quickActions.map((action) => (
             <button
               key={action.id}
+              onClick={() => navigate(action.path)}
               className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow flex flex-col items-center text-center gap-3"
             >
               <div className="text-4xl">{action.icon}</div>
@@ -249,7 +256,7 @@ export const DashboardPage = (): JSX.Element => {
                     <p className="text-xs text-[#7a6e70]">Atividades de usinagem, corte e impressão no parque</p>
                   </div>
                 </div>
-                <button className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">Ver todas →</button>
+                <button onClick={() => navigate("/relatorios")} className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">Ver todas →</button>
               </div>
 
               <div className="space-y-4">
@@ -312,7 +319,7 @@ export const DashboardPage = (): JSX.Element => {
                         <p className="text-xs text-[#7a6e70] mt-1">{alert.description}</p>
                         {alert.action && <p className="text-xs text-[#7a6e70] mt-2">{alert.action}</p>}
                         {alert.actionLabel && (
-                          <button className="text-xs font-semibold text-[#8B1329] hover:text-[#6b0f1f] mt-2">
+                          <button onClick={() => alert.path && navigate(alert.path)} className="text-xs font-semibold text-[#8B1329] hover:text-[#6b0f1f] mt-2">
                             {alert.actionLabel}
                           </button>
                         )}

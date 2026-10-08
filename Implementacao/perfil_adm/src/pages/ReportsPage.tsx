@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
+import { downloadCsv } from "../lib/exportCsv";
 
 type PeriodType = "semestre" | "mes" | "dias90";
 type ModuleType = "todos" | "impressao3d" | "escaneamento" | "emprestimo";
@@ -56,6 +57,22 @@ const mockModules: Module[] = [
 export const ReportsPage = (): JSX.Element => {
   const [period, setPeriod] = useState<PeriodType>("semestre");
   const [module, setModule] = useState<ModuleType>("todos");
+  const [selectedModule, setSelectedModule] = useState<Module | null>(null);
+  const filteredModules = mockModules.filter((item) => {
+    if (module === "todos") return true;
+    if (module === "impressao3d") return item.id === "1";
+    if (module === "escaneamento") return item.id === "2";
+    return item.id === "3";
+  });
+
+  const exportReport = () => {
+    downloadCsv("relatorio-labmu.csv", [
+      ["Período", period],
+      [],
+      ["Módulo", "Ordens", "Consumo", "Ocupação", "Status"],
+      ...filteredModules.map((item) => [item.name, item.orders, item.consumption, `${item.occupancy}%`, item.status]),
+    ]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
@@ -74,7 +91,7 @@ export const ReportsPage = (): JSX.Element => {
               Consolidado operacional, consumo de filamentos e indicadores de utilização do parque.
             </p>
           </div>
-          <button className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
+          <button onClick={exportReport} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
             <Download className="w-4 h-4" />
             Exportar Relatório (PDF / CSV)
           </button>
@@ -82,11 +99,11 @@ export const ReportsPage = (): JSX.Element => {
 
         {/* Selectors */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Period */}
             <div>
               <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-3">Período:</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
                   { value: "semestre", label: "Semestre 2024.2" },
                   { value: "mes", label: "Este Mês" },
@@ -110,7 +127,7 @@ export const ReportsPage = (): JSX.Element => {
             {/* Module */}
             <div>
               <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-3">Módulo:</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
                   { value: "todos", label: "Todos" },
                   { value: "impressao3d", label: "Impressão 3D" },
@@ -186,7 +203,7 @@ export const ReportsPage = (): JSX.Element => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="bg-[#f3f4f6] border-b border-[#efe6e6]">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Módulo</th>
@@ -197,7 +214,7 @@ export const ReportsPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {mockModules.map((mod) => (
+                {filteredModules.map((mod) => (
                   <tr key={mod.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -223,7 +240,7 @@ export const ReportsPage = (): JSX.Element => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <button className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">
+                      <button onClick={() => setSelectedModule(mod)} className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">
                         Ver detalhes →
                       </button>
                     </td>
@@ -233,6 +250,17 @@ export const ReportsPage = (): JSX.Element => {
             </table>
           </div>
         </div>
+        {selectedModule && (
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="report-module-title">
+            <div className="w-full max-w-md space-y-3 rounded-xl bg-white p-6 shadow-xl">
+              <h2 id="report-module-title" className="text-xl font-bold text-[#8B1329]">{selectedModule.name}</h2>
+              <p><strong>Ordens:</strong> {selectedModule.orders}</p>
+              <p><strong>Consumo:</strong> {selectedModule.consumption}</p>
+              <p><strong>Taxa de ocupação:</strong> {selectedModule.occupancy}%</p>
+              <button onClick={() => setSelectedModule(null)} className="mt-2 rounded-lg bg-[#8B1329] px-4 py-2 font-semibold text-white">Fechar</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

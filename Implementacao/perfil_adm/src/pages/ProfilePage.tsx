@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { ChevronLeft, Edit2, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { clearSession, getProfileStorageKey, getSession } from "../lib/session";
+import { readJsonFromStorage } from "../lib/storage";
 
 interface UserProfile {
   name: string;
@@ -12,6 +15,8 @@ interface UserProfile {
   lastUpdated: string;
 }
 
+type StoredProfile = Partial<UserProfile> & { photoPreview?: string };
+
 const mockUserProfile: UserProfile = {
   name: "Lucas Andrade",
   role: "Administrador de Laboratório",
@@ -23,17 +28,22 @@ const mockUserProfile: UserProfile = {
 };
 
 export const ProfilePage = (): JSX.Element => {
-  const [profile] = useState<UserProfile>(mockUserProfile);
+  const navigate = useNavigate();
+  const session = getSession();
+  const [profile] = useState<UserProfile>(() => {
+    if (!session) return mockUserProfile;
+    const savedProfile = readJsonFromStorage<StoredProfile>(getProfileStorageKey(session.user.email));
+    return savedProfile
+      ? { ...mockUserProfile, ...savedProfile, avatar: savedProfile.photoPreview ?? savedProfile.avatar, role: session.user.role === "administrador" ? "Administrador de Laboratório" : "Técnico de Bancada" }
+      : { ...mockUserProfile, name: session.user.name, email: session.user.email, role: session.user.role === "administrador" ? "Administrador de Laboratório" : "Técnico de Bancada" };
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = async () => {
     setIsLoading(true);
-    // TODO: Implement logout logic
-    setTimeout(() => {
-      setIsLoading(false);
-      // TODO: Redirect to login
-      window.location.href = "/login";
-    }, 1000);
+    clearSession();
+    navigate("/login", { replace: true });
+    setIsLoading(false);
   };
 
   return (
@@ -43,7 +53,7 @@ export const ProfilePage = (): JSX.Element => {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <button
             className="inline-flex items-center gap-2 text-[#8B1329] hover:text-[#6b0f1f] transition-colors font-medium text-sm"
-            onClick={() => (window.location.href = "/dashboard")}
+            onClick={() => navigate("/dashboard")}
           >
             <ChevronLeft className="w-4 h-4" />
             Voltar ao Dashboard
@@ -75,12 +85,13 @@ export const ProfilePage = (): JSX.Element => {
             <div className="flex gap-6 items-start">
               {/* Avatar */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#8B1329] to-[#d4944f] flex items-center justify-center text-white text-3xl font-bold">
-                  {profile.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
+                {profile.avatar?.startsWith("data:image/") ? (
+                  <img src={profile.avatar} alt={`Foto de ${profile.name}`} className="w-24 h-24 rounded-full object-cover" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#8B1329] to-[#d4944f] flex items-center justify-center text-white text-3xl font-bold">
+                    {profile.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
               </div>
 
               {/* User Info */}
@@ -119,7 +130,7 @@ export const ProfilePage = (): JSX.Element => {
               <div className="flex flex-col gap-3 ml-4">
                 <button
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold text-sm hover:bg-[#6b0f1f] transition-colors shadow-md"
-                  onClick={() => (window.location.href = "/editar-perfil")}
+                  onClick={() => navigate("/editar-perfil")}
                 >
                   <Edit2 className="w-4 h-4" />
                   Editar Perfil

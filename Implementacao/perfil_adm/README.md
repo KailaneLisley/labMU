@@ -1,25 +1,42 @@
-# Tela de Perfil do Usuário (Meu Perfil)
+# labMU — Gestão do Laboratório
 
 ## 📋 Descrição
 
-Tela de visualização e gerenciamento do perfil do usuário logado no sistema labMU. Permite que o usuário visualize suas informações cadastrais básicas e acesse funcionalidades de edição de perfil e logout.
+Aplicação administrativa do laboratório labMU, com dashboard, usuários, máquinas, manutenção, estoque, empréstimos, relatórios e perfil.
 
-## 🎯 Objetivo
+> **Modo de demonstração:** a autenticação e os dados são simulados no navegador. As alterações ficam no `localStorage` do dispositivo e não são sincronizadas entre usuários ou navegadores. Não use este modo para proteger ou armazenar dados reais.
+
+Credenciais para entrar:
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Administrador | `admin.musarq@unicap.br` | `Admin@123` |
+| Técnico | `tecnico.musarq@unicap.br` | `Tecnico@123` |
+
+## 🎯 Funcionalidades
 
 - Exibir informações do usuário logado (nome, email, cargo, localização)
 - Prover acesso rápido a edição de perfil
 - Facilitar logout do sistema
-- Manter consistência visual com o design labMU
+- Cadastrar e administrar usuários e máquinas
+- Criar uma conta demonstrativa de Técnico pela tela pública de cadastro
+- Atualizar estoque, registrar entradas e exportar relatórios CSV
+- Cadastrar equipamentos portáteis, acompanhar empréstimos e registrar devoluções
 
 ## 🏗️ Estrutura
 
 ```
 perfil_adm/
-├── index.tsx              ← Componente principal (React + TypeScript)
-├── tailwind.config.js     ← Configuração Tailwind CSS
-├── tailwind.css           ← Styles globais e layer utilities
-├── README.md              ← Este arquivo
-└── types.ts               ← (Opcional) Tipos compartilhados
+├── index.html
+├── src/
+│   ├── App.tsx
+│   ├── components/
+│   ├── data/
+│   ├── hooks/
+│   ├── lib/
+│   └── pages/
+├── package.json
+└── README.md
 ```
 
 ## 🚀 Como Usar
@@ -79,9 +96,14 @@ Grid de dados usa `md:grid-cols-2` que se adapta automaticamente.
 ### Login → Perfil
 - Após login bem-sucedido, usuário pode acessar seu perfil
 
+### Cadastro → Login
+- A tela `/cadastro` cria uma conta local de Técnico com e-mail institucional, matrícula e senha.
+- O novo usuário também aparece no módulo de usuários; o cadastro preenche o e-mail na tela de login.
+- Contas administrativas continuam sendo solicitadas à coordenação e não podem ser criadas pelo cadastro público.
+
 ### Perfil → Editar Perfil
 - Botão "Editar Perfil" navega para `/editar-perfil`
-- (Tela a ser implementada)
+- Dados editáveis são salvos no navegador.
 
 ### Perfil → Logout
 - Botão "Encerrar Sessão" executa logout
@@ -90,32 +112,16 @@ Grid de dados usa `md:grid-cols-2` que se adapta automaticamente.
 ### Dashboard → Perfil
 - Ícone de usuário/perfil na navegação leva para `/perfil`
 
+### Estoque e empréstimos
+- Cadastros e movimentações atualizam as listas e indicadores depois de salvar.
+- Os dados continuam disponíveis no mesmo navegador após recarregar a página.
+- O botão de exportação baixa CSV compatível com planilhas.
+
 ## 🔌 Integração
 
-### Dados do Usuário (Context/Session)
+### Autenticação e persistência
 
-Atualmente usa dados mock. Para integração real:
-
-```typescript
-// Substituir mockUserProfile com dados reais
-const [profile, setProfile] = useState<UserProfile>(mockUserProfile);
-
-// Com React Context:
-const user = useContext(AuthContext); // Obter dados do usuário logado
-const [profile] = useState<UserProfile>(user.profile);
-```
-
-### Autenticação
-
-```typescript
-const handleLogout = async () => {
-  setIsLoading(true);
-  // TODO: Chamar API de logout
-  // await api.logout();
-  // Limpar sessão/context
-  window.location.href = "/login";
-};
-```
+O login aceita as credenciais de demonstração acima e contas de Técnico criadas pela tela `/cadastro`. Contas e senhas cadastradas, sessão e dados administrativos ficam no armazenamento local do navegador. Essa implementação é apenas demonstrativa: não protege senhas nem verifica a identidade institucional. Para produção, conecte uma API com autenticação real, autorização no servidor e armazenamento centralizado.
 
 ## 📦 Dependências
 
@@ -137,15 +143,15 @@ const handleLogout = async () => {
 
 ## 🔐 Segurança
 
-- ✅ Dados sensíveis do usuário validados antes de exibição
-- ⚠️ TODO: Implementar validação de autenticação
-- ⚠️ TODO: Proteger rotas com autenticação
+- Rotas da interface exigem uma sessão local válida.
+- O login mockado e a proteção no cliente **não** substituem autenticação/autorização no servidor.
+- Não armazene dados pessoais reais neste protótipo.
 
 ## 🎨 Customização
 
-### Adicionar novo campo de dados
+### Adicionar novo campo de perfil
 
-1. Adicionar ao tipo `UserProfile` em `index.tsx`:
+1. Adicione o campo ao tipo `UserProfile` em `src/pages/ProfilePage.tsx` e ao formulário, caso seja editável, em `src/pages/EditProfilePage.tsx`:
    ```typescript
    interface UserProfile {
      // ... campos existentes
@@ -153,7 +159,7 @@ const handleLogout = async () => {
    }
    ```
 
-2. Adicionar grid item na seção "Dados Básicos":
+2. Adicione o campo correspondente na seção "Dados Básicos" de `src/pages/ProfilePage.tsx`.
    ```tsx
    <div className="data-field">
      <p className="data-field-label">NOVO CAMPO</p>
@@ -166,13 +172,11 @@ const handleLogout = async () => {
 
 ### Alterar cores
 
-Edite as cores no `:root` em `tailwind.css` ou customize em `tailwind.config.js`:
+Edite as variáveis de cor em `src/index.css`:
 
-```js
-colors: {
-  brand: {
-    500: "#YourColor", // Substitua com sua cor
-  },
+```css
+:root {
+  --brand: #8b1329;
 }
 ```
 
@@ -190,8 +194,7 @@ colors: {
 - ✅ Grid de dados básicos
 - ✅ Integração com design labMU
 - ✅ Tailwind CSS configurado
-- ⏳ Autenticação integrada (TODO)
-- ⏳ Edição de perfil (TODO)
+- ✅ Sessão demonstrativa, edição de perfil e fluxos administrativos com persistência local
 
 ## 🔗 Referências
 

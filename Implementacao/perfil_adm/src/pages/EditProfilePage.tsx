@@ -1,5 +1,8 @@
 import { useState, FormEvent, ChangeEvent } from "react";
 import { ChevronLeft, Lock, Upload, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { getProfileStorageKey, getSession, saveSession } from "../lib/session";
+import { readJsonFromStorage } from "../lib/storage";
 
 interface FormData {
   name: string;
@@ -20,24 +23,32 @@ const mockUserData = {
   name: "Lucas Andrade",
   email: "lucas.andrade@unicap.br",
   phone: "(81) 98877-6655",
-  avatar: "https://via.placeholder.com/100",
+  avatar: "",
   role: "Administrador de Laboratório",
   location: "LAB • MUSARQ UNICAP",
   enrollment: "00000123456",
 };
 
 export const EditProfilePage = (): JSX.Element => {
-  const [formData, setFormData] = useState<FormData>({
-    name: mockUserData.name,
-    email: mockUserData.email,
-    phone: mockUserData.phone,
-    photoFile: null,
-    photoPreview: mockUserData.avatar,
+  const navigate = useNavigate();
+  const session = getSession();
+  const [formData, setFormData] = useState<FormData>(() => {
+    const profile = session
+      ? readJsonFromStorage<Partial<FormData>>(getProfileStorageKey(session.user.email))
+      : null;
+    return {
+      name: profile?.name ?? session?.user.name ?? mockUserData.name,
+      email: profile?.email ?? session?.user.email ?? mockUserData.email,
+      phone: profile?.phone ?? mockUserData.phone,
+      photoFile: null,
+      photoPreview: profile?.photoPreview ?? mockUserData.avatar,
+    };
   });
 
-  const [originalData] = useState(formData);
+  const [originalData] = useState<FormData>(formData);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -137,13 +148,40 @@ export const EditProfilePage = (): JSX.Element => {
       // Simular API call
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
+      if (session) {
+        const previousKey = getProfileStorageKey(session.user.email);
+        const nextKey = getProfileStorageKey(formData.email);
+        localStorage.setItem(
+          nextKey,
+          JSON.stringify({
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            photoPreview: formData.photoPreview,
+            lastUpdated: new Date().toLocaleString("pt-BR"),
+          }),
+        );
+        if (previousKey !== nextKey) localStorage.removeItem(previousKey);
+        const remembered = Boolean(localStorage.getItem("labmu:session"));
+        saveSession({
+          ...session,
+          user: { ...session.user, name: formData.name.trim(), email: formData.email.trim() },
+        }, remembered);
+        if (remembered) {
+          localStorage.setItem("labmu:remember", JSON.stringify({
+            email: formData.email.trim().toLowerCase(),
+            role: session.user.role,
+          }));
+        }
+      }
+
       setSubmitMessage({
         type: "success",
         text: "Perfil atualizado com sucesso!",
       });
 
       setTimeout(() => {
-        window.location.href = "/perfil";
+        navigate("/perfil");
       }, 2000);
     } catch (error) {
       setSubmitMessage({
@@ -157,13 +195,9 @@ export const EditProfilePage = (): JSX.Element => {
 
   const handleDiscard = () => {
     if (JSON.stringify(formData) !== JSON.stringify(originalData)) {
-      if (confirm("Descartar todas as alterações? Essa ação não pode ser desfeita.")) {
-        setFormData(originalData);
-        setErrors({});
-        window.location.href = "/perfil";
-      }
+      setConfirmDiscard(true);
     } else {
-      window.location.href = "/perfil";
+      navigate("/perfil");
     }
   };
 
@@ -176,12 +210,24 @@ export const EditProfilePage = (): JSX.Element => {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <button
             className="inline-flex items-center gap-2 text-[#8B1329] hover:text-[#6b0f1f] transition-colors font-medium text-sm"
-            onClick={() => window.location.href = "/perfil"}
+            onClick={() => navigate("/perfil")}
           >
             <ChevronLeft className="w-4 h-4" />
             Voltar ao Perfil
           </button>
         </div>
+        {confirmDiscard && (
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="discard-title">
+            <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
+              <h2 id="discard-title" className="text-xl font-bold text-[#8B1329]">Descartar alterações?</h2>
+              <p>As mudanças que você fez não serão salvas.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmDiscard(false)} className="rounded-lg border border-[#efe6e6] px-4 py-2">Continuar editando</button>
+                <button onClick={() => navigate("/perfil")} className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">Descartar</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -261,11 +307,17 @@ export const EditProfilePage = (): JSX.Element => {
           <div className="bg-gradient-to-br from-[#fdeaea] to-white rounded-2xl p-6 mb-8 border border-[#f4c542]/20">
             <div className="flex gap-6 items-start">
               <div className="flex-shrink-0">
-                <img
-                  src={formData.photoPreview}
-                  alt="Avatar"
-                  className="w-24 h-24 rounded-full object-cover border-4 border-[#8B1329]/20"
-                />
+                {formData.photoPreview.startsWith("data:image/") ? (
+                  <img
+                    src={formData.photoPreview}
+                    alt={`Foto de ${formData.name}`}
+                    className="w-24 h-24 rounded-full object-cover border-4 border-[#8B1329]/20"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#8B1329] to-[#d4944f] flex items-center justify-center text-white text-2xl font-bold">
+                    {formData.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1">
