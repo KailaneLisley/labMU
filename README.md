@@ -13,7 +13,7 @@ O **labMU** é o sistema de gestão do Laboratório de Prototipagem do MUSARQ, d
 | Perfil | Autenticação | Descrição das Responsabilidades |
 | :--- | :---: | :--- |
 | **Administrador** | 🔐 Sim (Login/Senha) | Gestão completa de usuários, cadastros gerais, relatórios e auditorias. |
-| **Técnico** | 🔐 Sim (Login) | Registro de manutenções, produções, controle de insumos e gestão de empréstimos. |
+| **Técnico** | 🔐 Sim (Login/Cadastro) | Registro de manutenções, produções, controle de insumos e gestão de empréstimos. |
 | **Cliente** | ❌ Sem acesso | Cadastrado estritamente para vinculação em ordens de produção e empréstimos[cite: 1]. |
 
 ---
