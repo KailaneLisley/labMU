@@ -1,7 +1,9 @@
 import { FormEvent, useState, useEffect } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSession, saveSession as persistSession, UserRole } from "../lib/session";
+import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../lib/accounts";
+import { readJsonFromStorage } from "../lib/storage";
 
 interface MockUser {
   email: string;
@@ -29,6 +31,7 @@ const REMEMBER_KEY = "labmu:remember";
 
 export const LoginPage = (): JSX.Element => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("tecnico");
@@ -87,7 +90,11 @@ export const LoginPage = (): JSX.Element => {
   const authenticate = async (payload: { email: string; password: string; role: string }) => {
     if (CONFIG.USE_MOCK) {
       await sleep(900);
-      const user = MOCK_USERS.find((u) => u.email === payload.email && u.password === payload.password);
+      const user =
+        MOCK_USERS.find((candidate) => candidate.email === payload.email && candidate.password === payload.password) ??
+        (readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [])
+          .filter((account) => account.email === payload.email && account.password === payload.password)
+          .map((account) => ({ ...account, role: "tecnico" as const }))[0];
       if (!user) {
         throw new Error("E-mail ou senha incorretos.");
       }
@@ -154,7 +161,13 @@ export const LoginPage = (): JSX.Element => {
         localStorage.removeItem(REMEMBER_KEY);
       }
     }
-  }, [navigate]);
+    const registeredEmail = (location.state as { registeredEmail?: string } | null)?.registeredEmail;
+    if (registeredEmail) {
+      setEmail(registeredEmail);
+      setAlert({ type: "success", message: "Conta criada com sucesso. Entre com seu e-mail e senha." });
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6] flex flex-col items-center justify-center p-4" style={{
@@ -362,13 +375,16 @@ export const LoginPage = (): JSX.Element => {
         <hr className="my-6 border-0 border-t border-[#efe6e6]" />
 
         {/* First Access Link */}
-        <p className="text-center text-xs text-[#3b3335] flex flex-wrap items-center justify-center gap-1.5">
-          Primeiro acesso como gestor?
-          <a href="mailto:musarq@unicap.br?subject=Solicitar%20acesso%20administrativo%20labMU" className="text-xs font-bold text-[#6b0f1f] inline-flex items-center gap-1 hover:underline">
-            Criar conta de Administrador
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M9 5l7 7-7 7" />
-            </svg>
+        <p className="text-center text-xs text-[#3b3335]">
+          Ainda não tem cadastro?{" "}
+          <Link to="/cadastro" className="font-bold text-[#6b0f1f] hover:underline">
+            Criar conta de Técnico
+          </Link>
+        </p>
+        <p className="mt-3 text-center text-xs text-[#7a6e70]">
+          Precisa de acesso administrativo?{" "}
+          <a href="mailto:musarq@unicap.br?subject=Solicitar%20acesso%20administrativo%20labMU" className="font-semibold text-[#6b0f1f] hover:underline">
+            Fale com a coordenação
           </a>
         </p>
       </div>

@@ -19,6 +19,7 @@ Credenciais para entrar:
 - Prover acesso rápido a edição de perfil
 - Facilitar logout do sistema
 - Cadastrar e administrar usuários e máquinas
+- Criar uma conta demonstrativa de Técnico pela tela pública de cadastro
 - Atualizar estoque, registrar entradas e exportar relatórios CSV
 - Cadastrar equipamentos portáteis, acompanhar empréstimos e registrar devoluções
 
@@ -95,6 +96,11 @@ Grid de dados usa `md:grid-cols-2` que se adapta automaticamente.
 ### Login → Perfil
 - Após login bem-sucedido, usuário pode acessar seu perfil
 
+### Cadastro → Login
+- A tela `/cadastro` cria uma conta local de Técnico com e-mail institucional, matrícula e senha.
+- O novo usuário também aparece no módulo de usuários; o cadastro preenche o e-mail na tela de login.
+- Contas administrativas continuam sendo solicitadas à coordenação e não podem ser criadas pelo cadastro público.
+
 ### Perfil → Editar Perfil
 - Botão "Editar Perfil" navega para `/editar-perfil`
 - Dados editáveis são salvos no navegador.
@@ -115,7 +121,7 @@ Grid de dados usa `md:grid-cols-2` que se adapta automaticamente.
 
 ### Autenticação e persistência
 
-O login usa as credenciais de demonstração acima. A sessão é guardada em `sessionStorage` ou `localStorage`, conforme a opção "Lembrar de mim"; o logout remove ambas. Cadastros e alterações administrativos usam armazenamento local do navegador. Para produção, conecte uma API com autenticação real, autorização no servidor e armazenamento centralizado.
+O login aceita as credenciais de demonstração acima e contas de Técnico criadas pela tela `/cadastro`. Contas e senhas cadastradas, sessão e dados administrativos ficam no armazenamento local do navegador. Essa implementação é apenas demonstrativa: não protege senhas nem verifica a identidade institucional. Para produção, conecte uma API com autenticação real, autorização no servidor e armazenamento centralizado.
 
 ## 📦 Dependências
 
