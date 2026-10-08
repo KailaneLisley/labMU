@@ -37,5 +37,5 @@ O **labMU** é o sistema de gestão do Laboratório de Prototipagem do MUSARQ, d
 - Arthur Amaral
 - Christian Lucas
 - Lucas Mendes
-- Quézia Beatriz
+- Quezia Costa
 - Kailane Lisley
