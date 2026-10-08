@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Copy } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import { usePersistentState } from "../hooks/usePersistentState";
+import { Equipment, initialEquipment, LOANS_STORAGE_KEY } from "../data/loans";
 
 type ConservationState = "novo" | "excelente" | "calibracao";
 
 export const RegisterEquipmentPage = (): JSX.Element => {
   const navigate = useNavigate();
+  const [equipment, setEquipment] = usePersistentState<Equipment[]>(LOANS_STORAGE_KEY, initialEquipment);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -15,6 +18,7 @@ export const RegisterEquipmentPage = (): JSX.Element => {
     conservation: "novo" as ConservationState,
     accessories: "",
   });
+  const [submitError, setSubmitError] = useState("");
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -26,11 +30,27 @@ export const RegisterEquipmentPage = (): JSX.Element => {
   };
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.category || !formData.tag || !formData.location) {
-      alert("Preencha todos os campos obrigatórios");
+    if (!formData.name.trim() || !formData.category || !formData.tag.trim() || !formData.location.trim()) {
+      setSubmitError("Preencha todos os campos obrigatórios.");
       return;
     }
-    alert(`Equipamento registrado: ${formData.name}`);
+    if (equipment.some((item) => item.code.toLowerCase() === formData.tag.trim().toLowerCase())) {
+      setSubmitError("Já existe um equipamento cadastrado com este código.");
+      return;
+    }
+    setSubmitError("");
+    setEquipment((current) => [
+      ...current,
+      {
+        id: `${Date.now()}`,
+        name: formData.name.trim(),
+        code: formData.tag.trim(),
+        responsible: "—",
+        dueDate: "Disponível",
+        status: "disponivel",
+      },
+    ]);
+    navigate("/emprestimo");
   };
 
   return (
@@ -63,6 +83,8 @@ export const RegisterEquipmentPage = (): JSX.Element => {
           </div>
         </div>
 
+        {submitError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{submitError}</p>}
+
         {/* Form */}
         <div className="bg-white rounded-lg shadow p-8 space-y-8">
           {/* Identificação do Equipamento */}
@@ -81,6 +103,7 @@ export const RegisterEquipmentPage = (): JSX.Element => {
                 <input
                   type="text"
                   name="name"
+                  required
                   value={formData.name}
                   onChange={handleInputChange}
                   placeholder="ex: Paquímetro Digital Mitutoyo 150mm"
@@ -99,6 +122,7 @@ export const RegisterEquipmentPage = (): JSX.Element => {
                   </label>
                   <select
                     name="category"
+                    required
                     value={formData.category}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-[#efe6e6] rounded-lg bg-[#f7f0f0] focus:outline-none focus:border-[#8B1329] focus:bg-white"
@@ -119,13 +143,23 @@ export const RegisterEquipmentPage = (): JSX.Element => {
                     <input
                       type="text"
                       name="tag"
+                      required
                       value={formData.tag}
                       onChange={handleInputChange}
                       placeholder="MUSARQ-EQ-3041"
                       className="flex-1 px-4 py-3 border border-[#efe6e6] rounded-lg bg-[#f7f0f0] focus:outline-none focus:border-[#8B1329]"
                     />
-                    <button className="p-3 border border-[#efe6e6] rounded-lg hover:bg-[#f7f0f0]">
-                      <Copy className="w-4 h-4 text-[#7a6e70]" />
+                    <button
+                      type="button"
+                      aria-label="Gerar código do equipamento"
+                      title="Gerar um código de patrimônio"
+                      onClick={() => setFormData((current) => ({
+                        ...current,
+                        tag: `MUSARQ-EQ-${String(Date.now()).slice(-4)}`,
+                      }))}
+                      className="p-3 border border-[#efe6e6] rounded-lg hover:bg-[#f7f0f0]"
+                    >
+                      <Sparkles className="w-4 h-4 text-[#7a6e70]" />
                     </button>
                   </div>
                 </div>
@@ -164,6 +198,7 @@ export const RegisterEquipmentPage = (): JSX.Element => {
                 <input
                   type="text"
                   name="location"
+                  required
                   value={formData.location}
                   onChange={handleInputChange}
                   placeholder="ex: Armário 01 — Maleta A, Gaveta 2, Prateleira C"
@@ -244,12 +279,14 @@ export const RegisterEquipmentPage = (): JSX.Element => {
           {/* Buttons */}
           <div className="flex gap-4 pt-6">
             <button
+              type="button"
               onClick={() => navigate("/emprestimo")}
               className="flex-1 px-6 py-3 border border-[#efe6e6] rounded-lg font-semibold text-[#1f1a1b] hover:bg-[#f7f0f0] transition-colors"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               className="flex-1 px-6 py-3 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors inline-flex items-center justify-center gap-2"
             >

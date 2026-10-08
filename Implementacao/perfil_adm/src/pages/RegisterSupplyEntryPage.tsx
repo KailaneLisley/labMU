@@ -1,34 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ArrowLeft, Copy } from "lucide-react";
-
-interface Supply {
-  id: string;
-  name: string;
-  type: string;
-  color?: string;
-  currentBalance: number;
-  unit: string;
-}
-
-interface RecentEntry {
-  id: string;
-  name: string;
-  quantity: number;
-  date: Date;
-}
-
-const mockSupplies: Supply[] = [
-  { id: "1", name: "PLA Branco Gesso", type: "Filamento FDM", color: "Branco", currentBalance: 3.0, unit: "kg" },
-  { id: "2", name: "Resina SLA 405nm", type: "Resina", color: "Transparente", currentBalance: 1.0, unit: "kg" },
-  { id: "3", name: "Acetona", type: "Solvente", color: "Incolor", currentBalance: 2.5, unit: "kg" },
-  { id: "4", name: "ABS Preto", type: "Filamento FDM", color: "Preto", currentBalance: 0.8, unit: "kg" },
-];
-
-const recentEntries: RecentEntry[] = [
-  { id: "1", name: "PLA Branco Gesso", quantity: 3.0, date: new Date("2024-10-06") },
-  { id: "2", name: "Resina SLA 405nm", quantity: 1.0, date: new Date("2024-10-05") },
-];
+import { Plus, ArrowLeft } from "lucide-react";
+import { usePersistentState } from "../hooks/usePersistentState";
+import { initialSupplies, Supply, SupplyEntry, SUPPLIES_STORAGE_KEY } from "../data/supplies";
 
 const guidelines = [
   "Pesar cada carretel individualmente antes de registrar para descontar a tara plástica (aprox. 200g por carretel padrão).",
@@ -38,29 +12,82 @@ const guidelines = [
 
 export const RegisterSupplyEntryPage = (): JSX.Element => {
   const navigate = useNavigate();
+  const [supplies, setSupplies] = usePersistentState<Supply[]>(SUPPLIES_STORAGE_KEY, initialSupplies);
+  const [recentEntries, setRecentEntries] = usePersistentState<SupplyEntry[]>("labmu:supply-entries", []);
   const [selectedSupplyId, setSelectedSupplyId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [units, setUnits] = useState<string>("");
   const [lot, setLot] = useState<string>("");
   const [observations, setObservations] = useState<string>("");
+  const [showNewSupply, setShowNewSupply] = useState(false);
+  const [newSupplyName, setNewSupplyName] = useState("");
+  const [newSupplyType, setNewSupplyType] = useState("");
+  const [newSupplyColor, setNewSupplyColor] = useState("");
+  const [formError, setFormError] = useState("");
 
-  const selectedSupply = mockSupplies.find((s) => s.id === selectedSupplyId);
+  const selectedSupply = supplies.find((s) => s.id === selectedSupplyId);
 
-  const quantityNum = parseFloat(quantity) || 0;
-  const newBalance = (selectedSupply?.currentBalance || 0) + quantityNum;
-  const isValidBalance = newBalance >= 0;
+  const quantityNum = Number(quantity) || 0;
+  const newBalance = (selectedSupply?.balance || 0) + quantityNum;
+  const isValidBalance = Number.isFinite(quantityNum) && quantityNum > 0;
 
   const quickAddQuantity = (amount: number) => {
     const current = parseFloat(quantity) || 0;
     setQuantity((current + amount).toFixed(1));
   };
 
-  const handleConfirm = () => {
-    if (!selectedSupply || quantityNum === 0) {
-      alert("Selecione um suprimento e adicione uma quantidade");
+  const handleCreateSupply = () => {
+    if (!newSupplyName.trim() || !newSupplyType.trim()) {
+      setFormError("Informe o nome e o tipo do insumo.");
       return;
     }
-    alert(`Entrada confirmada: ${selectedSupply.name} + ${quantityNum}kg\nNovo saldo: ${newBalance.toFixed(1)}kg`);
+    setFormError("");
+    const newSupply: Supply = {
+      id: `${Date.now()}`,
+      name: newSupplyName.trim(),
+      type: newSupplyType.trim(),
+      color: newSupplyColor.trim() || "Não informado",
+      balance: 0,
+      status: "critico",
+    };
+    setSupplies((current) => [...current, newSupply]);
+    setSelectedSupplyId(newSupply.id);
+    setNewSupplyName("");
+    setNewSupplyType("");
+    setNewSupplyColor("");
+    setShowNewSupply(false);
+  };
+
+  const handleConfirm = () => {
+    if (!selectedSupply || !isValidBalance) {
+      setFormError("Selecione um suprimento e informe uma quantidade positiva válida.");
+      return;
+    }
+    setFormError("");
+    setSupplies((current) =>
+      current.map((supply) =>
+        supply.id === selectedSupply.id
+          ? {
+              ...supply,
+              balance: newBalance,
+              status: newBalance < 0.5 ? "critico" : newBalance < 2 ? "abaixo" : "regular",
+            }
+          : supply,
+      ),
+    );
+    setRecentEntries((current) => [
+      {
+        id: `${Date.now()}`,
+        name: selectedSupply.name,
+        quantity: quantityNum,
+        date: new Date().toLocaleDateString("pt-BR"),
+        units: units.trim(),
+        lot: lot.trim(),
+        observations: observations.trim(),
+      },
+      ...current,
+    ]);
+    navigate("/estoque");
   };
 
   return (
@@ -107,18 +134,55 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
                   <label className="text-sm font-semibold text-[#1f1a1b]">
                     Suprimento / Material <span className="text-red-600">*</span>
                   </label>
-                  <button className="inline-flex items-center gap-1 text-xs text-[#8B1329] hover:text-[#6b0f1f] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewSupply((visible) => !visible)}
+                    aria-expanded={showNewSupply}
+                    className="inline-flex items-center gap-1 text-xs text-[#8B1329] hover:text-[#6b0f1f] font-semibold"
+                  >
                     <Plus className="w-4 h-4" />
-                    Cadastrar Novo Insumo
+                    {showNewSupply ? "Cancelar cadastro" : "Cadastrar Novo Insumo"}
                   </button>
                 </div>
+                {showNewSupply && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 p-4 bg-[#fff9f6] border border-[#efe6e6] rounded-lg">
+                    <input
+                      value={newSupplyName}
+                      onChange={(event) => setNewSupplyName(event.target.value)}
+                      placeholder="Nome do insumo"
+                      aria-label="Nome do novo insumo"
+                      className="px-3 py-2 border border-[#efe6e6] rounded-lg bg-white"
+                    />
+                    <input
+                      value={newSupplyType}
+                      onChange={(event) => setNewSupplyType(event.target.value)}
+                      placeholder="Tipo"
+                      aria-label="Tipo do novo insumo"
+                      className="px-3 py-2 border border-[#efe6e6] rounded-lg bg-white"
+                    />
+                    <input
+                      value={newSupplyColor}
+                      onChange={(event) => setNewSupplyColor(event.target.value)}
+                      placeholder="Cor (opcional)"
+                      aria-label="Cor do novo insumo"
+                      className="px-3 py-2 border border-[#efe6e6] rounded-lg bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateSupply}
+                      className="px-3 py-2 bg-[#8B1329] text-white rounded-lg font-semibold"
+                    >
+                      Adicionar à lista
+                    </button>
+                  </div>
+                )}
                 <select
                   value={selectedSupplyId}
                   onChange={(e) => setSelectedSupplyId(e.target.value)}
                   className="w-full px-4 py-3 border border-[#efe6e6] rounded-lg bg-[#f7f0f0] focus:outline-none focus:border-[#8B1329] focus:bg-white"
                 >
                   <option value="">Selecione o insumo cadastrado na oficina...</option>
-                  {mockSupplies.map((supply) => (
+                  {supplies.map((supply) => (
                     <option key={supply.id} value={supply.id}>
                       {supply.name} ({supply.type})
                     </option>
@@ -136,6 +200,7 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
                     <input
                       type="number"
                       step="0.1"
+                      min="0.1"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
                       placeholder="Ex.: 2.0"
@@ -148,6 +213,7 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
                   <div className="flex gap-2 mt-3">
                     {[1.0, 2.0, 5.0].map((amount) => (
                       <button
+                        type="button"
                         key={amount}
                         onClick={() => quickAddQuantity(amount)}
                         className="flex-1 px-3 py-1.5 text-xs font-semibold border border-[#efe6e6] rounded hover:bg-[#fdeaea] transition-colors"
@@ -166,14 +232,12 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
                   <div className="flex gap-2">
                     <input
                       type="number"
+                      min="1"
                       value={units}
                       onChange={(e) => setUnits(e.target.value)}
                       placeholder="Ex.: 2 cartéis de 1kg"
                       className="flex-1 px-4 py-3 border border-[#efe6e6] rounded-lg bg-[#f7f0f0] focus:outline-none focus:border-[#8B1329]"
                     />
-                    <button className="p-3 border border-[#efe6e6] rounded-lg hover:bg-[#f7f0f0]">
-                      <Copy className="w-4 h-4 text-[#7a6e70]" />
-                    </button>
                   </div>
                   <p className="text-xs text-[#7a6e70] mt-2">Identificação física de prateleira.</p>
                 </div>
@@ -222,7 +286,7 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-[#7a6e70]">Saldo Atual:</span>
-                          <span className="font-semibold text-[#1f1a1b]">{selectedSupply.currentBalance.toFixed(1)} kg</span>
+                          <span className="font-semibold text-[#1f1a1b]">{selectedSupply.balance.toFixed(1)} kg</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-[#7a6e70]">Quantidade Adicionar:</span>
@@ -241,13 +305,18 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
               )}
 
               {/* Buttons */}
+              {formError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
               <div className="flex gap-4 pt-6">
-                <button className="flex-1 px-6 py-3 border border-[#efe6e6] rounded-lg font-semibold text-[#1f1a1b] hover:bg-[#f7f0f0] transition-colors">
+                <button
+                  type="button"
+                  onClick={() => navigate("/estoque")}
+                  className="flex-1 px-6 py-3 border border-[#efe6e6] rounded-lg font-semibold text-[#1f1a1b] hover:bg-[#f7f0f0] transition-colors"
+                >
                   Cancelar
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={!selectedSupply || quantityNum === 0}
+                  disabled={!selectedSupply || !isValidBalance}
                   className="flex-1 px-6 py-3 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                 >
                   ✓ Confirmar Entrada no Estoque
@@ -275,14 +344,16 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-[#1f1a1b]">⏰ ÚLTIMAS ENTRADAS</h3>
-                <button className="text-xs text-[#8B1329] hover:text-[#6b0f1f] font-semibold">Hoje</button>
+                <span className="text-xs text-[#7a6e70] font-semibold">RECENTES</span>
               </div>
               <div className="space-y-4">
                 {recentEntries.map((entry) => (
                   <div key={entry.id} className="pb-3 border-b border-[#efe6e6] last:border-0">
                     <p className="font-semibold text-[#1f1a1b] text-sm">{entry.name}</p>
                     <div className="flex justify-between items-center mt-1">
-                      <p className="text-xs text-[#7a6e70]">{entry.quantity}x 1.0kg • Lote #912</p>
+                      <p className="text-xs text-[#7a6e70]">
+                        {entry.date}{entry.units ? ` • ${entry.units} unidade(s)` : ""}{entry.lot ? ` • Lote: ${entry.lot}` : ""}
+                      </p>
                       <span className="text-green-600 font-bold">+{entry.quantity.toFixed(1)} kg</span>
                     </div>
                   </div>

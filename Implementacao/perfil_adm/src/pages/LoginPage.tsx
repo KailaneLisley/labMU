@@ -1,11 +1,12 @@
 import { FormEvent, useState, useEffect } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getSession, saveSession as persistSession, UserRole } from "../lib/session";
 
 interface MockUser {
   email: string;
   password: string;
-  role: "administrador" | "tecnico";
+  role: UserRole;
   name: string;
 }
 
@@ -16,8 +17,6 @@ const MOCK_USERS: MockUser[] = [
 
 const CONFIG = {
   USE_MOCK: true,
-  AUTO_REDIRECT: false,
-  API_URL: "/api/auth/login",
   EMAIL_DOMAIN: "@unicap.br",
   MIN_PASSWORD_LENGTH: 6,
   ROUTES: {
@@ -26,16 +25,13 @@ const CONFIG = {
   },
 };
 
-const STORAGE = {
-  REMEMBER: "labmu:remember",
-  SESSION: "labmu:session",
-};
+const REMEMBER_KEY = "labmu:remember";
 
 export const LoginPage = (): JSX.Element => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"administrador" | "tecnico">("tecnico");
+  const [role, setRole] = useState<UserRole>("tecnico");
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -79,17 +75,11 @@ export const LoginPage = (): JSX.Element => {
     return true;
   };
 
-  // Sessão
-  const saveSession = (data: any, persist: boolean) => {
-    const storage = persist ? localStorage : sessionStorage;
-    storage.setItem(STORAGE.SESSION, JSON.stringify(data));
-  };
-
   const saveRememberedData = (email: string, role: string, remember: boolean) => {
     if (remember) {
-      localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ email, role }));
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email, role }));
     } else {
-      localStorage.removeItem(STORAGE.REMEMBER);
+      localStorage.removeItem(REMEMBER_KEY);
     }
   };
 
@@ -131,7 +121,7 @@ export const LoginPage = (): JSX.Element => {
     setLoading(true);
     try {
       const data = await authenticate(payload);
-      saveSession(data, remember);
+      persistSession(data, remember);
       saveRememberedData(payload.email, payload.role, remember);
 
       setAlert({ type: "success", message: "Login realizado com sucesso! Redirecionando..." });
@@ -149,18 +139,22 @@ export const LoginPage = (): JSX.Element => {
 
   // Restaurar dados salvos
   useEffect(() => {
-    const rawRemember = localStorage.getItem(STORAGE.REMEMBER);
+    if (getSession()) {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+    const rawRemember = localStorage.getItem(REMEMBER_KEY);
     if (rawRemember) {
       try {
         const { email: savedEmail, role: savedRole } = JSON.parse(rawRemember);
         if (savedEmail) setEmail(savedEmail);
-        if (savedRole) setRole(savedRole);
+        if (savedRole === "administrador" || savedRole === "tecnico") setRole(savedRole);
         setRemember(true);
       } catch {
-        localStorage.removeItem(STORAGE.REMEMBER);
+        localStorage.removeItem(REMEMBER_KEY);
       }
     }
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6] flex flex-col items-center justify-center p-4" style={{
@@ -170,7 +164,7 @@ export const LoginPage = (): JSX.Element => {
       `
     }}>
       {/* Card */}
-      <div className="w-full max-w-[430px] bg-white rounded-[20px] shadow-[0_10px_40px_rgba(139,19,41,0.08),0_2px_8px_rgba(0,0,0,0.04)] p-10">
+      <div className="w-full max-w-[430px] bg-white rounded-[20px] shadow-[0_10px_40px_rgba(139,19,41,0.08),0_2px_8px_rgba(0,0,0,0.04)] p-6 sm:p-10">
 
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-7">
@@ -207,7 +201,7 @@ export const LoginPage = (): JSX.Element => {
 
         <form onSubmit={handleSubmit} noValidate>
           {/* Email */}
-          <div className="mb-4.5">
+          <div className="mb-4">
             <label htmlFor="email" className="block text-xs font-semibold text-[#7a6e70] mb-2">
               E-mail Institucional
             </label>
@@ -234,22 +228,24 @@ export const LoginPage = (): JSX.Element => {
                 }}
                 onBlur={() => email && validateEmail(email)}
                 placeholder="tecnico.musarq@unicap.br"
-                className={`w-full h-11 pl-11 pr-4 py-3.875 bg-[#f7f0f0] rounded-[10px] border-1.5 border-transparent outline-none transition-colors font-medium text-sm ${
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                className={`w-full h-11 pl-11 pr-4 py-3 bg-[#f7f0f0] rounded-[10px] border-2 border-transparent outline-none transition-colors font-medium text-sm ${
                   errors.email ? "border-[#c0182f] bg-[#fff7f8]" : "focus:border-[#8B1329] focus:bg-white"
                 }`}
                 required
               />
             </div>
-            {errors.email && <p className="text-xs text-[#c0182f] mt-1.5">{errors.email}</p>}
+            {errors.email && <p id="email-error" className="text-xs text-[#c0182f] mt-1.5">{errors.email}</p>}
           </div>
 
           {/* Password */}
-          <div className="mb-4.5">
+          <div className="mb-4">
             <div className="flex items-baseline justify-between mb-2">
               <label htmlFor="password" className="block text-xs font-semibold text-[#7a6e70]">
                 Chave de Segurança / Senha
               </label>
-              <a href="/recuperar-senha" className="text-xs font-medium text-[#6b0f1f] hover:underline">
+              <a href="mailto:musarq@unicap.br?subject=Recuperar%20acesso%20ao%20labMU" className="text-xs font-medium text-[#6b0f1f] hover:underline">
                 Esqueceu a senha?
               </a>
             </div>
@@ -273,7 +269,9 @@ export const LoginPage = (): JSX.Element => {
                   if (errors.password) validatePassword(e.target.value);
                 }}
                 placeholder="••••••••••••"
-                className={`w-full h-11 pl-11 pr-12 py-3.875 bg-[#f7f0f0] rounded-[10px] border-1.5 border-transparent outline-none transition-colors font-medium text-sm ${
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? "password-error" : undefined}
+                className={`w-full h-11 pl-11 pr-12 py-3 bg-[#f7f0f0] rounded-[10px] border-2 border-transparent outline-none transition-colors font-medium text-sm ${
                   errors.password ? "border-[#c0182f] bg-[#fff7f8]" : "focus:border-[#8B1329] focus:bg-white"
                 }`}
                 required
@@ -281,17 +279,17 @@ export const LoginPage = (): JSX.Element => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 flex items-center justify-center text-[#4a4244] hover:bg-[rgba(139,19,41,0.08)] rounded-lg transition-colors"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[#4a4244] hover:bg-[rgba(139,19,41,0.08)] rounded-lg transition-colors"
                 aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            {errors.password && <p className="text-xs text-[#c0182f] mt-1.5">{errors.password}</p>}
+            {errors.password && <p id="password-error" className="text-xs text-[#c0182f] mt-1.5">{errors.password}</p>}
           </div>
 
           {/* Role Selection */}
-          <fieldset className="mb-4.5">
+          <fieldset className="mb-4">
             <legend className="sr-only">Perfil de acesso</legend>
             <div className="grid grid-cols-2 gap-1 p-1 bg-[#f7f0f0] rounded-[12px]">
               <label className="relative flex items-center justify-center h-9 rounded-[9px] cursor-pointer transition-all hover:bg-[rgba(139,19,41,0.05)]">
@@ -350,7 +348,7 @@ export const LoginPage = (): JSX.Element => {
               className="absolute opacity-0 pointer-events-none"
             />
             <span
-              className={`w-4 h-4 border-1.5 border-[#8B1329] rounded-[3px] flex items-center justify-center transition-colors ${
+              className={`w-4 h-4 border-2 border-[#8B1329] rounded-[3px] flex items-center justify-center transition-colors ${
                 remember ? "bg-[#8B1329]" : "bg-white"
               }`}
             >
@@ -366,7 +364,7 @@ export const LoginPage = (): JSX.Element => {
         {/* First Access Link */}
         <p className="text-center text-xs text-[#3b3335] flex flex-wrap items-center justify-center gap-1.5">
           Primeiro acesso como gestor?
-          <a href="/cadastro" className="text-xs font-bold text-[#6b0f1f] inline-flex items-center gap-1 hover:underline">
+          <a href="mailto:musarq@unicap.br?subject=Solicitar%20acesso%20administrativo%20labMU" className="text-xs font-bold text-[#6b0f1f] inline-flex items-center gap-1 hover:underline">
             Criar conta de Administrador
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
               <path d="M9 5l7 7-7 7" />

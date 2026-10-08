@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Download } from "lucide-react";
-
-interface Supply {
-  id: string;
-  name: string;
-  type: string;
-  color: string;
-  balance: number;
-  status: "regular" | "abaixo" | "critico";
-}
+import { usePersistentState } from "../hooks/usePersistentState";
+import { initialSupplies, Supply, SupplyEntry, SUPPLIES_STORAGE_KEY } from "../data/supplies";
+import { downloadCsv } from "../lib/exportCsv";
 
 interface AcquisitionRecord {
   id: string;
@@ -22,49 +16,6 @@ interface AcquisitionRecord {
   responsible: string;
   department: string;
 }
-
-const mockSupplies: Supply[] = [
-  {
-    id: "1",
-    name: "PLA 1.75mm",
-    type: "Termoplástico",
-    color: "Marfim",
-    balance: 8.5,
-    status: "regular",
-  },
-  {
-    id: "2",
-    name: "PLA 1.75mm",
-    type: "Termoplástico",
-    color: "Cinza Arquitetura",
-    balance: 0.8,
-    status: "abaixo",
-  },
-  {
-    id: "3",
-    name: "PETG 1.75mm",
-    type: "Termoplástico",
-    color: "Translúcido",
-    balance: 5.2,
-    status: "regular",
-  },
-  {
-    id: "4",
-    name: "Resina Standard 405nm",
-    type: "Fotopolímero SLA",
-    color: "Cinza",
-    balance: 9.4,
-    status: "regular",
-  },
-  {
-    id: "5",
-    name: "Resina Bio Clara",
-    type: "Fotopolímero SLA",
-    color: "Incolor",
-    balance: 4.5,
-    status: "regular",
-  },
-];
 
 const mockAcquisitions: AcquisitionRecord[] = [
   {
@@ -127,9 +78,40 @@ const getStatusLabel = (status: Supply["status"]) => {
 export const StockSupplyPage = (): JSX.Element => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [supplies] = usePersistentState<Supply[]>(SUPPLIES_STORAGE_KEY, initialSupplies);
+  const [entries] = usePersistentState<SupplyEntry[]>("labmu:supply-entries", []);
 
-  const totalStock = mockSupplies.reduce((sum, s) => sum + s.balance, 0);
-  const criticalItems = mockSupplies.filter((s) => s.status !== "regular").length;
+  const filteredSupplies = supplies.filter((supply) =>
+    `${supply.name} ${supply.type} ${supply.color}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  );
+  const totalStock = supplies.reduce((sum, s) => sum + s.balance, 0);
+  const criticalItems = supplies.filter((s) => s.status !== "regular").length;
+  const acquisitions = [
+    ...entries.map((entry): AcquisitionRecord => ({
+      id: entry.id,
+      date: entry.date,
+      supplier: entry.lot || "Entrada registrada",
+      nf: "—",
+      material: `${entry.name}${entry.units ? ` (${entry.units} unidade(s))` : ""}`,
+      quantity: entry.quantity,
+      value: "—",
+      responsible: "—",
+      department: entry.observations || "Registro local",
+    })),
+    ...mockAcquisitions,
+  ];
+  const exportStock = () => {
+    downloadCsv("estoque-labmu.csv", [
+      ["Insumo", "Tipo", "Cor", "Saldo (kg)", "Status"],
+      ...supplies.map((supply) => [supply.name, supply.type, supply.color, supply.balance.toFixed(2), getStatusLabel(supply.status)]),
+    ]);
+  };
+  const exportAcquisitions = () => {
+    downloadCsv("entradas-labmu.csv", [
+      ["Data", "Fornecedor", "Nota fiscal", "Material", "Quantidade (kg)", "Valor"],
+      ...acquisitions.map((record) => [record.date, record.supplier, record.nf, record.material, record.quantity, record.value]),
+    ]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
@@ -213,7 +195,13 @@ export const StockSupplyPage = (): JSX.Element => {
         <div className="bg-white rounded-lg shadow p-8 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-[#1f1a1b]">Inventário de Materiais</h2>
-            <span className="text-sm text-[#7a6e70]">{mockSupplies.length} suprimentos ativos</span>
+            <span className="text-sm text-[#7a6e70]">{filteredSupplies.length} de {supplies.length} suprimentos</span>
+          </div>
+          <div className="mb-4 flex justify-end">
+            <button onClick={exportStock} className="inline-flex items-center gap-2 rounded-lg border border-[#efe6e6] px-4 py-2 text-sm font-semibold hover:bg-[#f7f0f0]">
+              <Download className="w-4 h-4" />
+              Exportar inventário CSV
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -227,7 +215,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {mockSupplies.map((supply) => (
+                {filteredSupplies.map((supply) => (
                   <tr key={supply.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-[#1f1a1b]">{supply.name}</p>
@@ -247,6 +235,13 @@ export const StockSupplyPage = (): JSX.Element => {
                     </td>
                   </tr>
                 ))}
+                {filteredSupplies.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-[#7a6e70]">
+                      Nenhum suprimento corresponde à busca.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -264,7 +259,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 Registro rastreável de notas fiscais, pesagens confirmadas e responsáveis técnicos.
               </p>
             </div>
-            <button className="inline-flex items-center gap-2 px-4 py-2 border border-[#efe6e6] rounded-lg font-semibold hover:bg-[#f7f0f0] transition-colors text-sm">
+            <button onClick={exportAcquisitions} className="inline-flex items-center gap-2 px-4 py-2 border border-[#efe6e6] rounded-lg font-semibold hover:bg-[#f7f0f0] transition-colors text-sm">
               <Download className="w-4 h-4" />
               Exportar Relatório CSV
             </button>
@@ -283,7 +278,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {mockAcquisitions.map((record) => (
+                {acquisitions.map((record) => (
                   <tr key={record.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="text-sm font-semibold text-[#1f1a1b]">{record.date}</p>

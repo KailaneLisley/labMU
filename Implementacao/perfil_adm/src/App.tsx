@@ -38,6 +38,7 @@ function App() {
                 <Route path="/estoque/registrar-entrada" element={<RegisterSupplyEntryPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>
           }
