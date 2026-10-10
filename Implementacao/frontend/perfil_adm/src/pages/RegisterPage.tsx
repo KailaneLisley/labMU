@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { initialUsers, User, USERS_STORAGE_KEY } from "../data/users";
 import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../lib/accounts";
 import { readJsonFromStorage } from "../lib/storage";
+import { api } from "../services/api";
 
 interface RegistrationForm {
   name: string;
@@ -36,7 +37,7 @@ export const RegisterPage = (): JSX.Element => {
     setError("");
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmitting) return;
 
@@ -76,6 +77,32 @@ export const RegisterPage = (): JSX.Element => {
 
     setIsSubmitting(true);
     try {
+      // 1. Tenta cadastrar no backend via API
+      try {
+        await api.register({
+          name,
+          email,
+          registration,
+          phone,
+          password: form.password,
+        });
+
+        navigate("/login", {
+          replace: true,
+          state: { registeredEmail: email },
+        });
+        return;
+      } catch (apiErr: any) {
+        if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
+          // Erro retornado pela API do backend (ex: email duplicado, validação)
+          setError(apiErr.message);
+          setIsSubmitting(false);
+          return;
+        }
+        // Se o servidor estiver indisponível, segue para o fallback local
+        console.warn("Backend offline, persistindo cadastro localmente...");
+      }
+
       const users = readJsonFromStorage<User[]>(USERS_STORAGE_KEY) ?? initialUsers;
       const accounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
       const emailExists =

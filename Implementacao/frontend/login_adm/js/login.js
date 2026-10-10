@@ -11,9 +11,9 @@
        para o painel do perfil logado
      ========================================================== */
   const CONFIG = {
-    USE_MOCK: true,
+    USE_MOCK: false,
     AUTO_REDIRECT: false,
-    API_URL: "/api/auth/login",
+    API_URL: "http://localhost:3001/api/auth/login",
     EMAIL_DOMAIN: "@unicap.br",
     MIN_PASSWORD_LENGTH: 6,
     ROUTES: {
@@ -197,9 +197,12 @@
     }
 
     if (!response.ok) {
-      let message = "Não foi possível realizar o login.";
-      if (response.status === 401) message = "E-mail ou senha incorretos.";
-      if (response.status === 403) message = "Seu perfil não tem permissão de acesso.";
+      let data = await response.json().catch(() => null);
+      let message = data?.error?.message || "Não foi possível realizar o login.";
+      if (!data?.error?.message) {
+        if (response.status === 401) message = "E-mail ou senha incorretos.";
+        if (response.status === 403) message = "Seu perfil não tem permissão de acesso.";
+      }
       throw new Error(message);
     }
     return response.json(); // esperado: { token, user: { name, email, role } }
