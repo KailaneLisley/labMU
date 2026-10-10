@@ -39,3 +39,7 @@ O **labMU** é o sistema de gestão do Laboratório de Prototipagem do MUSARQ, d
 - Lucas Mendes
 - Quezia Costa
 - Kailane Lisley
+
+## Próximo passo: backend
+
+O frontend atual é um protótipo e não há serviço ou banco de dados no repositório. Consulte [Requisitos do backend e integração](Documentacao/Backend_Requisitos_e_Integracao.md) para o mapa do frontend, regras de negócio, segurança, modelo de dados proposto, endpoints e sequência de implementação.

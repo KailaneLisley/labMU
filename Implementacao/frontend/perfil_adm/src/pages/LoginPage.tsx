@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSession, saveSession as persistSession, UserRole } from "../lib/session";
 import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../lib/accounts";
 import { readJsonFromStorage } from "../lib/storage";
+import { api } from "../services/api";
 
 interface MockUser {
   email: string;
@@ -88,26 +89,29 @@ export const LoginPage = (): JSX.Element => {
 
   // Autenticação
   const authenticate = async (payload: { email: string; password: string; role: string }) => {
-    if (CONFIG.USE_MOCK) {
-      await sleep(900);
-      const user =
-        MOCK_USERS.find((candidate) => candidate.email === payload.email && candidate.password === payload.password) ??
-        (readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [])
-          .filter((account) => account.email === payload.email && account.password === payload.password)
-          .map((account) => ({ ...account, role: "tecnico" as const }))[0];
-      if (!user) {
-        throw new Error("E-mail ou senha incorretos.");
+    try {
+      const data = await api.login(payload);
+      return data;
+    } catch (apiError) {
+      if (CONFIG.USE_MOCK && (apiError as Error).message.includes("Não foi possível conectar ao servidor")) {
+        await sleep(500);
+        const user =
+          MOCK_USERS.find((candidate) => candidate.email === payload.email && candidate.password === payload.password) ??
+          (readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [])
+            .filter((account) => account.email === payload.email && account.password === payload.password)
+            .map((account) => ({ ...account, role: "tecnico" as const }))[0];
+        if (!user) {
+          throw new Error("E-mail ou senha incorretos.");
+        }
+        if (user.role !== payload.role) {
+          throw new Error(
+            `Este usuário não possui o perfil de ${payload.role === "administrador" ? "Administrador" : "Técnico"}.`
+          );
+        }
+        return { token: "mock-token", user: { name: user.name, email: user.email, role: user.role } };
       }
-      if (user.role !== payload.role) {
-        throw new Error(
-          `Este usuário não possui o perfil de ${payload.role === "administrador" ? "Administrador" : "Técnico"}.`
-        );
-      }
-      return { token: "mock-token", user: { name: user.name, email: user.email, role: user.role } };
+      throw apiError;
     }
-
-    // Real API integration would go here
-    throw new Error("API não disponível em mock mode");
   };
 
   // Submit
@@ -133,7 +137,10 @@ export const LoginPage = (): JSX.Element => {
 
       setAlert({ type: "success", message: "Login realizado com sucesso! Redirecionando..." });
       await sleep(600);
-      navigate(CONFIG.ROUTES[data.user.role] || CONFIG.ROUTES[payload.role as keyof typeof CONFIG.ROUTES]);
+      navigate(
+        CONFIG.ROUTES[data.user.role as keyof typeof CONFIG.ROUTES] ||
+          CONFIG.ROUTES[payload.role as keyof typeof CONFIG.ROUTES]
+      );
     } catch (error) {
       setAlert({
         type: "error",
