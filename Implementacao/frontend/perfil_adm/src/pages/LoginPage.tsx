@@ -385,12 +385,6 @@ export const LoginPage = (): JSX.Element => {
             Criar conta de Técnico
           </Link>
         </p>
-        <p className="mt-3 text-center text-xs text-[#7a6e70]">
-          Precisa de acesso administrativo?{" "}
-          <a href="mailto:musarq@unicap.br?subject=Solicitar%20acesso%20administrativo%20labMU" className="font-semibold text-[#6b0f1f] hover:underline">
-            Fale com a coordenação
-          </a>
-        </p>
       </div>
 
       {/* Footer */}

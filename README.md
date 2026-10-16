@@ -40,6 +40,23 @@ O **labMU** é o sistema de gestão do Laboratório de Prototipagem do MUSARQ, d
 - Quezia Costa
 - Kailane Lisley
 
-## Próximo passo: backend
+## Backend Implementado & Autenticação
 
-O frontend atual é um protótipo e não há serviço ou banco de dados no repositório. Consulte [Requisitos do backend e integração](Documentacao/Backend_Requisitos_e_Integracao.md) para o mapa do frontend, regras de negócio, segurança, modelo de dados proposto, endpoints e sequência de implementação.
+O backend do labMU foi implementado em **Node.js + TypeScript** com banco de dados **SQLite**, transações ACID, autenticação segura via **JWT** e senhas criptografadas com **bcryptjs**.
+
+### Usuários Padrão para Início Rápido:
+- **Administrador Padrão**:
+  - E-mail: `admin.musarq@unicap.br`
+  - Senha: `Admin@123`
+- **Técnico Padrão**:
+  - E-mail: `tecnico.musarq@unicap.br`
+  - Senha: `Tecnico@123`
+
+### Como rodar o backend:
+```bash
+cd Implementacao/backend
+npm install
+npm run dev # Porta 3001
+```
+
+Para mais detalhes da API e endpoints disponíveis, consulte [Implementacao/backend/README.md](Implementacao/backend/README.md).
