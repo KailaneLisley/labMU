@@ -1,7 +1,6 @@
 :root {
   --brand: #8b1329;
   --brand-dark: #6b0f1f;
-  --brand-soft: #fdeaea;
   --bg: #fff9f6;
   --surface: #ffffff;
   --input-bg: #f7f0f0;
@@ -69,8 +68,23 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 28px;
+}
+
+.brand__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand__logo img {
+  height: 40px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  display: block;
 }
 
 .brand__text {

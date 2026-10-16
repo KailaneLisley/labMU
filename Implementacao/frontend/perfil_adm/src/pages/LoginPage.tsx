@@ -188,12 +188,9 @@ export const LoginPage = (): JSX.Element => {
 
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-7">
-          <svg width="40" height="44" viewBox="0 0 40 44" fill="none">
-            <path d="M20 1.5 37 11v22L20 42.5 3 33V11L20 1.5Z" fill="#8B1329" />
-            <path d="M20 6 33 13.4v17.2L20 38 7 30.6V13.4L20 6Z" fill="none" stroke="#B8334A" strokeWidth="1" />
-            <circle cx="20" cy="21" r="6" fill="#F4C542" />
-            <circle cx="20" cy="21" r="2.4" fill="#8B1329" />
-          </svg>
+          <div className="brand__logo flex items-center justify-center flex-shrink-0">
+            <img src="/Logo-unicap.png" alt="logo-unicap" className="h-10 w-auto max-w-[120px] object-contain" />
+          </div>
           <div className="flex flex-col leading-tight">
             <span className="text-xl font-medium text-[#1f1a1b]">
               lab<strong className="text-[#8B1329]">MU</strong>
