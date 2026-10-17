@@ -70,12 +70,16 @@ export class AuthService {
     registration: string;
     phone?: string;
     password: string;
+    securityQuestion?: string;
+    securityAnswer?: string;
   }) {
     const name = data.name?.trim().replace(/\s+/g, " ");
     const email = data.email?.trim().toLowerCase();
     const registration = data.registration?.trim();
     const phone = data.phone?.trim() || "";
     const password = data.password;
+    const securityQuestion = data.securityQuestion?.trim() || "";
+    const securityAnswer = data.securityAnswer?.trim() || "";
 
     if (!name || name.length < 3) {
       throw new AppError("Informe seu nome completo.", 400, "INVALID_NAME");
@@ -101,6 +105,14 @@ export class AuthService {
       );
     }
 
+    if (!securityQuestion || securityQuestion.length < 4) {
+      throw new AppError("Escolha ou defina uma pergunta de segurança.", 400, "INVALID_SECURITY_QUESTION");
+    }
+
+    if (!securityAnswer || securityAnswer.length < 2) {
+      throw new AppError("Informe a resposta para sua pergunta de segurança.", 400, "INVALID_SECURITY_ANSWER");
+    }
+
     const existingEmail = query.get("SELECT id FROM users WHERE email = ?", email);
     if (existingEmail) {
       throw new AppError("Este e-mail já possui um cadastro ativo.", 409, "EMAIL_EXISTS");
@@ -121,14 +133,16 @@ export class AuthService {
       .toUpperCase();
 
     query.run(
-      `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, initials, avatar_color)
-       VALUES (?, ?, ?, 'tecnico', ?, ?, 'ativo', ?, ?, 'bg-orange-200')`,
+      `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, security_question, security_answer, initials, avatar_color)
+       VALUES (?, ?, ?, 'tecnico', ?, ?, 'ativo', ?, ?, ?, ?, 'bg-orange-200')`,
       userId,
       name,
       email,
       registration,
       phone,
       passwordHash,
+      securityQuestion,
+      securityAnswer,
       initials
     );
 
@@ -152,6 +166,135 @@ export class AuthService {
         avatar: "",
         avatarColor: "bg-orange-200",
       },
+    };
+  }
+
+  static verifyForgotEmail(email: string) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new AppError("Informe seu e-mail institucional.", 400, "MISSING_EMAIL");
+    }
+
+    const user = query.get<any>(
+      `SELECT id, name, email, role, status, security_question FROM users WHERE email = ?`,
+      normalizedEmail
+    );
+
+    if (!user) {
+      throw new AppError("E-mail não encontrado no sistema. Verifique os dados digitados.", 404, "USER_NOT_FOUND");
+    }
+
+    // Se for Administrador, recuperação restrita via devs/coordenação
+    if (user.role === "administrador") {
+      throw new AppError(
+        "Contas de Administrador possuem recuperação restrita por motivos de segurança. Para recuperar seu acesso de gestor, entre em contato diretamente com a equipe de desenvolvimento/administração do sistema (musarq@unicap.br).",
+        403,
+        "ADMIN_RECOVERY_RESTRICTED"
+      );
+    }
+
+    if (user.role !== "tecnico") {
+      throw new AppError(
+        "Apenas contas de Técnicos do laboratório podem redefinir senha por pergunta de segurança.",
+        403,
+        "UNAUTHORIZED_ROLE"
+      );
+    }
+
+    if (!user.security_question) {
+      throw new AppError(
+        "Esta conta de Técnico não possui uma pergunta de segurança configurada. Entre em contato com os administradores.",
+        400,
+        "NO_SECURITY_QUESTION"
+      );
+    }
+
+    return {
+      email: user.email,
+      question: user.security_question,
+    };
+  }
+
+  static verifyForgotAnswer(email: string, answer: string) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    const cleanAnswer = answer?.trim();
+
+    if (!normalizedEmail || !cleanAnswer) {
+      throw new AppError("E-mail e resposta são obrigatórios.", 400, "MISSING_FIELDS");
+    }
+
+    const user = query.get<any>(
+      `SELECT id, email, role, security_answer FROM users WHERE email = ?`,
+      normalizedEmail
+    );
+
+    if (!user) {
+      throw new AppError("E-mail não encontrado.", 404, "USER_NOT_FOUND");
+    }
+
+    if (user.role !== "tecnico") {
+      throw new AppError("Ação permitida apenas para contas de Técnico.", 403, "UNAUTHORIZED_ROLE");
+    }
+
+    const dbAnswer = (user.security_answer || "").trim().toLowerCase();
+    if (dbAnswer !== cleanAnswer.toLowerCase()) {
+      throw new AppError("Resposta de segurança incorreta. Tente novamente.", 400, "INCORRECT_ANSWER");
+    }
+
+    const resetToken = jwt.sign(
+      { sub: user.id, email: user.email, purpose: "password_reset" },
+      env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    return {
+      verified: true,
+      resetToken,
+    };
+  }
+
+  static resetPassword(data: { email: string; resetToken: string; newPassword: string }) {
+    const normalizedEmail = data.email?.trim().toLowerCase();
+    const resetToken = data.resetToken;
+    const newPassword = data.newPassword;
+
+    if (!normalizedEmail || !resetToken || !newPassword) {
+      throw new AppError("Todos os campos são obrigatórios.", 400, "MISSING_FIELDS");
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(resetToken, env.JWT_SECRET);
+    } catch {
+      throw new AppError("O link ou sessão de recuperação expirou. Inicie o processo novamente.", 401, "INVALID_TOKEN");
+    }
+
+    if (decoded.purpose !== "password_reset" || decoded.email !== normalizedEmail) {
+      throw new AppError("Token de recuperação inválido para este e-mail.", 401, "INVALID_TOKEN");
+    }
+
+    if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      throw new AppError(
+        "A nova senha deve conter ao menos 8 caracteres, com ao menos uma letra e um número.",
+        400,
+        "WEAK_PASSWORD"
+      );
+    }
+
+    const user = query.get<any>("SELECT id, role FROM users WHERE email = ?", normalizedEmail);
+    if (!user) {
+      throw new AppError("Usuário não encontrado.", 404, "USER_NOT_FOUND");
+    }
+
+    if (user.role !== "tecnico") {
+      throw new AppError("Ação restrita a contas de Técnico.", 403, "UNAUTHORIZED_ROLE");
+    }
+
+    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    query.run("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", passwordHash, user.id);
+
+    return {
+      message: "Senha redefinida com sucesso! Você já pode entrar com sua nova senha.",
     };
   }
 

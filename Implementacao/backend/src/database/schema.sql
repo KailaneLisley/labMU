@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     status TEXT NOT NULL DEFAULT 'ativo' CHECK(status IN ('ativo', 'inativo', 'pendente')),
     password_hash TEXT,
+    security_question TEXT,
+    security_answer TEXT,
     avatar TEXT,
     initials TEXT,
     avatar_color TEXT DEFAULT 'bg-orange-200',

@@ -27,12 +27,12 @@ export function seedDatabase() {
     console.log(`[Seed] Administrador padrão criado: ${env.DEFAULT_ADMIN_EMAIL} (Senha: ${env.DEFAULT_ADMIN_PASSWORD})`);
   }
 
-  const existingTech = query.get("SELECT id FROM users WHERE email = ?", env.DEFAULT_TECH_EMAIL);
+  const existingTech = query.get<any>("SELECT id, security_question FROM users WHERE email = ?", env.DEFAULT_TECH_EMAIL);
   if (!existingTech) {
     const techPasswordHash = bcrypt.hashSync(env.DEFAULT_TECH_PASSWORD, 10);
     query.run(
-      `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, initials, avatar_color)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, security_question, security_answer, initials, avatar_color)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       "usr-tech-musarq",
       "Técnico MUSARQ",
       env.DEFAULT_TECH_EMAIL,
@@ -41,10 +41,19 @@ export function seedDatabase() {
       "(81) 2119-4102 • Ramal 18",
       "ativo",
       techPasswordHash,
+      "Qual o nome do seu primeiro animal de estimação?",
+      "Rex",
       "TM",
       "bg-orange-200"
     );
     console.log(`[Seed] Técnico padrão criado: ${env.DEFAULT_TECH_EMAIL} (Senha: ${env.DEFAULT_TECH_PASSWORD})`);
+  } else if (!existingTech.security_question) {
+    query.run(
+      `UPDATE users SET security_question = ?, security_answer = ? WHERE id = ?`,
+      "Qual o nome do seu primeiro animal de estimação?",
+      "Rex",
+      existingTech.id
+    );
   }
 
   // Usuários de referência para produção e empréstimos (Alunos/Professores)

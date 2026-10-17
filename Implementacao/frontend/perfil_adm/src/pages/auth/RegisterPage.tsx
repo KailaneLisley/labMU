@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, User as UserIcon } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, HelpCircle, KeyRound, Mail, Phone, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { initialUsers, User, USERS_STORAGE_KEY } from "../../data/users";
 import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../../lib/accounts";
@@ -13,6 +13,9 @@ interface RegistrationForm {
   phone: string;
   password: string;
   confirmPassword: string;
+  securityQuestion: string;
+  customSecurityQuestion: string;
+  securityAnswer: string;
 }
 
 const DEMO_EMAILS = ["admin.musarq@unicap.br", "tecnico.musarq@unicap.br"];
@@ -26,6 +29,9 @@ export const RegisterPage = (): JSX.Element => {
     phone: "",
     password: "",
     confirmPassword: "",
+    securityQuestion: "",
+    customSecurityQuestion: "",
+    securityAnswer: "",
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,6 +81,21 @@ export const RegisterPage = (): JSX.Element => {
       return;
     }
 
+    const finalSecurityQuestion =
+      form.securityQuestion === "custom"
+        ? form.customSecurityQuestion.trim()
+        : form.securityQuestion.trim();
+    const cleanSecurityAnswer = form.securityAnswer.trim();
+
+    if (!finalSecurityQuestion || finalSecurityQuestion.length < 4) {
+      setError("Selecione ou informe uma pergunta de segurança válida.");
+      return;
+    }
+    if (!cleanSecurityAnswer || cleanSecurityAnswer.length < 2) {
+      setError("Informe a resposta para a sua pergunta de segurança (mínimo 2 caracteres).");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Tenta cadastrar no backend via API
@@ -85,6 +106,8 @@ export const RegisterPage = (): JSX.Element => {
           registration,
           phone,
           password: form.password,
+          securityQuestion: finalSecurityQuestion,
+          securityAnswer: cleanSecurityAnswer,
         });
 
         navigate("/login", {
@@ -137,7 +160,14 @@ export const RegisterPage = (): JSX.Element => {
         initials,
         avatarColor: "bg-[#fdeaea]",
       };
-      const newAccount: RegisteredAccount = { email, password: form.password, name };
+      const newAccount: RegisteredAccount = {
+        email,
+        password: form.password,
+        name,
+        role: "tecnico",
+        securityQuestion: finalSecurityQuestion,
+        securityAnswer: cleanSecurityAnswer,
+      };
       const previousUsers = localStorage.getItem(USERS_STORAGE_KEY);
       const previousAccounts = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
 
@@ -318,6 +348,70 @@ export const RegisterPage = (): JSX.Element => {
               </button>
             </span>
           </label>
+
+          <div className="pt-3 border-t border-[#f0e7e7]">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#8B1329] mb-1">
+              <HelpCircle className="h-4 w-4" />
+              Pergunta Secreta de Segurança
+            </div>
+            <p className="text-xs text-[#7a6e70] mb-3 leading-relaxed">
+              Defina uma pergunta e resposta que só você sabe. Ela será utilizada exclusivamente para você redefinir sua senha caso venha a esquecê-la.
+            </p>
+
+            <label className="block text-xs font-semibold text-[#7a6e70]" htmlFor="register-security-question">
+              Pergunta de Segurança
+              <span className="relative mt-2 block">
+                <HelpCircle className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#4a4244]" />
+                <select
+                  id="register-security-question"
+                  value={form.securityQuestion}
+                  onChange={(event) => updateField("securityQuestion", event.target.value)}
+                  className="w-full rounded-[10px] border-2 border-transparent bg-[#f7f0f0] py-3 pl-11 pr-4 text-sm font-medium text-[#1f1a1b] outline-none transition-colors focus:border-[#8B1329] focus:bg-white"
+                  required
+                >
+                  <option value="">Selecione uma pergunta de segurança...</option>
+                  <option value="Qual o nome do seu primeiro animal de estimação?">Qual o nome do seu primeiro animal de estimação?</option>
+                  <option value="Qual o nome da sua escola de ensino fundamental?">Qual o nome da sua escola de ensino fundamental?</option>
+                  <option value="Em qual cidade seus pais se conheceram?">Em qual cidade seus pais se conheceram?</option>
+                  <option value="Qual foi o seu primeiro emprego ou estágio?">Qual foi o seu primeiro emprego ou estágio?</option>
+                  <option value="Qual o nome do seu livro ou filme favorito?">Qual o nome do seu livro ou filme favorito?</option>
+                  <option value="custom">Outra pergunta (digitar minha própria pergunta)...</option>
+                </select>
+              </span>
+            </label>
+
+            {form.securityQuestion === "custom" && (
+              <label className="block text-xs font-semibold text-[#7a6e70] mt-3" htmlFor="register-custom-question">
+                Sua Pergunta Personalizada
+                <input
+                  id="register-custom-question"
+                  type="text"
+                  value={form.customSecurityQuestion}
+                  onChange={(event) => updateField("customSecurityQuestion", event.target.value)}
+                  placeholder="Ex: Qual era o apelido do meu avô materno?"
+                  className={`${inputClass} mt-2`}
+                  required
+                />
+              </label>
+            )}
+
+            <label className="block text-xs font-semibold text-[#7a6e70] mt-3" htmlFor="register-security-answer">
+              Resposta Secreta
+              <span className="relative mt-2 block">
+                <ShieldCheck className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#4a4244]" />
+                <input
+                  id="register-security-answer"
+                  type="text"
+                  autoComplete="off"
+                  value={form.securityAnswer}
+                  onChange={(event) => updateField("securityAnswer", event.target.value)}
+                  placeholder="Digite a resposta secreta"
+                  className={inputClass}
+                  required
+                />
+              </span>
+            </label>
+          </div>
 
           <div className="rounded-[10px] border border-[#efe6e6] bg-[#fff9f6] p-3 text-xs leading-relaxed text-[#7a6e70]">
             O cadastro demonstrativo cria uma conta de Técnico e a inclui na lista de usuários.

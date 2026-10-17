@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from './components/layout'
-import { LoginPage, RegisterPage } from './pages/auth'
+import { LoginPage, RegisterPage, ForgotPasswordPage } from './pages/auth'
 import { DashboardPage } from './pages/dashboard'
 import { UserManagementPage } from './pages/users'
 import { MaintenanceManagementPage } from './pages/maintenance'
@@ -14,9 +14,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login Route (sem Layout) */}
+        {/* Auth Routes (sem Layout) */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/cadastro" element={<RegisterPage />} />
+        <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
+        <Route path="/forgot-password" element={<Navigate to="/recuperar-senha" replace />} />
 
         {/* Protected Routes (com Layout) */}
         <Route

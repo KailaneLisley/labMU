@@ -51,8 +51,34 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  register: (payload: { name: string; email: string; registration: string; phone?: string; password: string }) =>
+  register: (payload: {
+    name: string;
+    email: string;
+    registration: string;
+    phone?: string;
+    password: string;
+    securityQuestion?: string;
+    securityAnswer?: string;
+  }) =>
     request<{ token: string; user: any }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  verifyForgotEmail: (email: string) =>
+    request<{ email: string; question: string }>("/auth/forgot-password/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyForgotAnswer: (email: string, answer: string) =>
+    request<{ verified: boolean; resetToken: string }>("/auth/forgot-password/verify-answer", {
+      method: "POST",
+      body: JSON.stringify({ email, answer }),
+    }),
+
+  resetPassword: (payload: { email: string; resetToken: string; newPassword: string }) =>
+    request<{ message: string }>("/auth/forgot-password/reset", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

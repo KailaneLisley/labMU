@@ -262,9 +262,9 @@ export const LoginPage = (): JSX.Element => {
               <label htmlFor="password" className="block text-xs font-semibold text-[#7a6e70]">
                 Chave de Segurança / Senha
               </label>
-              <a href="mailto:musarq@unicap.br?subject=Recuperar%20acesso%20ao%20labMU" className="text-xs font-medium text-[#6b0f1f] hover:underline">
+              <Link to="/recuperar-senha" className="text-xs font-medium text-[#6b0f1f] hover:underline">
                 Esqueceu a senha?
-              </a>
+              </Link>
             </div>
             <div className="relative">
               <svg
