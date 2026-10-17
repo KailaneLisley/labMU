@@ -116,6 +116,8 @@ test("POST /api/auth/register cria novo Técnico e permite login imediato", asyn
       registration: uniqueReg,
       phone: "(81) 99887-1122",
       password: "SenhaForte@123",
+      securityQuestion: "Qual o nome do seu animal de estimação?",
+      securityAnswer: "Totó",
     },
   });
 
@@ -137,6 +139,64 @@ test("POST /api/auth/register cria novo Técnico e permite login imediato", asyn
   assert.equal(loginRes.status, 200);
   assert.ok(loginRes.data.token);
   assert.equal(loginRes.data.user.name, "Técnico de Testes Automatizados");
+});
+
+test("Fluxo de Recuperação de Senha: Admin tem recuperação restrita e Técnico recupera por pergunta de segurança", async () => {
+  // 1. Tentar recuperar senha com e-mail de Administrador deve falhar com 403 e aviso para falar com devs
+  const adminForgot = await makeRequest("/api/auth/forgot-password/verify-email", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL },
+  });
+  assert.equal(adminForgot.status, 403);
+  assert.equal(adminForgot.data.error.code, "ADMIN_RECOVERY_RESTRICTED");
+
+  // 2. Verificar e-mail com Técnico Padrão retorna a pergunta cadastrada
+  const techForgot = await makeRequest("/api/auth/forgot-password/verify-email", {
+    method: "POST",
+    body: { email: env.DEFAULT_TECH_EMAIL },
+  });
+  assert.equal(techForgot.status, 200);
+  assert.equal(techForgot.data.email, env.DEFAULT_TECH_EMAIL);
+  assert.ok(techForgot.data.question.includes("primeiro animal de estimação"));
+
+  // 3. Resposta incorreta falha
+  const wrongAnswer = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email: env.DEFAULT_TECH_EMAIL, answer: "RespostaErrada" },
+  });
+  assert.equal(wrongAnswer.status, 400);
+  assert.equal(wrongAnswer.data.error.code, "INCORRECT_ANSWER");
+
+  // 4. Resposta correta (case-insensitive) gera resetToken
+  const rightAnswer = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email: env.DEFAULT_TECH_EMAIL, answer: "rex" },
+  });
+  assert.equal(rightAnswer.status, 200);
+  assert.ok(rightAnswer.data.resetToken);
+
+  // 5. Redefinir senha com token válido
+  const resetRes = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: {
+      email: env.DEFAULT_TECH_EMAIL,
+      resetToken: rightAnswer.data.resetToken,
+      newPassword: "NovaSenha@2026",
+    },
+  });
+  assert.equal(resetRes.status, 200);
+
+  // 6. Login com a nova senha tem sucesso
+  const newLogin = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: {
+      email: env.DEFAULT_TECH_EMAIL,
+      password: "NovaSenha@2026",
+      role: "tecnico",
+    },
+  });
+  assert.equal(newLogin.status, 200);
+  assert.ok(newLogin.data.token);
 });
 
 test("Operações de Estoque, Empréstimo e Dashboard", async () => {

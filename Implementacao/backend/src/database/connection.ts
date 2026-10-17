@@ -28,6 +28,14 @@ if (fs.existsSync(schemaPath)) {
   db.exec(schemaSql);
 }
 
+// Automatic migrations for existing databases
+try {
+  db.exec("ALTER TABLE users ADD COLUMN security_question TEXT;");
+} catch {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN security_answer TEXT;");
+} catch {}
+
 let transactionDepth = 0;
 
 export const query = {

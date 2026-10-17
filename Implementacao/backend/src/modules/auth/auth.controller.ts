@@ -35,6 +35,36 @@ export class AuthController {
     }
   };
 
+  static verifyForgotEmail = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const { email } = req.body;
+      const result = AuthService.verifyForgotEmail(email);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  static verifyForgotAnswer = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const { email, answer } = req.body;
+      const result = AuthService.verifyForgotAnswer(email, answer);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  static resetPassword = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const { email, resetToken, newPassword } = req.body;
+      const result = AuthService.resetPassword({ email, resetToken, newPassword });
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   static logout = (_req: Request, res: Response): void => {
     res.status(200).json({ message: "Logout realizado com sucesso." });
   };
