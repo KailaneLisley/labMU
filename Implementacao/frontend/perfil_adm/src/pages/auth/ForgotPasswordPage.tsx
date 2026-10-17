@@ -453,3 +453,4 @@ export const ForgotPasswordPage = (): JSX.Element => {
 };
 
 export default ForgotPasswordPage;
+
