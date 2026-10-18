@@ -287,3 +287,59 @@ test("Operações de Estoque, Empréstimo e Dashboard", async () => {
   assert.ok(dashRes.data.users.total >= 1);
 });
 
+
+test("Status de empréstimo é calculado pelo prazo (fuso de Recife)", async () => {
+  const loginRes = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: env.DEFAULT_ADMIN_PASSWORD, role: "administrador" },
+  });
+  assert.equal(loginRes.status, 200);
+  const authHeaders = { Authorization: `Bearer ${loginRes.data.token}` };
+
+  // Data de hoje no fuso de Recife (AAAA-MM-DD)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Recife" }).format(new Date());
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+  async function checkout(dueDate: string) {
+    const eq = await makeRequest("/api/equipment", {
+      method: "POST",
+      headers: authHeaders,
+      body: { name: "Equipamento de Prazo", code: `PRAZO-${Date.now()}-${Math.random()}`, category: "Teste" },
+    });
+    assert.equal(eq.status, 201);
+    const loan = await makeRequest("/api/loans", {
+      method: "POST",
+      headers: authHeaders,
+      body: { equipmentId: eq.data.item.id, responsibleName: "Prazo Teste", dueDate },
+    });
+    assert.equal(loan.status, 201);
+    return { equipmentId: eq.data.item.id, loanId: loan.data.loan.id };
+  }
+
+  const overdue = await checkout(yesterday);
+  const dueToday = await checkout(today);
+  const future = await checkout(tomorrow);
+
+  // Status exibido é o efetivo, mesmo com o registro gravado como 'em_campo'
+  const overdueRes = await makeRequest(`/api/loans/${overdue.loanId}`, { headers: authHeaders });
+  assert.equal(overdueRes.data.loan.status, "atrasado");
+  const todayRes = await makeRequest(`/api/loans/${dueToday.loanId}`, { headers: authHeaders });
+  assert.equal(todayRes.data.loan.status, "devolucao_hoje");
+  const futureRes = await makeRequest(`/api/loans/${future.loanId}`, { headers: authHeaders });
+  assert.equal(futureRes.data.loan.status, "em_campo");
+
+  // Filtro por status usa o status efetivo
+  const filtered = await makeRequest("/api/loans?status=atrasado", { headers: authHeaders });
+  const overdueIds = filtered.data.loans.map((l: any) => l.id);
+  assert.ok(overdueIds.includes(overdue.loanId));
+  assert.ok(!overdueIds.includes(future.loanId));
+
+  // Equipamento com empréstimo atrasado aparece como 'atrasado'
+  const equipList = await makeRequest(`/api/equipment/${overdue.equipmentId}`, { headers: authHeaders });
+  assert.equal(equipList.data.item.status, "atrasado");
+
+  // Devolução encerra o empréstimo independentemente do prazo
+  const ret = await makeRequest(`/api/loans/${overdue.loanId}/return`, { method: "POST", headers: authHeaders });
+  assert.equal(ret.data.loan.status, "devolvido");
+});

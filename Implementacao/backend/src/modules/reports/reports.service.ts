@@ -1,4 +1,5 @@
 import { query } from "../../database/connection.js";
+import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
 
 export class ReportsService {
   // 1. Relatório de Produção Geral e Detalhado
@@ -123,7 +124,7 @@ export class ReportsService {
   // 4. Relatório Mensal de Empréstimos
   static getLoansReport(filters: { from?: string; to?: string }) {
     let sql = `
-      SELECT l.id, l.equipment_id, l.responsible_name, l.checkout_date, l.due_date, l.return_date, l.status,
+      SELECT l.id, l.equipment_id, l.responsible_name, l.checkout_date, l.due_date, l.return_date, ${effectiveLoanStatusSql("l")} AS status,
              pe.name as equipment_name, pe.code as equipment_code, pe.category as equipment_category
       FROM loans l
       JOIN portable_equipment pe ON pe.id = l.equipment_id

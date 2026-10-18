@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "./loanStatus.js";
 
 export class LoansService {
   static listLoans(filters: { status?: string; equipmentId?: string; from?: string; to?: string }) {
+    const status = effectiveLoanStatusSql("l");
     let sql = `
-      SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, l.status, l.notes, l.created_at,
+      SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, ${status} AS status, l.notes, l.created_at,
              pe.name as equipment_name, pe.code as equipment_code, pe.category as equipment_category,
              u.name as operator_name
       FROM loans l
@@ -16,7 +18,7 @@ export class LoansService {
     const params: any[] = [];
 
     if (filters.status && filters.status !== "all") {
-      sql += ` AND l.status = ?`;
+      sql += ` AND ${status} = ?`;
       params.push(filters.status);
     }
 
@@ -43,7 +45,7 @@ export class LoansService {
   static getLoanById(id: string) {
     const l = query.get<any>(
       `
-      SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, l.status, l.notes, l.created_at,
+      SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, ${effectiveLoanStatusSql("l")} AS status, l.notes, l.created_at,
              pe.name as equipment_name, pe.code as equipment_code, pe.category as equipment_category,
              u.name as operator_name
       FROM loans l
@@ -82,7 +84,7 @@ export class LoansService {
 
       // 2. Verifica se já está emprestado
       const activeLoan = query.get<any>(
-        "SELECT id FROM loans WHERE equipment_id = ? AND status IN ('em_campo', 'atrasado', 'devolucao_hoje')",
+        `SELECT id FROM loans l WHERE l.equipment_id = ? AND ${ACTIVE_LOAN_SQL("l")}`,
         data.equipmentId
       );
       if (activeLoan) {
@@ -95,15 +97,9 @@ export class LoansService {
 
       const id = `loan-${crypto.randomUUID()}`;
 
-      // Determina status inicial com base no vencimento
-      const now = new Date();
-      const due = new Date(data.dueDate);
-      let status = "em_campo";
-      if (due < now) {
-        status = "atrasado";
-      } else if (due.toDateString() === now.toDateString()) {
-        status = "devolucao_hoje";
-      }
+      // O status gravado indica apenas que o empréstimo está em aberto.
+      // O status exibido ('atrasado', 'devolucao_hoje') é calculado na consulta.
+      const status = "em_campo";
 
       query.run(
         `INSERT INTO loans (id, equipment_id, responsible_name, responsible_id, due_date, status, notes, operator_id)
@@ -120,8 +116,7 @@ export class LoansService {
 
       // Atualiza status do equipamento portátil
       query.run(
-        `UPDATE portable_equipment SET status = ?, updated_at = datetime('now') WHERE id = ?`,
-        status,
+        `UPDATE portable_equipment SET status = 'em_campo', updated_at = datetime('now') WHERE id = ?`,
         data.equipmentId
       );
 
