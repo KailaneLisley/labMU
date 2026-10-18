@@ -1,4 +1,5 @@
 import { query } from "../../database/connection.js";
+import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
 
 export class DashboardService {
   static getSummary() {
@@ -26,10 +27,10 @@ export class DashboardService {
     const loansStats = query.get<any>(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END) as active,
-        SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END) as overdue,
-        SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END) as returned
-      FROM loans
+        SUM(CASE WHEN ${effectiveLoanStatusSql("l")} IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN ${effectiveLoanStatusSql("l")} = 'atrasado' THEN 1 ELSE 0 END) as overdue,
+        SUM(CASE WHEN ${effectiveLoanStatusSql("l")} = 'devolvido' THEN 1 ELSE 0 END) as returned
+      FROM loans l
     `) || { total: 0, active: 0, overdue: 0, returned: 0 };
 
     // 4. Suprimentos em nível crítico ou baixo

@@ -1,14 +1,18 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "../loans/loanStatus.js";
+
+// Status do equipamento: o do empréstimo ativo (calculado na consulta) ou o gravado
+const EQUIPMENT_STATUS_SQL = `(CASE WHEN l.id IS NOT NULL THEN ${effectiveLoanStatusSql("l")} ELSE pe.status END)`;
 
 export class EquipmentService {
   static listEquipment(filters: { q?: string; status?: string; category?: string }) {
     let sql = `
-      SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, pe.status,
+      SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, ${EQUIPMENT_STATUS_SQL} AS status,
              l.responsible_name as current_responsible, l.due_date as current_due_date, l.id as current_loan_id
       FROM portable_equipment pe
-      LEFT JOIN loans l ON l.equipment_id = pe.id AND l.status IN ('em_campo', 'atrasado', 'devolucao_hoje')
+      LEFT JOIN loans l ON l.equipment_id = pe.id AND ${ACTIVE_LOAN_SQL("l")}
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -20,7 +24,7 @@ export class EquipmentService {
     }
 
     if (filters.status && filters.status !== "all") {
-      sql += ` AND pe.status = ?`;
+      sql += ` AND ${EQUIPMENT_STATUS_SQL} = ?`;
       params.push(filters.status);
     }
 
@@ -51,10 +55,10 @@ export class EquipmentService {
   static getEquipmentById(id: string) {
     const r = query.get<any>(
       `
-      SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, pe.status,
+      SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, ${EQUIPMENT_STATUS_SQL} AS status,
              l.responsible_name as current_responsible, l.due_date as current_due_date, l.id as current_loan_id
       FROM portable_equipment pe
-      LEFT JOIN loans l ON l.equipment_id = pe.id AND l.status IN ('em_campo', 'atrasado', 'devolucao_hoje')
+      LEFT JOIN loans l ON l.equipment_id = pe.id AND ${ACTIVE_LOAN_SQL("l")}
       WHERE pe.id = ?
     `,
       id
