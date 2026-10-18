@@ -343,3 +343,52 @@ test("Status de empréstimo é calculado pelo prazo (fuso de Recife)", async () 
   const ret = await makeRequest(`/api/loans/${overdue.loanId}/return`, { method: "POST", headers: authHeaders });
   assert.equal(ret.data.loan.status, "devolvido");
 });
+
+test("Produção: valida consumo e duração negativos e exige insumo quando há consumo", async () => {
+  const loginRes = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: env.DEFAULT_ADMIN_PASSWORD, role: "administrador" },
+  });
+  assert.equal(loginRes.status, 200);
+  const authHeaders = { Authorization: `Bearer ${loginRes.data.token}` };
+
+  const machinesRes = await makeRequest("/api/machines", { headers: authHeaders });
+  const machineId = machinesRes.data.machines[0].id;
+
+  const supplyRes = await makeRequest("/api/supplies", { headers: authHeaders });
+  const supply = supplyRes.data.supplies[0];
+  const balanceBefore = supply.balance;
+
+  const base = { type: "impressao_3d", description: "Teste de validação", machineId };
+
+  // Consumo negativo é recusado
+  const negative = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, supplyId: supply.id, supplyConsumed: -2.5 },
+  });
+  assert.equal(negative.status, 400);
+  assert.equal(negative.data.error.code, "INVALID_CONSUMPTION");
+
+  // Duração negativa é recusada
+  const negDuration = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, durationMinutes: -10 },
+  });
+  assert.equal(negDuration.status, 400);
+  assert.equal(negDuration.data.error.code, "INVALID_DURATION");
+
+  // Consumo sem insumo informado é recusado e não é gravado
+  const noSupply = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, supplyConsumed: 1.5 },
+  });
+  assert.equal(noSupply.status, 400);
+  assert.equal(noSupply.data.error.code, "SUPPLY_REQUIRED");
+
+  // Nenhuma das recusas alterou o estoque
+  const supplyAfter = await makeRequest(`/api/supplies/${supply.id}`, { headers: authHeaders });
+  assert.equal(supplyAfter.data.supply.balance, balanceBefore);
+});
