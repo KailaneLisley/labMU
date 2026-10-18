@@ -392,3 +392,86 @@ test("Produção: valida consumo e duração negativos e exige insumo quando há
   const supplyAfter = await makeRequest(`/api/supplies/${supply.id}`, { headers: authHeaders });
   assert.equal(supplyAfter.data.supply.balance, balanceBefore);
 });
+
+test("Ajuste manual de estoque: administrador ajusta com motivo e técnico é bloqueado", async () => {
+  const adminLogin = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: env.DEFAULT_ADMIN_PASSWORD, role: "administrador" },
+  });
+  assert.equal(adminLogin.status, 200);
+  const adminHeaders = { Authorization: `Bearer ${adminLogin.data.token}` };
+
+  // Cria um técnico próprio para o teste de permissão
+  const techEmail = `ajuste.tecnico.${Date.now()}@unicap.br`;
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Ajuste",
+      email: techEmail,
+      registration: `AJ-${Date.now()}`,
+      phone: "(81) 99000-0000",
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome do seu animal de estimação?",
+      securityAnswer: "Totó",
+    },
+  });
+  assert.equal(reg.status, 201);
+  const techLogin = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: techEmail, password: "SenhaForte@123", role: "tecnico" },
+  });
+  assert.equal(techLogin.status, 200);
+  const techHeaders = { Authorization: `Bearer ${techLogin.data.token}` };
+
+  // Insumo com saldo conhecido
+  const entry = await makeRequest("/api/stock/entries", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Insumo Ajuste ${Date.now()}`, color: "Teste", type: "Termoplástico", quantity: 2, lot: "AJ-1" },
+  });
+  assert.equal(entry.status, 201);
+  const supplyId = entry.data.supply.id;
+  const before = entry.data.supply.balance;
+
+  const adjustBody = { supplyId, quantity: -0.5, reason: "Perda por falha de impressão" };
+
+  // Técnico não pode ajustar
+  const forbidden = await makeRequest("/api/stock/adjustments", { method: "POST", headers: techHeaders, body: adjustBody });
+  assert.equal(forbidden.status, 403);
+
+  // Valor zero é recusado
+  const zero = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: 0, reason: "Teste" },
+  });
+  assert.equal(zero.status, 400);
+
+  // Motivo é obrigatório
+  const noReason = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: -0.5, reason: "  " },
+  });
+  assert.equal(noReason.status, 400);
+
+  // Saldo não pode ficar negativo
+  const tooMuch = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: -999, reason: "Teste" },
+  });
+  assert.equal(tooMuch.status, 400);
+  assert.equal(tooMuch.data.error.code, "INSUFFICIENT_STOCK");
+
+  // Ajuste válido debita o saldo e registra movimento do tipo 'ajuste'
+  const ok = await makeRequest("/api/stock/adjustments", { method: "POST", headers: adminHeaders, body: adjustBody });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.data.supply.balance, Number((before - 0.5).toFixed(3)));
+
+  const movements = await makeRequest(`/api/stock/movements?supplyId=${supplyId}`, { headers: adminHeaders });
+  const adj = movements.data.movements.find((m: any) => m.id === ok.data.movementId);
+  assert.ok(adj, "movimento de ajuste deve existir");
+  assert.equal(adj.type, "ajuste");
+  assert.equal(adj.quantity, -0.5);
+});
