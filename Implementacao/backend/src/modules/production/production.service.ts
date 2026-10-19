@@ -105,16 +105,24 @@ export class ProductionService {
       throw new AppError("Técnico responsável não encontrado.", 404, "USER_NOT_FOUND");
     }
 
-    const consumed = Number(data.supplyConsumed) || 0;
+    const consumed = data.supplyConsumed == null ? 0 : Number(data.supplyConsumed);
+    if (!Number.isFinite(consumed) || consumed < 0) {
+      throw new AppError("O consumo de insumo deve ser um número maior ou igual a zero.", 400, "INVALID_CONSUMPTION");
+    }
 
-    // Regra de validação: Scanner permite consumo zero
-    if (data.type === "escaneamento" && consumed > 0) {
-      // permitido caso use papel/adesivo, mas normal é 0
+    const duration = data.durationMinutes == null ? 0 : Number(data.durationMinutes);
+    if (!Number.isFinite(duration) || duration < 0) {
+      throw new AppError("A duração deve ser um número maior ou igual a zero.", 400, "INVALID_DURATION");
+    }
+
+    // Todo consumo precisa informar de qual insumo saiu, para que o estoque seja debitado
+    if (consumed > 0 && !data.supplyId) {
+      throw new AppError("Informe o insumo utilizado sempre que houver consumo.", 400, "SUPPLY_REQUIRED");
     }
 
     return query.transaction(() => {
-      // Se houver consumo de suprimento e status for 'concluida', debita do estoque
-      if (consumed > 0 && data.supplyId) {
+      // Consumo de insumo debita do estoque
+      if (consumed > 0) {
         const supply = query.get<any>("SELECT id, name, balance, minimum_balance FROM supplies WHERE id = ?", data.supplyId);
         if (!supply) {
           throw new AppError("Insumo selecionado não encontrado.", 404, "SUPPLY_NOT_FOUND");
@@ -167,7 +175,7 @@ export class ProductionService {
         data.clientName || "",
         data.supplyId || null,
         consumed,
-        data.durationMinutes || 0,
+        duration,
         data.status || "concluida",
         data.observations || ""
       );

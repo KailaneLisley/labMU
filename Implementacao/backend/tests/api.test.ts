@@ -343,3 +343,135 @@ test("Status de empréstimo é calculado pelo prazo (fuso de Recife)", async () 
   const ret = await makeRequest(`/api/loans/${overdue.loanId}/return`, { method: "POST", headers: authHeaders });
   assert.equal(ret.data.loan.status, "devolvido");
 });
+
+test("Produção: valida consumo e duração negativos e exige insumo quando há consumo", async () => {
+  const loginRes = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: env.DEFAULT_ADMIN_PASSWORD, role: "administrador" },
+  });
+  assert.equal(loginRes.status, 200);
+  const authHeaders = { Authorization: `Bearer ${loginRes.data.token}` };
+
+  const machinesRes = await makeRequest("/api/machines", { headers: authHeaders });
+  const machineId = machinesRes.data.machines[0].id;
+
+  const supplyRes = await makeRequest("/api/supplies", { headers: authHeaders });
+  const supply = supplyRes.data.supplies[0];
+  const balanceBefore = supply.balance;
+
+  const base = { type: "impressao_3d", description: "Teste de validação", machineId };
+
+  // Consumo negativo é recusado
+  const negative = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, supplyId: supply.id, supplyConsumed: -2.5 },
+  });
+  assert.equal(negative.status, 400);
+  assert.equal(negative.data.error.code, "INVALID_CONSUMPTION");
+
+  // Duração negativa é recusada
+  const negDuration = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, durationMinutes: -10 },
+  });
+  assert.equal(negDuration.status, 400);
+  assert.equal(negDuration.data.error.code, "INVALID_DURATION");
+
+  // Consumo sem insumo informado é recusado e não é gravado
+  const noSupply = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: authHeaders,
+    body: { ...base, supplyConsumed: 1.5 },
+  });
+  assert.equal(noSupply.status, 400);
+  assert.equal(noSupply.data.error.code, "SUPPLY_REQUIRED");
+
+  // Nenhuma das recusas alterou o estoque
+  const supplyAfter = await makeRequest(`/api/supplies/${supply.id}`, { headers: authHeaders });
+  assert.equal(supplyAfter.data.supply.balance, balanceBefore);
+});
+
+test("Ajuste manual de estoque: administrador ajusta com motivo e técnico é bloqueado", async () => {
+  const adminLogin = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: env.DEFAULT_ADMIN_PASSWORD, role: "administrador" },
+  });
+  assert.equal(adminLogin.status, 200);
+  const adminHeaders = { Authorization: `Bearer ${adminLogin.data.token}` };
+
+  // Cria um técnico próprio para o teste de permissão
+  const techEmail = `ajuste.tecnico.${Date.now()}@unicap.br`;
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Ajuste",
+      email: techEmail,
+      registration: `AJ-${Date.now()}`,
+      phone: "(81) 99000-0000",
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome do seu animal de estimação?",
+      securityAnswer: "Totó",
+    },
+  });
+  assert.equal(reg.status, 201);
+  const techLogin = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: techEmail, password: "SenhaForte@123", role: "tecnico" },
+  });
+  assert.equal(techLogin.status, 200);
+  const techHeaders = { Authorization: `Bearer ${techLogin.data.token}` };
+
+  // Insumo com saldo conhecido
+  const entry = await makeRequest("/api/stock/entries", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Insumo Ajuste ${Date.now()}`, color: "Teste", type: "Termoplástico", quantity: 2, lot: "AJ-1" },
+  });
+  assert.equal(entry.status, 201);
+  const supplyId = entry.data.supply.id;
+  const before = entry.data.supply.balance;
+
+  const adjustBody = { supplyId, quantity: -0.5, reason: "Perda por falha de impressão" };
+
+  // Técnico não pode ajustar
+  const forbidden = await makeRequest("/api/stock/adjustments", { method: "POST", headers: techHeaders, body: adjustBody });
+  assert.equal(forbidden.status, 403);
+
+  // Valor zero é recusado
+  const zero = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: 0, reason: "Teste" },
+  });
+  assert.equal(zero.status, 400);
+
+  // Motivo é obrigatório
+  const noReason = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: -0.5, reason: "  " },
+  });
+  assert.equal(noReason.status, 400);
+
+  // Saldo não pode ficar negativo
+  const tooMuch = await makeRequest("/api/stock/adjustments", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { supplyId, quantity: -999, reason: "Teste" },
+  });
+  assert.equal(tooMuch.status, 400);
+  assert.equal(tooMuch.data.error.code, "INSUFFICIENT_STOCK");
+
+  // Ajuste válido debita o saldo e registra movimento do tipo 'ajuste'
+  const ok = await makeRequest("/api/stock/adjustments", { method: "POST", headers: adminHeaders, body: adjustBody });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.data.supply.balance, Number((before - 0.5).toFixed(3)));
+
+  const movements = await makeRequest(`/api/stock/movements?supplyId=${supplyId}`, { headers: adminHeaders });
+  const adj = movements.data.movements.find((m: any) => m.id === ok.data.movementId);
+  assert.ok(adj, "movimento de ajuste deve existir");
+  assert.equal(adj.type, "ajuste");
+  assert.equal(adj.quantity, -0.5);
+});

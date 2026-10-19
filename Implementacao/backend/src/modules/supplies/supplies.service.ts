@@ -161,6 +161,64 @@ export class SuppliesService {
     });
   }
 
+  // Ajuste manual de saldo (inventário ou correção de perdas). quantity é um delta em kg: positivo soma, negativo subtrai.
+  static adjustStock(data: {
+    supplyId: string;
+    quantity: number;
+    reason: string;
+    userId?: string;
+  }) {
+    const qty = Number(data.quantity);
+    if (!Number.isFinite(qty) || qty === 0) {
+      throw new AppError("O ajuste deve ser um valor diferente de zero, em kg (positivo ou negativo).", 400, "INVALID_ADJUSTMENT");
+    }
+
+    const reason = (data.reason || "").trim();
+    if (!reason) {
+      throw new AppError("Informe o motivo do ajuste de estoque.", 400, "ADJUSTMENT_REASON_REQUIRED");
+    }
+
+    return query.transaction(() => {
+      const supply = this.getSupplyById(data.supplyId);
+      const newBalance = Number((supply.balance + qty).toFixed(3));
+
+      if (newBalance < 0) {
+        throw new AppError(
+          `O ajuste deixaria o saldo negativo. Saldo atual: ${supply.balance} kg; Ajuste: ${qty} kg.`,
+          400,
+          "INSUFFICIENT_STOCK"
+        );
+      }
+
+      let newStatus = "regular";
+      if (newBalance <= supply.minimum_balance * 0.5) newStatus = "critico";
+      else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
+
+      query.run(
+        `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+        newBalance,
+        newStatus,
+        data.supplyId
+      );
+
+      const movementId = crypto.randomUUID();
+      query.run(
+        `INSERT INTO stock_movements (id, supply_id, type, quantity, observations, created_by)
+         VALUES (?, ?, 'ajuste', ?, ?, ?)`,
+        movementId,
+        data.supplyId,
+        qty,
+        reason,
+        data.userId || null
+      );
+
+      return {
+        supply: this.getSupplyById(data.supplyId),
+        movementId,
+      };
+    });
+  }
+
   static listMovements(filters: { supplyId?: string; from?: string; to?: string }) {
     let sql = `
       SELECT sm.id, sm.supply_id, sm.type, sm.quantity, sm.unit, sm.lot, sm.observations, sm.reference_id, sm.created_at,

@@ -47,6 +47,21 @@ export class SuppliesController {
     }
   };
 
+  static adjust = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      const { supplyId, quantity, reason } = req.body;
+      const result = SuppliesService.adjustStock({
+        supplyId,
+        quantity,
+        reason,
+        userId: req.user?.id,
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   static listMovements = (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       const { supplyId, from, to } = req.query;

@@ -15,3 +15,6 @@ suppliesRouter.get("/:id", SuppliesController.getById);
 suppliesRouter.post("/", requireRole("administrador", "tecnico"), SuppliesController.create);
 suppliesRouter.post("/entries", requireRole("administrador", "tecnico"), SuppliesController.registerEntry);
 
+// Ajuste manual de saldo (inventário e perdas), restrito a administradores
+suppliesRouter.post("/adjustments", requireRole("administrador"), SuppliesController.adjust);
+
