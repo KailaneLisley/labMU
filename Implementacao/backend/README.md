@@ -4,7 +4,7 @@ API RESTful completa desenvolvida para a gestão operacional do Laboratório de 
 
 ---
 
-## 👤 Credenciais Padrão Pré-carregadas
+##  Credenciais Padrão Pré-carregadas
 
 Ao inicializar pela primeira vez, o sistema executa o *seed* automático do banco de dados criando as seguintes contas para testes e operação:
 
@@ -15,7 +15,7 @@ Ao inicializar pela primeira vez, o sistema executa o *seed* automático do banc
 
 ---
 
-## 🚀 Como Executar
+## Como Executar
 
 ### 1. Pré-requisitos
 - **Node.js v22.5.0 ou superior** *(necessário para o módulo experimental nativo `node:sqlite`)*.
@@ -53,7 +53,7 @@ npm start
 
 ---
 
-## 🛡️ Regras de Negócio e Segurança
+##  Regras de Negócio e Segurança
 
 1. **Restrição de Cadastro de Administrador:** Não existe rota pública para criar administradores. Contas gestoras devem ser inseridas previamente no banco de dados.
 2. **Recuperação de Senha Segura:**
@@ -64,7 +64,7 @@ npm start
 
 ---
 
-## 📡 Catálogo Completo de Endpoints
+##  Catálogo Completo de Endpoints
 
 ### 1. Autenticação & Recuperação de Senha
 | Método | Endpoint | Descrição | Acesso |
@@ -137,7 +137,7 @@ npm start
 
 ---
 
-## 📂 Estrutura de Código
+##  Estrutura de Código
 
 Para entender como o código-fonte está estruturado internamente (controladores, serviços, banco de dados e middlewares), consulte:  
 👉 **[`src/README.md`](src/README.md)**
