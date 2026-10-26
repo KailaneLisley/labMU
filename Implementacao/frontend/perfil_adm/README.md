@@ -1,207 +1,87 @@
-# labMU — Gestão do Laboratório
+# 💻 labMU — SPA Oficial de Gestão (`perfil_adm`)
 
-## 📋 Descrição
+Aplicação web **Single Page Application (SPA)** oficial para operação e gestão do Laboratório de Prototipagem do MUSARQ. Desenvolvida em **React 18**, **TypeScript**, **Vite** e **Tailwind CSS**.
 
-Aplicação administrativa do laboratório labMU, com dashboard, usuários, máquinas, manutenção, estoque, empréstimos, relatórios e perfil.
+---
 
-> **Modo de demonstração:** a autenticação e os dados são simulados no navegador. As alterações ficam no `localStorage` do dispositivo e não são sincronizadas entre usuários ou navegadores. Não use este modo para proteger ou armazenar dados reais.
+## 🎯 Visão Geral e Características
 
-Credenciais para entrar:
+- **Roteamento Dinâmico:** Organizado com **React Router v6** com layout compartilhado (sidebar de navegação, cabeçalho e perfil de usuário).
+- **Modo Híbrido Resiliente:**
+  - **Online:** Comunica-se com a API REST (`http://localhost:3001/api`) enviando tokens JWT no cabeçalho `Authorization`.
+  - **Offline/Demonstração:** Caso a API backend esteja inacessível, a aplicação opera automaticamente com `localStorage`, permitindo testes visuais sem quebras.
+- **Segurança de Acesso:**
+  - Login integrado para Administradores e Técnicos.
+  - Cadastro público restrito a Técnicos institucionais (`@unicap.br`) com definição de **Pergunta Secreta de Segurança**.
+  - Recuperação de senha autônoma para Técnicos em 3 etapas com bloqueio de administradores.
 
-| Perfil | E-mail | Senha |
-|---|---|---|
-| Administrador | `admin.musarq@unicap.br` | `Admin@123` |
-| Técnico | `tecnico.musarq@unicap.br` | `Tecnico@123` |
+---
 
-## 🎯 Funcionalidades
+## 🗺️ Mapa de Rotas do Sistema
 
-- Exibir informações do usuário logado (nome, email, cargo, localização)
-- Prover acesso rápido a edição de perfil
-- Facilitar logout do sistema
-- Cadastrar e administrar usuários e máquinas
-- Criar uma conta demonstrativa de Técnico pela tela pública de cadastro
-- Atualizar estoque, registrar entradas e exportar relatórios CSV
-- Cadastrar equipamentos portáteis, acompanhar empréstimos e registrar devoluções
+| Rota | Componente | Layout | Descrição |
+| :--- | :--- | :---: | :--- |
+| `/login` | `LoginPage` | Não | Autenticação com e-mail institucional e senha |
+| `/cadastro` | `RegisterPage` | Não | Cadastro público de Técnicos com Pergunta Secreta |
+| `/recuperar-senha` | `ForgotPasswordPage` | Não | Fluxo em 3 etapas de recuperação de senha |
+| `/dashboard` | `DashboardPage` | Sim | Visão geral em tempo real com métricas e contadores |
+| `/usuarios` | `UserManagementPage` | Sim | Gestão e filtros de Administradores, Técnicos e Clientes |
+| `/maquinas` | `MachinesPage` | Sim | Parque de impressoras 3D e scanners fixos |
+| `/manutencao` | `MaintenanceManagementPage` | Sim | Controle de manutenções preventivas e corretivas |
+| `/estoque` | `StockSupplyPage` | Sim | Consulta de matéria-prima (filamentos e resinas) em kg |
+| `/estoque/registrar-entrada` | `RegisterSupplyEntryPage` | Sim | Formulário de entrada de lote de suprimentos em kg |
+| `/emprestimo` | `LoanEquipmentPage` | Sim | Controle de retiradas e devoluções de equipamentos portáteis |
+| `/emprestimo/registrar` | `RegisterEquipmentPage` | Sim | Cadastro de novos itens no inventário de portáteis |
+| `/relatorios` | `ReportsPage` | Sim | Relatórios analíticos, gráficos e exportação de CSVs |
+| `/perfil` | `ProfilePage` | Sim | Visualização de dados do usuário autenticado |
+| `/editar-perfil` | `EditProfilePage` | Sim | Edição de nome, telefone e preferências do usuário |
 
-## 🏗️ Estrutura
+---
 
-```
-perfil_adm/
-├── index.html
-├── src/
-│   ├── App.tsx
-│   ├── components/
-│   ├── data/
-│   ├── hooks/
-│   ├── lib/
-│   └── pages/
-├── package.json
-└── README.md
-```
+## 🔐 Fluxos de Autenticação e Segurança
 
-## 🚀 Como Usar
+### 1. Cadastro de Técnico (`/cadastro`)
+- Campos: Nome completo, E-mail institucional (`@unicap.br`), Matrícula, Telefone (opcional) e Senha forte (mínimo 8 caracteres com letras e números).
+- **Seção Obrigatória:** Pergunta Secreta de Segurança (opções pré-definidas ou personalizada) + Resposta Secreta.
+- Cria conta diretamente na API do backend e adiciona à sessão.
 
-### Instalação
+### 2. Recuperação de Senha (`/recuperar-senha`)
+- **Etapa 1:** O usuário digita o e-mail institucional.
+  - Se for **Administrador**: O sistema bloqueia a recuperação automática e instrui o contato direto com a administração (`musarq@unicap.br`).
+  - Se for **Técnico**: O sistema busca e exibe a pergunta secreta cadastrada pelo usuário.
+- **Etapa 2:** O usuário informa a resposta secreta (*case-insensitive* e com espaços aparados). Se correta, o backend emite um token de redefinição.
+- **Etapa 3:** O usuário cadastra e confirma a nova senha.
 
+---
+
+## 🚀 Como Executar
+
+### 1. Instalação
 ```bash
+cd Implementacao/frontend/perfil_adm
 npm install
-# ou
-yarn install
 ```
 
-### Desenvolvimento
-
+### 2. Execução em Modo de Desenvolvimento
 ```bash
 npm run dev
-# ou
-yarn dev
+```
+Acesse no navegador: `http://localhost:5173`.
+
+### 3. Verificação de Tipos TypeScript
+```bash
+npm run type-check
 ```
 
-### Build
-
+### 4. Build de Produção
 ```bash
 npm run build
-# ou
-yarn build
+npm run preview # Visualizar build de produção localmente
 ```
 
-## 🎨 Paleta de Cores
+---
 
-A paleta segue o design system labMU:
+## 📂 Estrutura de Código
 
-| Variável | Cor | Uso |
-|----------|-----|-----|
-| `--brand` | #8B1329 | Cor primária (vermelha) |
-| `--brand-dark` | #6b0f1f | Hover e variações |
-| `--brand-soft` | #fdeaea | Fundos suaves |
-| `--bg` | #fff9f6 | Fundo de página |
-| `--surface` | #ffffff | Branco para cards |
-| `--input-bg` | #f7f0f0 | Fundo de inputs/campos |
-| `--text` | #1f1a1b | Texto principal |
-| `--muted` | #7a6e70 | Texto secundário |
-| `--error` | #c0182f | Erros e alertas |
-| `--success` | #1b7a43 | Sucessos |
-
-## 📱 Responsividade
-
-A tela é responsiva e funciona bem em:
-- ✅ Desktop (1200px+)
-- ✅ Tablet (768px - 1199px)
-- ✅ Mobile (320px - 767px)
-
-Grid de dados usa `md:grid-cols-2` que se adapta automaticamente.
-
-## 🔄 Fluxos Integrados
-
-### Login → Perfil
-- Após login bem-sucedido, usuário pode acessar seu perfil
-
-### Cadastro → Login
-- A tela `/cadastro` cria uma conta local de Técnico com e-mail institucional, matrícula e senha.
-- O novo usuário também aparece no módulo de usuários; o cadastro preenche o e-mail na tela de login.
-- Contas administrativas continuam sendo solicitadas à coordenação e não podem ser criadas pelo cadastro público.
-
-### Perfil → Editar Perfil
-- Botão "Editar Perfil" navega para `/editar-perfil`
-- Dados editáveis são salvos no navegador.
-
-### Perfil → Logout
-- Botão "Encerrar Sessão" executa logout
-- Redireciona para `/login`
-
-### Dashboard → Perfil
-- Ícone de usuário/perfil na navegação leva para `/perfil`
-
-### Estoque e empréstimos
-- Cadastros e movimentações atualizam as listas e indicadores depois de salvar.
-- Os dados continuam disponíveis no mesmo navegador após recarregar a página.
-- O botão de exportação baixa CSV compatível com planilhas.
-
-## 🔌 Integração
-
-### Autenticação e persistência
-
-O login aceita as credenciais de demonstração acima e contas de Técnico criadas pela tela `/cadastro`. Contas e senhas cadastradas, sessão e dados administrativos ficam no armazenamento local do navegador. Essa implementação é apenas demonstrativa: não protege senhas nem verifica a identidade institucional. Para produção, conecte uma API com autenticação real, autorização no servidor e armazenamento centralizado.
-
-## 📦 Dependências
-
-- **react**: ^18.2.0
-- **react-dom**: ^18.2.0
-- **lucide-react**: ^0.263.0 (Ícones)
-- **tailwindcss**: ^3.3.0
-- **typescript**: ^5.0.0
-
-## 🧪 Testes Recomendados
-
-- [ ] Exibição correta de dados do usuário
-- [ ] Responsividade em diferentes tamanhos de tela
-- [ ] Navegação para Dashboard (voltar)
-- [ ] Navegação para Editar Perfil
-- [ ] Logout funcional
-- [ ] Acessibilidade (ARIA labels, contrast)
-- [ ] Performance (load time, rendering)
-
-## 🔐 Segurança
-
-- Rotas da interface exigem uma sessão local válida.
-- O login mockado e a proteção no cliente **não** substituem autenticação/autorização no servidor.
-- Não armazene dados pessoais reais neste protótipo.
-
-## 🎨 Customização
-
-### Adicionar novo campo de perfil
-
-1. Adicione o campo ao tipo `UserProfile` em `src/pages/ProfilePage.tsx` e ao formulário, caso seja editável, em `src/pages/EditProfilePage.tsx`:
-   ```typescript
-   interface UserProfile {
-     // ... campos existentes
-     newField: string;
-   }
-   ```
-
-2. Adicione o campo correspondente na seção "Dados Básicos" de `src/pages/ProfilePage.tsx`.
-   ```tsx
-   <div className="data-field">
-     <p className="data-field-label">NOVO CAMPO</p>
-     <div className="data-field-value">
-       <svg className="data-field-icon">...</svg>
-       <p className="font-semibold text-[#1f1a1b]">{profile.newField}</p>
-     </div>
-   </div>
-   ```
-
-### Alterar cores
-
-Edite as variáveis de cor em `src/index.css`:
-
-```css
-:root {
-  --brand: #8b1329;
-}
-```
-
-## 🤝 Contribuições
-
-- Siga o padrão de código usado em `cadastro_adm/`
-- Use TypeScript para type safety
-- Mantenha componentes simples e reutilizáveis
-- Documente mudanças significativas
-
-## 📝 Changelog
-
-### v1.0.0 (2026-10-05)
-- ✅ Componente inicial de perfil
-- ✅ Grid de dados básicos
-- ✅ Integração com design labMU
-- ✅ Tailwind CSS configurado
-- ✅ Sessão demonstrativa, edição de perfil e fluxos administrativos com persistência local
-
-## 🔗 Referências
-
-- [Documentação do Projeto](../../Documentacao/Projetos/Sprints/FrontEnd_Prototipo_Figma.md)
-- [Design System labMU](../../Documentacao/Projetos/Sprints/00._Cérebro_do_Projeto.md)
-- [Issue #59 - Revisão de Telas](https://github.com/seu-repo/issues/59)
-
-## 📧 Contato
-
-Para dúvidas sobre esta tela, entre em contato com a equipe de front-end ou abra uma issue no repositório.
+Para entender a organização dos componentes React, páginas, hooks e serviços de API, consulte:  
+👉 **[`src/README.md`](src/README.md)**
