@@ -6,6 +6,7 @@ interface QuickAction {
   label: string;
   icon: string;
   path: string;
+  isSvg?: boolean;
 }
 
 interface Production {
@@ -29,11 +30,11 @@ interface Alert {
 }
 
 const quickActions: QuickAction[] = [
-  { id: "1", label: "Novo Cliente", icon: "👤", path: "/usuarios" },
-  { id: "2", label: "Novo Técnico", icon: "👥", path: "/usuarios" },
-  { id: "3", label: "Cadastrar Máquina", icon: "⚙️", path: "/maquinas" },
-  { id: "4", label: "Novo Suprimento", icon: "📦", path: "/estoque/registrar-entrada" },
-  { id: "5", label: "Exportar Relatório", icon: "📥", path: "/relatorios" },
+  { id: "1", label: "Novo Cliente", icon: "/user.svg", path: "/usuarios", isSvg: true },
+  { id: "2", label: "Novo Técnico", icon: "/users.svg", path: "/usuarios", isSvg: true },
+  { id: "3", label: "Cadastrar Máquina", icon: "/maquinas.svg", path: "/maquinas", isSvg: true },
+  { id: "4", label: "Novo Suprimento", icon: "/caixa.svg", path: "/estoque/registrar-entrada", isSvg: true },
+  { id: "5", label: "Exportar Relatório", icon: "/exportar.svg", path: "/relatorios", isSvg: true },
 ];
 
 const kpis = [
@@ -42,28 +43,32 @@ const kpis = [
     value: "48",
     unit: "ativos",
     details: ["12 Técnicos", "36 Clientes"],
-    icon: "👥",
+    icon: "/users.svg",
+    isSvg: true,
   },
   {
     title: "MÁQUINAS OPERANTES",
     value: "6/8",
     unit: "ativas",
     details: ["2 em manutenção preventiva"],
-    icon: "⚙️",
+    icon: "/maquinas.svg",
+    isSvg: true,
   },
   {
     title: "EMPRÉSTIMOS ATIVOS",
     value: "9",
     unit: "equipamentos em campo",
     details: ["1 devolução prevista para hoje"],
-    icon: "📦",
+    icon: "/caixa.svg",
+    isSvg: true,
   },
   {
     title: "FILAMENTO DISPONÍVEL",
     value: "14.5",
     unit: "kg",
     details: ["Estoque total de insumos labMU"],
-    icon: "📊",
+    icon: "/grafico.svg",
+    isSvg: true,
   },
 ];
 
@@ -202,7 +207,17 @@ export const DashboardPage = (): JSX.Element => {
               onClick={() => navigate(action.path)}
               className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow flex flex-col items-center text-center gap-3"
             >
-              <div className="text-4xl">{action.icon}</div>
+              <div className="text-4xl">
+                {action.isSvg ? (
+                  <img
+                    src={action.icon}
+                    alt=""
+                    className="h-10 w-10 object-contain"
+                  />
+                ) : (
+                  action.icon
+                )}
+              </div>
               <p className="text-sm font-semibold text-[#1f1a1b]">{action.label}</p>
             </button>
           ))}
@@ -215,7 +230,11 @@ export const DashboardPage = (): JSX.Element => {
           {kpis.map((kpi, idx) => (
             <div key={idx} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-2xl">{kpi.icon}</span>
+                <img
+                  src={kpi.icon}
+                  alt=""
+                  className="w-8 h-8 object-contain"
+                />
                 <p className="text-xs font-semibold text-[#7a6e70] uppercase text-right">{kpi.title}</p>
               </div>
               <div className="mb-3">
@@ -250,7 +269,11 @@ export const DashboardPage = (): JSX.Element => {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">📋</span>
+                  <img
+                    src="/lista.svg"
+                    alt="Usuários"
+                    className="h-5 w-5 object-contain"
+                  />
                   <div>
                     <h3 className="font-bold text-[#1f1a1b]">Últimas Produções Registradas</h3>
                     <p className="text-xs text-[#7a6e70]">Atividades de usinagem, corte e impressão no parque</p>
@@ -262,7 +285,13 @@ export const DashboardPage = (): JSX.Element => {
               <div className="space-y-4">
                 {productions.map((prod, idx) => (
                   <div key={prod.id} className={`pb-4 border-b border-[#efe6e6] last:border-0 ${idx === 0 ? "flex items-start gap-3" : ""}`}>
-                    {idx === 0 && <span className="text-2xl flex-shrink-0">🖨️</span>}
+                    {idx === 0 && (
+                                  <img
+                                    src="/calendario.svg"
+                                    alt="Calendário"
+                                    className="h-7 w-7 flex-shrink-0 object-contain"
+                                  />
+                                )}
                     <div className="flex-1">
                       <p className="font-semibold text-[#1f1a1b]">{prod.name}</p>
                       <p className="text-xs text-[#7a6e70] mt-1">
@@ -291,7 +320,11 @@ export const DashboardPage = (): JSX.Element => {
                 <div className="flex items-center gap-2">
                   <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded">3 Pendências</span>
                 </div>
-                <span className="text-lg">⚠️</span>
+                <img
+                    src="/perigo.svg"
+                    alt="Usuários"
+                    className="h-5 w-5 object-contain"
+                  />
               </div>
 
               <h3 className="font-bold text-[#1f1a1b] mb-4 flex items-center gap-2">
