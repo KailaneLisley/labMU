@@ -1,10 +1,10 @@
-# 💻 Camada de Implementação — labMU
+# Camada de Implementação — labMU
 
 Este diretório reúne todo o código-fonte executável do sistema **labMU**, organizado de forma desacoplada entre servidor (API REST) e cliente (aplicação web).
 
 ---
 
-## 📂 Estrutura de Pastas
+##  Estrutura de Pastas
 
 ```
 Implementacao/
@@ -18,7 +18,7 @@ Implementacao/
 
 ---
 
-## 🔄 Comunicação Frontend ↔ Backend
+##  Comunicação Frontend ↔ Backend
 
 - **Protocolo:** HTTP/1.1 RESTful com payloads formatados em `application/json`.
 - **Autenticação:** Baseada em tokens stateless **JWT (JSON Web Token)** transmitidos pelo cabeçalho:
@@ -30,7 +30,7 @@ Implementacao/
 
 ---
 
-## 🚀 Como Executar o Sistema Completo
+## Como Executar o Sistema Completo
 
 Para uma experiência integrada, execute o backend e o frontend em terminais separados:
 
@@ -52,9 +52,9 @@ npm run dev
 
 ---
 
-## 📚 Documentações Específicas
+##  Documentações Específicas
 
 Para detalhes aprofundados sobre cada camada, consulte:
 
-- ⚙️ **[Documentação do Backend](backend/README.md)**: Endpoints, regras de negócio, banco de dados e testes.
-- 🎨 **[Documentação do Frontend](frontend/README.md)**: Design system, fluxo de telas, rotas e componentes.
+-  **[Documentação do Backend](backend/README.md)**: Endpoints, regras de negócio, banco de dados e testes.
+-  **[Documentação do Frontend](frontend/README.md)**: Design system, fluxo de telas, rotas e componentes.

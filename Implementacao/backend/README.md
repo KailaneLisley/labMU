@@ -1,4 +1,4 @@
-# ⚙️ labMU — Backend API RESTful
+#  labMU — Backend API RESTful
 
 API RESTful completa desenvolvida para a gestão operacional do Laboratório de Prototipagem do MUSARQ/UNICAP. Construída em **Node.js (v22+)** com **TypeScript**, **Express 5**, banco de dados relacional **SQLite nativo** (`node:sqlite`), autenticação **JWT** e criptografia de senhas com **bcryptjs**.
 
