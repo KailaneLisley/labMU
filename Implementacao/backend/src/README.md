@@ -95,3 +95,4 @@ O middleware intercepta erros de forma centralizada e retorna respostas JSON hom
 }
 ```
 Isso garante que erros operacionais nunca derrubem o processo Node.js e forneçam diagnósticos precisos ao frontend.
+

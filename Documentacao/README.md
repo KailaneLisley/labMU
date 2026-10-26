@@ -1,15 +1,15 @@
-# 📚 Documentação do Projeto — labMU
+# Documentação do Projeto — labMU
 
 Este diretório reúne todos os artefatos de engenharia de software, especificação de requisitos, gestão ágil (Scrum), relatórios de qualidade e guias de arquitetura do sistema **labMU**.
 
 ---
 
-## 📂 Índice de Documentos
+##  Índice de Documentos
 
 ### 1. Documentos Principais
-- 📄 **[`Backend_Requisitos_e_Integracao.md`](Backend_Requisitos_e_Integracao.md):** Especificação detalhada dos requisitos funcionais e não funcionais do backend, modelo de dados relacional e contratos de integração com a SPA React.
-- 🧪 **[`Relatorio_de_Testes_labMU.md`](Relatorio_de_Testes_labMU.md):** Relatório de qualidade de software contendo a cobertura dos testes de integração, testes unitários, validação dos fluxos de empréstimo, segurança e autenticação.
-- 🧠 **[`README_Sprints_e_Cérebro_Projeto.md`](README_Sprints_e_Cérebro_Projeto.md):** Visão geral da base de conhecimento do time e estrutura de sprints.
+-  **[`Backend_Requisitos_e_Integracao.md`](Backend_Requisitos_e_Integracao.md):** Especificação detalhada dos requisitos funcionais e não funcionais do backend, modelo de dados relacional e contratos de integração com a SPA React.
+-  **[`Relatorio_de_Testes_labMU.md`](Relatorio_de_Testes_labMU.md):** Relatório de qualidade de software contendo a cobertura dos testes de integração, testes unitários, validação dos fluxos de empréstimo, segurança e autenticação.
+-  **[`README_Sprints_e_Cérebro_Projeto.md`](README_Sprints_e_Cérebro_Projeto.md):** Visão geral da base de conhecimento do time e estrutura de sprints.
 
 ---
 
@@ -38,3 +38,4 @@ A pasta [`Projetos/Sprints/`](Projetos/Sprints/) centraliza a documentação ág
 | `17._Fluxo_de_Empréstimo_de_Equipamento.md` | Regras estritas de empréstimo de portáteis (proibição de máquinas fixas) |
 | `18._Fluxo_de_Produção_e_Relatório.md` | Ciclo de vida da ordem de produção e débito no estoque |
 | `FrontEnd_Prototipo_Figma.md` | Especificações e medidas extraídas do protótipo no Figma |
+

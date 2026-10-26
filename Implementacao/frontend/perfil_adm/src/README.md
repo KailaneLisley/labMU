@@ -1,10 +1,10 @@
-# 🧩 Arquitetura do Código Frontend — `src/`
+#  Arquitetura do Código Frontend — `src/`
 
 Este diretório contém todo o código-fonte da aplicação React do **labMU**, organizado de forma modular por domínios de negócio, componentes visuais e serviços de integração.
 
 ---
 
-## 📂 Organização dos Diretórios
+##  Organização dos Diretórios
 
 ```
 src/
@@ -65,7 +65,7 @@ src/
 
 ---
 
-## 🔌 Cliente de API (`src/services/api.ts`)
+## Cliente de API (`src/services/api.ts`)
 
 O arquivo `api.ts` implementa uma camada centralizada para todas as chamadas à API REST:
 - **Base URL:** Lê a variável `VITE_API_URL` (se definida) ou utiliza o padrão relativo `/api`.
@@ -74,6 +74,7 @@ O arquivo `api.ts` implementa uma camada centralizada para todas as chamadas à 
 
 ---
 
-## 📊 Exportação de Relatórios (`src/lib/exportCsv.ts`)
+##  Exportação de Relatórios (`src/lib/exportCsv.ts`)
 
 A função `exportToCsv(filename, rows, headers)` permite que qualquer tabela ou relatório da aplicação seja baixado imediatamente pelo operador em formato `.csv` compatível com Excel e Google Sheets, incluindo codificação UTF-8 com BOM (`\uFEFF`) para preservar acentuação em português.
+

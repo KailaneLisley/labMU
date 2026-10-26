@@ -1,10 +1,10 @@
-# 🧪 Testes Automatizados da API — `backend/tests/`
+#  Testes Automatizados da API — `backend/tests/`
 
 Este diretório contém a suíte de testes de integração e ponta a ponta (E2E) do backend do **labMU**, executada com o test runner nativo do Node.js (`node:test`) em conjunto com `tsx`.
 
 ---
 
-## 📂 Arquivos de Teste
+##  Arquivos de Teste
 
 - **`api.test.ts`:** Bateria abrangente de testes validando os seguintes cenários:
   1. **Health Check:** Garante resposta `200 OK` em `/api/health`.
@@ -19,7 +19,7 @@ Este diretório contém a suíte de testes de integração e ponta a ponta (E2E)
 
 ---
 
-## 🚀 Como Executar os Testes
+##  Como Executar os Testes
 
 A partir da pasta `Implementacao/backend`:
 
@@ -33,3 +33,4 @@ tsx --test tests/**/*.test.ts
 ```
 
 Os testes utilizam o banco de dados de desenvolvimento/teste, inicializam o *seed* automaticamente e validam o comportamento com asserções estritas do módulo `node:assert`.
+
