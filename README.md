@@ -1,10 +1,10 @@
-# 🚀 labMU — Sistema de Gestão de Equipamentos
+#  labMU — Sistema de Gestão de Equipamentos
 > **Laboratório de Prototipagem do MUSARQ — Universidade Católica de Pernambuco (UNICAP)**  
 > **Equipe 07** | **Metodologia:** Scrum | **Tecnologias:** React + Vite + Node.js + SQLite
 
 ---
 
-## 📋 1. Sobre o Projeto
+## 1. Sobre o Projeto
 
 O **labMU** é uma plataforma integrada de gestão desenvolvida para o Laboratório de Prototipagem do **MUSARQ (Museu de Arqueologia e Ciências Naturais da UNICAP)**. O sistema centraliza, automatiza e audita as operações diárias do laboratório, abrangendo:
 
@@ -47,17 +47,17 @@ O sistema foi arquitetado em duas camadas independentes e integradas via API RES
 
 ---
 
-## 👥 3. Perfis de Usuário & Políticas de Segurança
+##  3. Perfis de Usuário & Políticas de Segurança
 
 | Perfil | Acesso ao Sistema | Cadastro / Criação | Política de Recuperação de Senha |
 | :--- | :---: | :--- | :--- |
-| **Administrador** | 🔐 Sim (Login/Senha) | **Exclusivo via Banco de Dados** (cadastrado previamente pela coordenação/desenvolvedores). | **Restrita:** Por segurança institucional, administradores não utilizam recuperação automática. Devem contatar o suporte técnico (`musarq@unicap.br`). |
-| **Técnico** | 🔐 Sim (Login/Senha) | **Público Institucional** (`/cadastro`), exigindo e-mail `@unicap.br`, matrícula e definição de **Pergunta Secreta de Segurança**. | **Autônoma:** Validação em 3 etapas com verificação do e-mail institucional, resposta da pergunta secreta e definição de nova senha segura. |
-| **Cliente** | ❌ Não possui login | Cadastrado por técnicos/administradores para fins de vínculo a ordens de produção e empréstimos. | Não aplicável. |
+| **Administrador** |  Sim (Login/Senha) | **Exclusivo via Banco de Dados** (cadastrado previamente pela coordenação/desenvolvedores). | **Restrita:** Por segurança institucional, administradores não utilizam recuperação automática. Devem contatar o suporte técnico (`musarq@unicap.br`). |
+| **Técnico** |  Sim (Login/Senha) | **Público Institucional** (`/cadastro`), exigindo e-mail `@unicap.br`, matrícula e definição de **Pergunta Secreta de Segurança**. | **Autônoma:** Validação em 3 etapas com verificação do e-mail institucional, resposta da pergunta secreta e definição de nova senha segura. |
+| **Cliente** |  Não possui login | Cadastrado por técnicos/administradores para fins de vínculo a ordens de produção e empréstimos. | Não aplicável. |
 
 ---
 
-## ⚙️ 4. Módulos e Funcionalidades Principais
+##  4. Módulos e Funcionalidades Principais
 
 1. **Autenticação & Sessões:** Login com geração de JWT, rotas protegidas e validação de cargos (`role`).
 2. **Recuperação de Senha por Pergunta Secreta:** Fluxo em 3 passos para técnicos, com perguntas personalizadas ou pré-definidas e validação *case-insensitive*.
@@ -66,7 +66,7 @@ O sistema foi arquitetado em duas camadas independentes e integradas via API RES
 5. **Gestão de Manutenções:** Abertura de chamados preventivos e corretivos com registro de custos, técnico responsável e peças trocadas.
 6. **Controle de Estoque Fracionado:** Entrada de bobinas/resinas em quilogramas (kg) com abatimento automático e preciso em gramas (g) durante a produção.
 7. **Empréstimos de Equipamentos Portáteis:** Sistema de retirada e devolução com cálculo de status (em andamento, atrasado, devolvido).  
-   > **⚠️ Regra de Negócio Crucial:** Máquinas fixas de laboratório são **estritamente proibidas** de serem emprestadas. Apenas itens portáteis cadastrados no inventário de empréstimos podem ser retirados.
+   > ** Regra de Negócio Crucial:** Máquinas fixas de laboratório são **estritamente proibidas** de serem emprestadas. Apenas itens portáteis cadastrados no inventário de empréstimos podem ser retirados.
 8. **Relatórios Gerenciais:**
    - Produção mensal consolidada por técnico.
    - Consumo periódico de insumos do estoque.
@@ -77,7 +77,7 @@ O sistema foi arquitetado em duas camadas independentes e integradas via API RES
 
 ---
 
-## 🔑 5. Credenciais Padrão para Início Rápido
+## 5. Credenciais Padrão para Início Rápido
 
 O banco de dados SQLite inicializa com dados pré-carregados (*seed*):
 
@@ -88,7 +88,7 @@ O banco de dados SQLite inicializa com dados pré-carregados (*seed*):
 
 ---
 
-## 🚀 6. Como Executar o Projeto Localmente
+##  6. Como Executar o Projeto Localmente
 
 ### Pré-requisitos
 - **Node.js:** Versão 22 ou superior *(obrigatório para suporte nativo ao módulo `node:sqlite`)*.
@@ -141,7 +141,7 @@ Abra seu navegador em: `http://localhost:5173`.
 
 ---
 
-## 📂 7. Estrutura do Repositório
+##  7. Estrutura do Repositório
 
 O repositório é organizado de forma modular. Cada pasta possui sua documentação técnica específica:
 
@@ -189,7 +189,7 @@ labMU/
 
 ---
 
-## 🌐 8. Opções de Deploy Gratuito
+##  8. Opções de Deploy Gratuito
 
 O projeto foi preparado para deploy simplificado e gratuito:
 
@@ -199,7 +199,7 @@ O projeto foi preparado para deploy simplificado e gratuito:
 
 ---
 
-## 👥 9. Equipe de Desenvolvimento (Equipe 07)
+## 9. Equipe de Desenvolvimento (Equipe 07)
 
 Projeto desenvolvido no âmbito das disciplinas de Engenharia de Software da Universidade Católica de Pernambuco:
 
@@ -209,8 +209,3 @@ Projeto desenvolvido no âmbito das disciplinas de Engenharia de Software da Uni
 - **Quezia Costa**
 - **Kailane Lisley**
 
----
-
-## 📄 10. Licença
-
-Este projeto é desenvolvido para fins acadêmicos e operacionais do Laboratório de Prototipagem do MUSARQ / UNICAP.
