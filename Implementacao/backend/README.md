@@ -140,4 +140,4 @@ npm start
 ##  Estrutura de Código
 
 Para entender como o código-fonte está estruturado internamente (controladores, serviços, banco de dados e middlewares), consulte:  
-👉 **[`src/README.md`](src/README.md)**
+ **[`src/README.md`](src/README.md)**
