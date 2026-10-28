@@ -30,10 +30,7 @@ export class ProductionController {
 
   static create = (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
-      const production = ProductionService.createProduction({
-        ...req.body,
-        technicianId: req.body.technicianId || req.user?.id,
-      });
+      const production = ProductionService.createProduction(req.body, req.user!);
       res.status(201).json({ production });
     } catch (error) {
       next(error);

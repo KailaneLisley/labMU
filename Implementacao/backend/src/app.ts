@@ -17,6 +17,11 @@ export const app = express();
 // Middlewares globais
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+// Requisição sem corpo chega como undefined; normaliza para que os controllers recebam um objeto
+app.use((req, _res, next) => {
+  req.body ??= {};
+  next();
+});
 
 // Health check
 app.get("/api/health", (_req, res) => {

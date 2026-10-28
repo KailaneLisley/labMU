@@ -1,5 +1,6 @@
 import { query } from "../../database/connection.js";
 import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
+import { upperBoundClause } from "../../utils/dates.js";
 
 export class ReportsService {
   // 1. Relatório de Produção Geral e Detalhado
@@ -22,8 +23,9 @@ export class ReportsService {
       params.push(filters.from);
     }
     if (filters.to) {
-      sql += ` AND p.created_at <= ?`;
-      params.push(filters.to);
+      const upper = upperBoundClause("p.created_at", filters.to);
+      sql += ` AND ${upper.sql}`;
+      params.push(upper.value);
     }
     if (filters.technicianId) {
       sql += ` AND p.technician_id = ?`;
@@ -69,8 +71,9 @@ export class ReportsService {
       params.push(filters.from);
     }
     if (filters.to) {
-      sql += ` AND p.created_at <= ?`;
-      params.push(filters.to);
+      const upper = upperBoundClause("p.created_at", filters.to);
+      sql += ` AND ${upper.sql}`;
+      params.push(upper.value);
     }
 
     sql += ` GROUP BY u.id, u.name ORDER BY total_jobs DESC`;
@@ -104,8 +107,9 @@ export class ReportsService {
       params.push(filters.from);
     }
     if (filters.to) {
-      sql += ` AND (sm.created_at <= ? OR sm.created_at IS NULL)`;
-      params.push(filters.to);
+      const upper = upperBoundClause("sm.created_at", filters.to);
+      sql += ` AND (${upper.sql} OR sm.created_at IS NULL)`;
+      params.push(upper.value);
     }
 
     sql += ` GROUP BY s.id, s.name, s.color, s.type, s.balance ORDER BY total_consumed_kg DESC`;
@@ -137,8 +141,9 @@ export class ReportsService {
       params.push(filters.from);
     }
     if (filters.to) {
-      sql += ` AND l.checkout_date <= ?`;
-      params.push(filters.to);
+      const upper = upperBoundClause("l.checkout_date", filters.to);
+      sql += ` AND ${upper.sql}`;
+      params.push(upper.value);
     }
 
     sql += ` ORDER BY l.checkout_date DESC`;
@@ -178,8 +183,9 @@ export class ReportsService {
       params.push(filters.from);
     }
     if (filters.to) {
-      sql += ` AND m.date <= ?`;
-      params.push(filters.to);
+      const upper = upperBoundClause("m.date", filters.to);
+      sql += ` AND ${upper.sql}`;
+      params.push(upper.value);
     }
 
     sql += ` ORDER BY m.date DESC`;

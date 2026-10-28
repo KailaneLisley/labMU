@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { isValidDateInput } from "../../utils/dates.js";
 
 export class MaintenanceService {
   static list(filters: {
@@ -87,6 +88,15 @@ export class MaintenanceService {
       throw new AppError("Máquina, tipo, data e descrição são obrigatórios.", 400);
     }
 
+    if (!isValidDateInput(data.date)) {
+      throw new AppError("Data da manutenção inválida. Use o formato AAAA-MM-DD ou ISO 8601.", 400, "INVALID_DATE");
+    }
+
+    const cost = data.cost == null ? 0 : Number(data.cost);
+    if (!Number.isFinite(cost) || cost < 0) {
+      throw new AppError("O custo da manutenção deve ser um número maior ou igual a zero.", 400, "INVALID_COST");
+    }
+
     const machine = query.get<any>("SELECT id, status FROM machines WHERE id = ?", data.machineId);
     if (!machine) {
       throw new AppError("Máquina não encontrada.", 404, "MACHINE_NOT_FOUND");
@@ -107,7 +117,7 @@ export class MaintenanceService {
         data.date,
         data.description,
         data.parts || "",
-        data.cost || 0,
+        cost,
         data.observations || ""
       );
 

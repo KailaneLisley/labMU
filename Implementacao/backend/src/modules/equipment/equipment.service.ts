@@ -93,8 +93,8 @@ export class EquipmentService {
     condition?: string;
     accessories?: string;
   }) {
-    const name = data.name.trim();
-    const code = data.code.trim();
+    const name = String(data.name ?? "").trim();
+    const code = String(data.code ?? "").trim();
 
     if (!name || !code) {
       throw new AppError("Nome e código/TAG do equipamento portátil são obrigatórios.", 400);

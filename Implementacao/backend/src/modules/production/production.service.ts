@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { upperBoundClause } from "../../utils/dates.js";
 
 export class ProductionService {
   static listProductions(filters: {
@@ -45,8 +46,9 @@ export class ProductionService {
     }
 
     if (filters.to) {
-      sql += ` AND p.created_at <= ?`;
-      params.push(filters.to);
+      const upper = upperBoundClause("p.created_at", filters.to);
+      sql += ` AND ${upper.sql}`;
+      params.push(upper.value);
     }
 
     sql += ` ORDER BY p.created_at DESC`;
@@ -78,29 +80,65 @@ export class ProductionService {
     return p;
   }
 
-  static createProduction(data: {
-    type: "impressao_3d" | "escaneamento";
-    description: string;
-    machineId: string;
-    technicianId: string;
-    clientId?: string;
-    clientName?: string;
-    supplyId?: string;
-    supplyConsumed?: number;
-    durationMinutes?: number;
-    status?: "em_andamento" | "concluida" | "cancelada";
-    observations?: string;
-  }) {
-    if (!data.type || !data.description || !data.machineId || !data.technicianId) {
-      throw new AppError("Tipo, descrição, máquina e técnico responsável são obrigatórios.", 400);
+  static createProduction(
+    data: {
+      type: "impressao_3d" | "escaneamento";
+      description: string;
+      machineId: string;
+      technicianId?: string;
+      clientId?: string;
+      clientName?: string;
+      supplyId?: string;
+      supplyConsumed?: number;
+      durationMinutes?: number;
+      status?: "em_andamento" | "concluida" | "cancelada";
+      observations?: string;
+    },
+    actor: { id: string; role: string }
+  ) {
+    if (!data.type || !data.description || !data.machineId) {
+      throw new AppError("Tipo, descrição e máquina são obrigatórios.", 400);
     }
+
+    if (data.type !== "impressao_3d" && data.type !== "escaneamento") {
+      throw new AppError("Tipo de produção inválido.", 400, "INVALID_PRODUCTION_TYPE");
+    }
+
+    // Técnico comum só registra em nome próprio; apenas administrador registra em nome de outro
+    const isAdmin = actor.role === "administrador";
+    if (!isAdmin && data.technicianId && data.technicianId !== actor.id) {
+      throw new AppError(
+        "Técnicos só podem registrar produção em nome próprio.",
+        403,
+        "PRODUCTION_TECHNICIAN_MISMATCH"
+      );
+    }
+    const technicianId = isAdmin ? data.technicianId || actor.id : actor.id;
 
     const machine = query.get<any>("SELECT id, name, type, status FROM machines WHERE id = ?", data.machineId);
     if (!machine) {
       throw new AppError("Máquina selecionada não encontrada.", 404, "MACHINE_NOT_FOUND");
     }
 
-    const technician = query.get<any>("SELECT id, name, role FROM users WHERE id = ?", data.technicianId);
+    if (machine.status !== "ativa") {
+      throw new AppError(
+        `A máquina ${machine.name} está ${machine.status} e não pode receber produção.`,
+        400,
+        "MACHINE_INACTIVE"
+      );
+    }
+
+    const isScan = data.type === "escaneamento";
+    const compatible = isScan ? machine.type === "scanner" : machine.type.startsWith("printer_3d");
+    if (!compatible) {
+      throw new AppError(
+        `A máquina ${machine.name} não é compatível com ${isScan ? "escaneamento" : "impressão 3D"}.`,
+        400,
+        "MACHINE_TYPE_MISMATCH"
+      );
+    }
+
+    const technician = query.get<any>("SELECT id, name, role FROM users WHERE id = ?", technicianId);
     if (!technician) {
       throw new AppError("Técnico responsável não encontrado.", 404, "USER_NOT_FOUND");
     }
@@ -108,6 +146,11 @@ export class ProductionService {
     const consumed = data.supplyConsumed == null ? 0 : Number(data.supplyConsumed);
     if (!Number.isFinite(consumed) || consumed < 0) {
       throw new AppError("O consumo de insumo deve ser um número maior ou igual a zero.", 400, "INVALID_CONSUMPTION");
+    }
+
+    // Escaneamento não consome insumo: o material só é gasto na impressão
+    if (isScan && consumed > 0) {
+      throw new AppError("Escaneamento não consome insumo; informe consumo zero.", 400, "SCAN_NO_CONSUMPTION");
     }
 
     const duration = data.durationMinutes == null ? 0 : Number(data.durationMinutes);
@@ -119,6 +162,8 @@ export class ProductionService {
     if (consumed > 0 && !data.supplyId) {
       throw new AppError("Informe o insumo utilizado sempre que houver consumo.", 400, "SUPPLY_REQUIRED");
     }
+
+    const id = `prod-${crypto.randomUUID()}`;
 
     return query.transaction(() => {
       // Consumo de insumo debita do estoque
@@ -156,12 +201,10 @@ export class ProductionService {
           data.supplyId,
           -consumed,
           `Consumo na produção: ${data.description}`,
-          data.machineId,
-          data.technicianId
+          id,
+          technicianId
         );
       }
-
-      const id = `prod-${crypto.randomUUID()}`;
 
       query.run(
         `INSERT INTO productions (id, type, description, machine_id, technician_id, client_id, client_name, supply_id, supply_consumed, duration_minutes, status, observations)
@@ -170,7 +213,7 @@ export class ProductionService {
         data.type,
         data.description.trim(),
         data.machineId,
-        data.technicianId,
+        technicianId,
         data.clientId || null,
         data.clientName || "",
         data.supplyId || null,
