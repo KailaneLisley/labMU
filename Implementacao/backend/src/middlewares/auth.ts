@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { query } from "../database/connection.js";
+import { isTokenRevoked } from "../modules/auth/tokenRevocation.js";
 
 export interface AuthenticatedUser {
   id: string;
@@ -13,7 +14,11 @@ export interface AuthenticatedUser {
 
 export interface AuthRequest extends Request {
   user?: AuthenticatedUser;
+  auth?: { jti: string; exp: number };
 }
+
+// Perfis que podem usar a API; os demais existem no cadastro, mas não autenticam
+const API_ROLES: AuthenticatedUser["role"][] = ["administrador", "tecnico"];
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
@@ -34,7 +39,23 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       sub: string;
       email: string;
       role: AuthenticatedUser["role"];
+      jti?: string;
+      exp: number;
     };
+
+    if (!payload.jti) {
+      throw new Error("Token sem identificador de sessão.");
+    }
+
+    if (isTokenRevoked(payload.jti)) {
+      res.status(401).json({
+        error: {
+          code: "TOKEN_REVOKED",
+          message: "Sessão encerrada. Faça login novamente.",
+        },
+      });
+      return;
+    }
 
     const user = query.get<any>(
       "SELECT id, name, email, role, registration, status FROM users WHERE id = ?",
@@ -51,6 +72,16 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       return;
     }
 
+    if (!API_ROLES.includes(user.role)) {
+      res.status(403).json({
+        error: {
+          code: "ROLE_NOT_ALLOWED",
+          message: "Este perfil não possui acesso ao sistema.",
+        },
+      });
+      return;
+    }
+
     req.user = {
       id: user.id,
       name: user.name,
@@ -58,6 +89,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       role: user.role,
       registration: user.registration,
     };
+    req.auth = { jti: payload.jti, exp: payload.exp };
 
     next();
   } catch (error) {

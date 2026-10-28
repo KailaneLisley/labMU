@@ -4,6 +4,13 @@ import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { seedDatabase } from "../src/database/seed.js";
 import http from "node:http";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 let server: http.Server;
 let baseUrl: string;
@@ -673,4 +680,153 @@ test("V2: saldo inicial e custo de manutenção negativos são recusados", async
   });
   assert.equal(negCost.status, 400);
   assert.equal(negCost.data.error.code, "INVALID_COST");
+});
+
+function getRawHeaders(requestPath: string, headers: Record<string, string>): Promise<http.IncomingHttpHeaders> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(new URL(requestPath, baseUrl), { method: "GET", headers }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.headers));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function createUserWithPassword(role: string, password: string): Promise<{ id: string; email: string }> {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const email = `${role}.${suffix}@unicap.br`;
+  const created = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Conta ${role}`, email, role, registration: `REG-${suffix}`, password },
+  });
+  assert.equal(created.status, 201);
+  return { id: created.data.user.id, email };
+}
+
+test("S1: conta de aluno não autentica no sistema", async () => {
+  const { email } = await createUserWithPassword("aluno", "Senha1234");
+
+  const login = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "Senha1234" } });
+  assert.equal(login.status, 403);
+  assert.equal(login.data.error.code, "ROLE_NOT_ALLOWED");
+});
+
+test("S2: CORS libera apenas a origem do frontend", async () => {
+  const evil = await getRawHeaders("/api/health", { Origin: "https://site-malicioso.exemplo" });
+  assert.equal(evil["access-control-allow-origin"], undefined);
+
+  const frontend = await getRawHeaders("/api/health", { Origin: "http://localhost:3000" });
+  assert.equal(frontend["access-control-allow-origin"], "http://localhost:3000");
+});
+
+test("S3: logout revoga o token", async () => {
+  const tech = await createTechnician();
+
+  const before = await makeRequest("/api/auth/me", { headers: tech.headers });
+  assert.equal(before.status, 200);
+
+  const logout = await makeRequest("/api/auth/logout", { method: "POST", headers: tech.headers });
+  assert.equal(logout.status, 200);
+
+  const after = await makeRequest("/api/auth/me", { headers: tech.headers });
+  assert.equal(after.status, 401);
+  assert.equal(after.data.error.code, "TOKEN_REVOKED");
+});
+
+test("S4: login é bloqueado após tentativas seguidas com senha errada", async () => {
+  const email = `forca.bruta.${Date.now()}@unicap.br`;
+
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const res = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "errada" } });
+    statuses.push(res.status);
+    if (res.status === 429) {
+      assert.equal(res.data.error.code, "TOO_MANY_ATTEMPTS");
+    }
+  }
+  assert.deepEqual(statuses, [401, 401, 401, 401, 401, 429]);
+});
+
+test("S5: token de recuperação só redefine a senha uma vez", async () => {
+  const suffix = `${Date.now()}`;
+  const email = `recupera.${suffix}@unicap.br`;
+
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Recuperação",
+      email,
+      registration: `REG-${suffix}`,
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome do seu animal de estimação?",
+      securityAnswer: "Totó",
+    },
+  });
+  assert.equal(reg.status, 201);
+
+  const verify = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email, answer: "Totó" },
+  });
+  const resetToken = verify.data.resetToken;
+
+  const first = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: { email, resetToken, newPassword: "NovaSenha@2026" },
+  });
+  assert.equal(first.status, 200);
+
+  const second = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: { email, resetToken, newPassword: "OutraSenha@2026" },
+  });
+  assert.equal(second.status, 401);
+  assert.equal(second.data.error.code, "INVALID_TOKEN");
+});
+
+test("S6: conta inativa não revela o status antes da senha", async () => {
+  const { id, email } = await createUserWithPassword("tecnico", "Senha1234");
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const deactivated = await makeRequest(`/api/users/${id}/status`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { status: "inativo" },
+  });
+  assert.equal(deactivated.status, 200);
+
+  const wrongPassword = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "errada1" } });
+  assert.equal(wrongPassword.status, 401);
+  assert.equal(wrongPassword.data.error.code, "INVALID_CREDENTIALS");
+});
+
+test("S7: em produção, o servidor não inicia sem JWT_SECRET", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "-e", 'import("./src/config/env.ts")'], {
+    cwd: backendRoot,
+    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "" },
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /JWT_SECRET/);
+});
+
+test("S7: em produção, nenhuma conta padrão é criada", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "labmu-prod-"));
+  const script = [
+    'import("./src/bootstrap.ts")',
+    '  .then(({ initializeData }) => { initializeData(); return import("./src/database/connection.ts"); })',
+    '  .then(({ query }) => console.log(query.get("SELECT COUNT(*) AS n FROM users").n));',
+  ].join("\n");
+
+  const result = spawnSync(process.execPath, ["--import", "tsx", "-e", script], {
+    cwd: backendRoot,
+    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "segredo-de-teste", DATABASE_FILE: path.join(dir, "prod.sqlite") },
+    encoding: "utf8",
+  });
+  rmSync(dir, { recursive: true, force: true });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "0");
 });

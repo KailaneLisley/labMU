@@ -11,11 +11,12 @@ import { productionRouter } from "./modules/production/production.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { env } from "./config/env.js";
 
 export const app = express();
 
 // Middlewares globais
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
 app.use(express.json());
 // Requisição sem corpo chega como undefined; normaliza para que os controllers recebam um objeto
 app.use((req, _res, next) => {

@@ -343,6 +343,21 @@ Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de
 | Violação de domínio do banco | Perfil, status ou tipo fora da lista devolve `400`. | `VALIDATION_ERROR` |
 | Corpo ausente | Campos obrigatórios devolvem `400`, não `500`. | conforme o caso |
 
+### Autenticação e segurança aplicadas
+
+| Controle | Comportamento atual | Código de erro |
+|---|---|---|
+| Perfis com acesso | Só `administrador` e `tecnico` autenticam, no login e em qualquer requisição. | `ROLE_NOT_ALLOWED` (403) |
+| Logout | Revoga o token (`revoked_tokens`). Requer token válido. | `TOKEN_REVOKED` (401) |
+| Token sem sessão | Tokens sem identificador (emitidos antes desta versão) são recusados; o usuário faz login de novo. | `INVALID_TOKEN` (401) |
+| Limite de tentativas | 5 falhas por conta ou 20 por IP em 15 minutos. Contadores em memória. | `TOO_MANY_ATTEMPTS` (429) |
+| Conta inativa | Só é revelada depois da senha correta. | `ACCOUNT_INACTIVE` (403) |
+| Token de recuperação | Uso único; revogado após a redefinição. | `INVALID_TOKEN` (401) |
+| CORS | Só as origens de `CORS_ORIGINS` (padrão: `localhost:3000`). | — |
+| Produção | `NODE_ENV=production` exige `JWT_SECRET` e não cria contas padrão. | — |
+
+Pendências de segurança: a enumeração de contas em `verify-email` (S6) e a resposta de segurança em texto puro (S8) continuam abertas. Em produção, o primeiro administrador ainda precisa de um procedimento próprio de criação, porque o seed foi desativado.
+
 ### Pendências de regra (dependem do laboratório)
 
 - **Datas passadas no empréstimo:** a API aceita `dueDate` no passado, para permitir regularizar empréstimos antigos. Se a regra for proibir, a checagem entra em `loans.service.ts`.

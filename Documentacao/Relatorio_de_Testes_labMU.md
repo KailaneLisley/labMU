@@ -105,13 +105,13 @@ Classificação: **Alta** = viola requisito de segurança ou gera dado/relatóri
 
 | ID | Tipo | Prioridade | Descrição curta |
 |---|---|---|---|
-| S1 | Segurança | Alta | Conta de aluno/professor com senha consegue logar |
-| S2 | Segurança | Alta | CORS aceita qualquer origem com credenciais |
-| S3 | Segurança | Alta | Logout não invalida o token |
-| S4 | Segurança | Alta | Sem limite de tentativas de login |
-| S5 | Segurança | Alta | Token de recuperação pode ser usado várias vezes |
+| S1 ✅ | Segurança | Alta | Conta de aluno/professor com senha consegue logar |
+| S2 ✅ | Segurança | Alta | CORS aceita qualquer origem com credenciais |
+| S3 ✅ | Segurança | Alta | Logout não invalida o token |
+| S4 ✅ | Segurança | Alta | Sem limite de tentativas de login |
+| S5 ✅ | Segurança | Alta | Token de recuperação pode ser usado várias vezes |
 | S6 | Segurança | Média | Recuperação de senha revela se a conta existe (e se é admin) |
-| S7 | Segurança | Alta | Senhas padrão são criadas em qualquer ambiente; segredo JWT fixo no código |
+| S7 ✅ | Segurança | Alta | Senhas padrão são criadas em qualquer ambiente; segredo JWT fixo no código |
 | S8 | Segurança | Média | Resposta de segurança gravada em texto puro |
 | R1 ✅ | Regra | Alta | Técnico registra produção em nome de outro usuário |
 | R2 ✅ | Regra | Alta | Produção aceita máquina inativa, tipo incoerente e consumo em escaneamento |
@@ -133,6 +133,8 @@ Classificação: **Alta** = viola requisito de segurança ou gera dado/relatóri
 
 #### S1 — Conta de aluno/professor consegue entrar no sistema (Alta)
 
+- **Status:** corrigido. Conta de aluno/professor recusada no login (403 `ROLE_NOT_ALLOWED`) e no middleware. Também recusada em tokens já emitidos. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** só Administrador e Técnico autenticam; Cliente não tem login (Sprints/2; README).
 - **Está sendo feito:** `auth.service.ts:35` compara o perfil só quando o cliente envia `role` no corpo. Qualquer conta com senha entra e recebe token. O middleware (`auth.ts`) também aceita qualquer perfil.
 - **Como ver:**
@@ -149,6 +151,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/login -H 'Content-Typ
 
 #### S2 — CORS aceita qualquer origem com credenciais (Alta)
 
+- **Status:** corrigido. CORS restrito à lista `CORS_ORIGINS` (padrão: `localhost:3000`). Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "CORS restrito ao domínio do frontend" (Backend_Requisitos §7).
 - **Está sendo feito:** `app.ts:18` usa `cors({ origin: true, credentials: true })`, que reflete a origem de quem pede.
 - **Como ver:**
@@ -160,6 +164,8 @@ curl -si $API/health -H 'Origin: https://site-malicioso.exemplo' | grep -i acces
 - **Resultado atual:** `Access-Control-Allow-Origin: https://site-malicioso.exemplo`. **Esperado:** nada, ou apenas a origem do frontend (ex.: `http://localhost:3000`).
 
 #### S3 — Logout não invalida o token (Alta)
+
+- **Status:** corrigido. Logout revoga o token (`revoked_tokens`); tokens revogados devolvem 401 `TOKEN_REVOKED`. Tokens emitidos antes desta correção não têm identificador de sessão e precisam de novo login. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "logout real", com "expiração/revogação de sessão" (Backend_Requisitos §7).
 - **Está sendo feito:** `auth.controller.ts:68-70` só responde `200`. O token JWT (validade de 7 dias, `.env.example`) continua valendo.
@@ -175,6 +181,8 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/auth/me -H "Authorization: Bearer 
 
 #### S4 — Sem limite de tentativas de login (Alta)
 
+- **Status:** corrigido. Após 5 falhas por conta ou 20 por IP em 15 minutos, login devolve 429 `TOO_MANY_ATTEMPTS`. Contadores ficam em memória e zeram ao reiniciar o servidor. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "limitação de tentativas de login" (Backend_Requisitos §7).
 - **Está sendo feito:** nada no código de login; nenhum middleware de limite.
 - **Como ver:**
@@ -188,6 +196,8 @@ for i in $(seq 15); do curl -s -o /dev/null -w '%{http_code} ' -X POST $API/auth
 - **Correção:** `express-rate-limit` ou contador de falhas por conta e por IP.
 
 #### S5 — Token de recuperação pode ser usado mais de uma vez (Alta)
+
+- **Status:** corrigido. Token de recuperação é de uso único: após a redefinição, é revogado. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "token aleatório, curto prazo de validade, **uso único**" (Backend_Requisitos §7).
 - **Está sendo feito:** o token é um JWT de 15 minutos (`auth.service.ts:244-248`). A redefinição não o marca como usado (`auth.service.ts:256-299`).
@@ -204,6 +214,8 @@ for i in 1 2; do curl -s -o /dev/null -w '%{http_code} ' -X POST $API/auth/forgo
 - **Correção:** guardar o `jti` do token usado (ou um hash do token) em tabela e recusar reuso.
 
 #### S6 — Recuperação de senha revela se a conta existe (Média)
+
+- **Status:** parcial. A conta inativa agora só é recusada depois da senha (401 genérico com senha errada). A enumeração de contas em `verify-email` continua aberta.
 
 - **Era para ser:** "resposta que não enumere contas" e "mensagens que não revelem se um e-mail existe" (Backend_Requisitos §7).
 - **Está sendo feito:** `auth.service.ts:183-185` responde `404` com "E-mail não encontrado" para e-mail inexistente, e `200` com a pergunta para e-mail existente. Além disso, `auth.service.ts:187-194` revela que a conta é de administrador.
@@ -226,6 +238,8 @@ curl -s -X POST $API/auth/login -H 'Content-Type: application/json' -d '{"email"
 - **Resultado atual:** `403 ACCOUNT_INACTIVE` mesmo com senha errada. **Esperado:** `401` genérico.
 
 #### S7 — Senhas padrão em qualquer ambiente e segredo JWT fixo no código (Alta)
+
+- **Status:** corrigido. Em `NODE_ENV=production`, o servidor não inicia sem `JWT_SECRET` e não cria contas padrão. Fora de produção, o segredo de desenvolvimento só é usado com aviso no console. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "Remover credenciais mockadas antes de disponibilizar em produção"; "seed de desenvolvimento isolado"; "Dados seed ... nunca carregados em produção" (Backend_Requisitos §7 e §10).
 - **Está sendo feito:**
@@ -512,7 +526,7 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 
 ## 8. Ordem sugerida de correção
 
-1. **Segurança mínima (S1, S2, S3, S4, S5, S7):** são pequenas mudanças no login, no CORS, no middleware e no seed. Bloqueiam qualquer uso real. **Próximo passo.**
+1. ~~**Segurança mínima (S1, S2, S3, S4, S5, S7)**~~ — corrigido. Faltam S6 (enumeração de contas em `verify-email`) e S8 (resposta de segurança em texto puro). **Próximo passo.**
 2. ~~**Dados errados (R1, R2, R3, R4, R5)**~~ — corrigido.
 3. ~~**Validação (V1, V2)**~~ — corrigido com tratamento central no `errorHandler` e validações nos serviços. Ainda falta validar enums de forma explícita nos serviços (`role`, `type`, `status`); hoje a violação de `CHECK` do banco devolve `400 VALIDATION_ERROR`, sem dizer qual campo.
 4. **Frontend:** remover o fallback offline com senha (F2, F3), depois conectar as telas de usuários, máquinas, estoque e empréstimo à API (F1), e só então dashboard e relatórios (que dependem das regras acima).

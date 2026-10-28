@@ -4,13 +4,34 @@ import jwt from "jsonwebtoken";
 import { query } from "../../database/connection.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { isLoginBlocked, recordLoginFailure, resetAccountFailures } from "./loginAttempts.js";
+import { isTokenRevoked, revokeToken } from "./tokenRevocation.js";
+
+// Perfis que acessam o sistema; Aluno, Professor e Cliente não têm login
+const LOGIN_ROLES = ["administrador", "tecnico"];
+
+function signSession(user: { id: string; email: string; role: string }): string {
+  return jwt.sign(
+    { sub: user.id, email: user.email, role: user.role, jti: crypto.randomUUID() },
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN as any }
+  );
+}
 
 export class AuthService {
-  static login(email: string, password: string, requestedRole?: string) {
+  static login(email: string, password: string, requestedRole?: string, ip = "desconhecido") {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
       throw new AppError("E-mail e senha são obrigatórios.", 400, "MISSING_CREDENTIALS");
+    }
+
+    if (isLoginBlocked(normalizedEmail, ip)) {
+      throw new AppError(
+        "Muitas tentativas de login. Aguarde 15 minutos e tente novamente.",
+        429,
+        "TOO_MANY_ATTEMPTS"
+      );
     }
 
     const user = query.get<any>(
@@ -19,17 +40,19 @@ export class AuthService {
       normalizedEmail
     );
 
-    if (!user || !user.password_hash) {
+    const isMatch = user?.password_hash ? bcrypt.compareSync(password, user.password_hash) : false;
+    if (!isMatch) {
+      recordLoginFailure(normalizedEmail, ip);
       throw new AppError("E-mail ou senha incorretos.", 401, "INVALID_CREDENTIALS");
+    }
+
+    // Só depois de confirmar a senha, para não revelar o status da conta a quem não a conhece
+    if (!LOGIN_ROLES.includes(user.role)) {
+      throw new AppError("Este perfil não possui acesso ao sistema.", 403, "ROLE_NOT_ALLOWED");
     }
 
     if (user.status !== "ativo") {
       throw new AppError("Esta conta está inativa ou pendente de ativação.", 403, "ACCOUNT_INACTIVE");
-    }
-
-    const isMatch = bcrypt.compareSync(password, user.password_hash);
-    if (!isMatch) {
-      throw new AppError("E-mail ou senha incorretos.", 401, "INVALID_CREDENTIALS");
     }
 
     if (requestedRole && user.role !== requestedRole) {
@@ -41,11 +64,9 @@ export class AuthService {
       );
     }
 
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
-      env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN as any }
-    );
+    resetAccountFailures(normalizedEmail);
+
+    const token = signSession(user);
 
     return {
       token,
@@ -146,11 +167,7 @@ export class AuthService {
       initials
     );
 
-    const token = jwt.sign(
-      { sub: userId, email, role: "tecnico" },
-      env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN as any }
-    );
+    const token = signSession({ id: userId, email, role: "tecnico" });
 
     return {
       token,
@@ -242,7 +259,7 @@ export class AuthService {
     }
 
     const resetToken = jwt.sign(
-      { sub: user.id, email: user.email, purpose: "password_reset" },
+      { sub: user.id, email: user.email, purpose: "password_reset", jti: crypto.randomUUID() },
       env.JWT_SECRET,
       { expiresIn: "15m" }
     );
@@ -273,6 +290,11 @@ export class AuthService {
       throw new AppError("Token de recuperação inválido para este e-mail.", 401, "INVALID_TOKEN");
     }
 
+    // Uso único: o token deixa de valer depois da primeira redefinição
+    if (!decoded.jti || isTokenRevoked(decoded.jti)) {
+      throw new AppError("Este link de recuperação já foi utilizado. Inicie o processo novamente.", 401, "INVALID_TOKEN");
+    }
+
     if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
       throw new AppError(
         "A nova senha deve conter ao menos 8 caracteres, com ao menos uma letra e um número.",
@@ -292,10 +314,15 @@ export class AuthService {
 
     const passwordHash = bcrypt.hashSync(newPassword, 10);
     query.run("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", passwordHash, user.id);
+    revokeToken(decoded.jti, decoded.exp);
 
     return {
       message: "Senha redefinida com sucesso! Você já pode entrar com sua nova senha.",
     };
+  }
+
+  static logout(session: { jti: string; exp: number }) {
+    revokeToken(session.jti, session.exp);
   }
 
   static getMe(userId: string) {
