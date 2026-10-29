@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { upperBoundClause } from "../../utils/dates.js";
+import { supplyStatusFor } from "../supplies/supplyStatus.js";
 
 export class ProductionService {
   static listProductions(filters: {
@@ -168,9 +169,16 @@ export class ProductionService {
     return query.transaction(() => {
       // Consumo de insumo debita do estoque
       if (consumed > 0) {
-        const supply = query.get<any>("SELECT id, name, balance, minimum_balance FROM supplies WHERE id = ?", data.supplyId);
+        const supply = query.get<any>(
+          "SELECT id, name, balance, minimum_balance, active FROM supplies WHERE id = ?",
+          data.supplyId
+        );
         if (!supply) {
           throw new AppError("Insumo selecionado não encontrado.", 404, "SUPPLY_NOT_FOUND");
+        }
+
+        if (!supply.active) {
+          throw new AppError(`O insumo ${supply.name} está inativo e não pode ser consumido.`, 409, "SUPPLY_INACTIVE");
         }
 
         if (supply.balance < consumed) {
@@ -182,9 +190,7 @@ export class ProductionService {
         }
 
         const newBalance = Number((supply.balance - consumed).toFixed(3));
-        let newStatus = "regular";
-        if (newBalance <= supply.minimum_balance * 0.5) newStatus = "critico";
-        else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
+        const newStatus = supplyStatusFor(newBalance, supply.minimum_balance);
 
         query.run(
           `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
@@ -221,6 +227,59 @@ export class ProductionService {
         duration,
         data.status || "concluida",
         data.observations || ""
+      );
+
+      return this.getProductionById(id);
+    });
+  }
+
+  static cancelProduction(id: string, actor: { id: string; role: string }, reason?: string) {
+    const production = this.getProductionById(id);
+
+    if (actor.role !== "administrador" && production.technician_id !== actor.id) {
+      throw new AppError(
+        "Apenas o técnico responsável ou um administrador pode cancelar esta produção.",
+        403,
+        "PRODUCTION_CANCEL_FORBIDDEN"
+      );
+    }
+
+    if (production.status === "cancelada") {
+      throw new AppError("Esta produção já está cancelada.", 400, "PRODUCTION_ALREADY_CANCELLED");
+    }
+
+    return query.transaction(() => {
+      // O insumo consumido volta ao estoque, com movimento de estorno rastreável
+      if (production.supply_id && production.supply_consumed > 0) {
+        const supply = query.get<any>(
+          "SELECT id, name, balance, minimum_balance FROM supplies WHERE id = ?",
+          production.supply_id
+        );
+
+        const newBalance = Number((supply.balance + production.supply_consumed).toFixed(3));
+        query.run(
+          `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+          newBalance,
+          supplyStatusFor(newBalance, supply.minimum_balance),
+          production.supply_id
+        );
+
+        const note = reason?.trim() ? ` — ${reason.trim()}` : "";
+        query.run(
+          `INSERT INTO stock_movements (id, supply_id, type, quantity, observations, reference_id, created_by)
+           VALUES (?, ?, 'estorno', ?, ?, ?, ?)`,
+          crypto.randomUUID(),
+          production.supply_id,
+          production.supply_consumed,
+          `Estorno da produção: ${production.description}${note}`,
+          id,
+          actor.id
+        );
+      }
+
+      query.run(
+        `UPDATE productions SET status = 'cancelada', updated_at = datetime('now') WHERE id = ?`,
+        id
       );
 
       return this.getProductionById(id);

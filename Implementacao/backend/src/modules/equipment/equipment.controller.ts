@@ -34,4 +34,22 @@ export class EquipmentController {
       next(error);
     }
   };
+
+  static update = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      const item = EquipmentService.updateEquipment(String(req.params.id), req.body);
+      res.status(200).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  static setStatus = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      const item = EquipmentService.setEquipmentStatus(String(req.params.id), req.body?.status);
+      res.status(200).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

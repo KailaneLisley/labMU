@@ -36,4 +36,13 @@ export class ProductionController {
       next(error);
     }
   };
+
+  static cancel = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      const production = ProductionService.cancelProduction(String(req.params.id), req.user!, req.body?.reason);
+      res.status(200).json({ production });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

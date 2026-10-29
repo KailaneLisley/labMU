@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { supplyStatusFor } from "./supplyStatus.js";
 
 export class SuppliesService {
   static listSupplies(filters: { q?: string; status?: string; type?: string }) {
-    let sql = `SELECT id, name, type, color, balance, minimum_balance, status, created_at, updated_at
+    let sql = `SELECT id, name, type, color, balance, minimum_balance, status, active, created_at, updated_at
                FROM supplies WHERE 1=1`;
     const params: any[] = [];
 
@@ -31,7 +32,7 @@ export class SuppliesService {
 
   static getSupplyById(id: string) {
     const item = query.get<any>(
-      `SELECT id, name, type, color, balance, minimum_balance, status, created_at, updated_at
+      `SELECT id, name, type, color, balance, minimum_balance, status, active, created_at, updated_at
        FROM supplies WHERE id = ?`,
       id
     );
@@ -256,6 +257,44 @@ export class SuppliesService {
     sql += ` ORDER BY sm.created_at DESC`;
 
     return query.all(sql, ...params);
+  }
+
+  static updateSupply(
+    id: string,
+    data: { name?: string; type?: string; color?: string; minimumBalance?: number; active?: boolean }
+  ) {
+    const current = this.getSupplyById(id);
+
+    const name = data.name !== undefined ? String(data.name).trim() : current.name;
+    const type = data.type !== undefined ? String(data.type).trim() : current.type;
+    const color = data.color !== undefined ? String(data.color).trim() : current.color;
+    if (!name || !type || !color) {
+      throw new AppError("Nome, tipo e cor do insumo são obrigatórios.", 400);
+    }
+
+    const minimumBalance = data.minimumBalance !== undefined ? Number(data.minimumBalance) : current.minimum_balance;
+    if (!Number.isFinite(minimumBalance) || minimumBalance < 0) {
+      throw new AppError("O saldo mínimo deve ser um número maior ou igual a zero.", 400, "INVALID_MINIMUM_BALANCE");
+    }
+
+    if (data.active !== undefined && typeof data.active !== "boolean") {
+      throw new AppError("O campo active deve ser verdadeiro ou falso.", 400, "INVALID_ACTIVE");
+    }
+    const active = data.active === undefined ? current.active : data.active ? 1 : 0;
+
+    query.run(
+      `UPDATE supplies SET name = ?, type = ?, color = ?, minimum_balance = ?, active = ?, status = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      name,
+      type,
+      color,
+      minimumBalance,
+      active,
+      supplyStatusFor(current.balance, minimumBalance),
+      id
+    );
+
+    return this.getSupplyById(id);
   }
 }
 

@@ -3,6 +3,9 @@ import bcrypt from "bcryptjs";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 
+const USER_ROLES = ["administrador", "tecnico", "aluno", "professor", "cliente"];
+const USER_STATUSES = ["ativo", "inativo", "pendente"];
+
 export class UsersService {
   static listUsers(filters: {
     q?: string;
@@ -107,6 +110,14 @@ export class UsersService {
       throw new AppError("Nome, e-mail e matrícula são obrigatórios.", 400);
     }
 
+    if (!USER_ROLES.includes(data.role)) {
+      throw new AppError("Perfil de usuário inválido.", 400, "INVALID_ROLE");
+    }
+
+    if (data.status !== undefined && !USER_STATUSES.includes(data.status)) {
+      throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
+    }
+
     const existingEmail = query.get("SELECT id FROM users WHERE email = ?", email);
     if (existingEmail) {
       throw new AppError("Já existe um usuário cadastrado com este e-mail.", 409, "EMAIL_EXISTS");
@@ -206,6 +217,9 @@ export class UsersService {
   }
 
   static updateStatus(id: string, status: "ativo" | "inativo" | "pendente") {
+    if (!USER_STATUSES.includes(status)) {
+      throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
+    }
     this.getUserById(id);
     query.run(`UPDATE users SET status = ?, updated_at = datetime('now') WHERE id = ?`, status, id);
     return this.getUserById(id);

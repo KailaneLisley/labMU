@@ -18,6 +18,33 @@ function signSession(user: { id: string; email: string; role: string }): string 
   );
 }
 
+// Pergunta usada para contas que não são técnicos com pergunta cadastrada
+const DECOY_SECURITY_QUESTION = "Qual o nome do seu primeiro animal de estimação?";
+
+// A resposta é normalizada (sem espaços nas pontas, minúscula) e guardada com hash, como a senha.
+function normalizeSecurityAnswer(answer: string): string {
+  return answer.trim().toLowerCase();
+}
+
+function hashSecurityAnswer(answer: string): string {
+  return bcrypt.hashSync(normalizeSecurityAnswer(answer), 10);
+}
+
+// Contas antigas guardam a resposta em texto puro: são aceitas e migradas para hash no primeiro uso.
+function matchesSecurityAnswer(userId: string, stored: string | null, answer: string): boolean {
+  if (!stored) return false;
+
+  if (stored.startsWith("$2")) {
+    return bcrypt.compareSync(normalizeSecurityAnswer(answer), stored);
+  }
+
+  const matches = stored.trim().toLowerCase() === normalizeSecurityAnswer(answer);
+  if (matches) {
+    query.run("UPDATE users SET security_answer = ? WHERE id = ?", hashSecurityAnswer(answer), userId);
+  }
+  return matches;
+}
+
 export class AuthService {
   static login(email: string, password: string, requestedRole?: string, ip = "desconhecido") {
     const normalizedEmail = email.trim().toLowerCase();
@@ -163,7 +190,7 @@ export class AuthService {
       phone,
       passwordHash,
       securityQuestion,
-      securityAnswer,
+      hashSecurityAnswer(securityAnswer),
       initials
     );
 
@@ -197,33 +224,10 @@ export class AuthService {
       normalizedEmail
     );
 
-    if (!user) {
-      throw new AppError("E-mail não encontrado no sistema. Verifique os dados digitados.", 404, "USER_NOT_FOUND");
-    }
-
-    // Se for Administrador, recuperação restrita via devs/coordenação
-    if (user.role === "administrador") {
-      throw new AppError(
-        "Contas de Administrador possuem recuperação restrita por motivos de segurança. Para recuperar seu acesso de gestor, entre em contato diretamente com a equipe de desenvolvimento/administração do sistema (musarq@unicap.br).",
-        403,
-        "ADMIN_RECOVERY_RESTRICTED"
-      );
-    }
-
-    if (user.role !== "tecnico") {
-      throw new AppError(
-        "Apenas contas de Técnicos do laboratório podem redefinir senha por pergunta de segurança.",
-        403,
-        "UNAUTHORIZED_ROLE"
-      );
-    }
-
-    if (!user.security_question) {
-      throw new AppError(
-        "Esta conta de Técnico não possui uma pergunta de segurança configurada. Entre em contato com os administradores.",
-        400,
-        "NO_SECURITY_QUESTION"
-      );
+    // Só técnicos com pergunta cadastrada recebem a pergunta real. Para as demais contas,
+    // a resposta é idêntica à de um e-mail inexistente, para não revelar quais contas existem.
+    if (!user || user.role !== "tecnico" || !user.security_question) {
+      return { email: normalizedEmail, question: DECOY_SECURITY_QUESTION };
     }
 
     return {
@@ -245,16 +249,9 @@ export class AuthService {
       normalizedEmail
     );
 
-    if (!user) {
-      throw new AppError("E-mail não encontrado.", 404, "USER_NOT_FOUND");
-    }
-
-    if (user.role !== "tecnico") {
-      throw new AppError("Ação permitida apenas para contas de Técnico.", 403, "UNAUTHORIZED_ROLE");
-    }
-
-    const dbAnswer = (user.security_answer || "").trim().toLowerCase();
-    if (dbAnswer !== cleanAnswer.toLowerCase()) {
+    // Mesma resposta para conta inexistente, de administrador ou de aluno (ver verifyForgotEmail)
+    const isTechnician = user?.role === "tecnico";
+    if (!isTechnician || !matchesSecurityAnswer(user.id, user.security_answer, cleanAnswer)) {
       throw new AppError("Resposta de segurança incorreta. Tente novamente.", 400, "INCORRECT_ANSWER");
     }
 

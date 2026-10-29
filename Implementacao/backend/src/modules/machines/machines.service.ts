@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 
+const MACHINE_TYPES = ["printer_3d_fdm", "printer_3d_resin", "scanner"];
+const MACHINE_STATUSES = ["ativa", "manutencao", "inativa"];
+
 export class MachinesService {
   static listMachines(filters: { q?: string; type?: string; status?: string }) {
     let sql = `SELECT id, name, tag, type, dimensions, bench, room, status, last_maintenance, next_maintenance_date, created_at, updated_at
@@ -93,6 +96,14 @@ export class MachinesService {
 
     if (!name || !tag || !data.type) {
       throw new AppError("Nome, TAG e tipo da máquina são obrigatórios.", 400);
+    }
+
+    if (!MACHINE_TYPES.includes(data.type)) {
+      throw new AppError("Tipo de máquina inválido.", 400, "INVALID_MACHINE_TYPE");
+    }
+
+    if (data.status !== undefined && !MACHINE_STATUSES.includes(data.status)) {
+      throw new AppError("Situação de máquina inválida.", 400, "INVALID_MACHINE_STATUS");
     }
 
     const existingTag = query.get("SELECT id FROM machines WHERE UPPER(tag) = ?", tag);

@@ -3,6 +3,9 @@ import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isValidDateInput } from "../../utils/dates.js";
 
+const MAINTENANCE_TYPES = ["preventiva", "corretiva"];
+const MAINTENANCE_STATUSES = ["agendada", "em_andamento", "concluida", "cancelada"];
+
 export class MaintenanceService {
   static list(filters: {
     machineId?: string;
@@ -88,6 +91,14 @@ export class MaintenanceService {
       throw new AppError("Máquina, tipo, data e descrição são obrigatórios.", 400);
     }
 
+    if (!MAINTENANCE_TYPES.includes(data.type)) {
+      throw new AppError("Tipo de manutenção inválido.", 400, "INVALID_MAINTENANCE_TYPE");
+    }
+
+    if (data.status !== undefined && !MAINTENANCE_STATUSES.includes(data.status)) {
+      throw new AppError("Situação de manutenção inválida.", 400, "INVALID_MAINTENANCE_STATUS");
+    }
+
     if (!isValidDateInput(data.date)) {
       throw new AppError("Data da manutenção inválida. Use o formato AAAA-MM-DD ou ISO 8601.", 400, "INVALID_DATE");
     }
@@ -125,23 +136,27 @@ export class MaintenanceService {
       if (status === "em_andamento") {
         query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", data.machineId);
       } else if (status === "concluida") {
-        // Calcula próxima manutenção preventiva (30 dias à frente conforme requisito da preventiva mensal)
-        const dateObj = new Date(data.date);
-        dateObj.setDate(dateObj.getDate() + 30);
-        const nextDate = dateObj.toISOString().split("T")[0];
-
-        query.run(
-          `UPDATE machines
-           SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
-           WHERE id = ?`,
-          data.date,
-          nextDate,
-          data.machineId
-        );
+        this.markMachineOperational(data.machineId, data.date);
       }
 
       return this.getById(id);
     });
+  }
+
+  // Máquina volta à operação; a próxima preventiva é calculada 30 dias depois (preventiva mensal)
+  private static markMachineOperational(machineId: string, date: string) {
+    const dateObj = new Date(date);
+    dateObj.setDate(dateObj.getDate() + 30);
+    const nextDate = dateObj.toISOString().split("T")[0];
+
+    query.run(
+      `UPDATE machines
+       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      date,
+      nextDate,
+      machineId
+    );
   }
 
   static update(id: string, data: {
@@ -172,7 +187,7 @@ export class MaintenanceService {
     );
 
     if (status === "concluida") {
-      query.run("UPDATE machines SET status = 'ativa' WHERE id = ?", existing.machine_id);
+      this.markMachineOperational(existing.machine_id, existing.date);
     } else if (status === "em_andamento") {
       query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", existing.machine_id);
     }
