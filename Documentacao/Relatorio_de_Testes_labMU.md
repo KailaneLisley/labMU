@@ -14,7 +14,7 @@ Este documento segue o formato **"Era para ser" x "Está sendo feito"**. Para ca
 | `npm test` no backend | **9/9 passam** (arquivo `tests/api.test.ts`) |
 | `npx tsc --noEmit` no backend | Sem erros |
 | `npm run build` na SPA | **Passa** (tsc + vite) |
-| Testes automatizados após a correção de R1–R5, V1 e V2 | **16/16 passam** (9 antigos + 7 novos, um por item corrigido) |
+| Testes automatizados (`tests/api.test.ts`) | **40/40 passam**: autenticação, recuperação, estoque, empréstimo, produção, relatórios, dashboard, permissões por perfil, máquinas, manutenção e segurança |
 | Verificações manuais de API (script próprio, 39 checagens) | **13 passam, 26 falham** na medição original; não foram rodadas de novo após as correções |
 | Telas da SPA conectadas à API | **Apenas login, cadastro e recuperação de senha** |
 
@@ -480,11 +480,15 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 
 #### F2 — Cadastro offline grava a senha em texto puro (Alta)
 
+- **Teste:** Teste de falha esperada (`it.fails`) em `RegisterPage.test.tsx` documenta o problema. Quando o fallback for removido, o teste passa a falhar e deve virar teste normal.
+
 - **Era para ser:** "Remover MOCK_USERS, labmu:accounts e a senha em texto puro de RegisterPage" (Backend_Requisitos §8.4).
 - **Está sendo feito:** `RegisterPage.tsx:165` guarda `password: form.password` e, em `RegisterPage.tsx:176`, grava o array inteiro em `localStorage["labmu:accounts"]`. Esse caminho roda quando o backend está fora do ar.
 - **Como ver:** com o backend parado, faça um cadastro na tela e depois, no console do navegador: `localStorage.getItem("labmu:accounts")`. A senha aparece em texto puro.
 
 #### F3 — Login offline aceita credenciais fixas do código (Alta)
+
+- **Teste:** Teste de falha esperada (`it.fails`) em `LoginPage.test.tsx` documenta o problema. Quando o fallback for removido, o teste passa a falhar e deve virar teste normal.
 
 - **Era para ser:** "Remover MOCK_USERS" e "O token atual `mock-token` não autentica ninguém" (Backend_Requisitos §8.4 e §11).
 - **Está sendo feito:** `LoginPage.tsx:16-18` tem `MOCK_USERS` com as mesmas senhas do backend. `LoginPage.tsx:22` tem `USE_MOCK: true`. Quando o servidor não responde, o login aceita esses dados e cria sessão local.
@@ -507,6 +511,10 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Está sendo feito:** `services/api.ts` usa `VITE_API_URL` (com fallback `/api`), mas não há `AbortController` nem timeout. `VITE_API_TIMEOUT` não é lido em lugar nenhum.
 
 #### F7 — Sem testes automatizados no frontend (Baixa)
+
+- **Status:** corrigido. A SPA tem 33 testes automatizados (Vitest + Testing Library) para cliente de API, sessão, login, cadastro e recuperação de senha. Rodar com `npm test` em `Implementacao/frontend/perfil_adm`.
+
+- **Status:** corrigido. A SPA tem 33 testes automatizados (Vitest + Testing Library): cliente de API, sessão, login, cadastro e recuperação de senha. Rodar com `npm test` em `Implementacao/frontend/perfil_adm`.
 
 - **Era para ser:** "Testes de regressão UI para login, criação de usuário, edição, registro de máquina, entrada/saída e devolução" (Backend_Requisitos §10).
 - **Está sendo feito:** `package.json` da SPA não tem script `test` nem biblioteca de testes. Só há `build` e `type-check`.
@@ -532,7 +540,7 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Concorrência real:** a garantia de "um empréstimo ativo" e de "saldo não negativo" vem da transação `BEGIN IMMEDIATE` do SQLite e de a API ser síncrona. Não disparei requisições paralelas para medir.
 - **Carga e desempenho:** não testado.
 - **Permissões de relatórios:** qualquer usuário autenticado acessa `/reports/*` e `/dashboard/summary`. Não há decisão documentada sobre isso.
-- **Cobertura dos testes automatizados:** os 9 testes cobrem autenticação, recuperação, estoque, empréstimo (status por fuso), produção e ajuste. Não cobrem matriz de permissões por perfil, relatórios, manutenção, cadastro de máquinas e os casos de validação da seção 4.
+- **Cobertura dos testes automatizados:** 40 testes cobrem autenticação e segurança (S1 a S7), recuperação, estoque, empréstimo (inclusive devolução), produção, cancelamento, relatórios, dashboard, matriz de permissões por perfil, cadastro e remoção de máquinas, manutenção e as regras R1 a R9 e V1 e V2. Não cobrem a interface da SPA, concorrência real, carga, nem o conteúdo numérico completo de cada relatório.
 
 ---
 
