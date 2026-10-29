@@ -1121,3 +1121,209 @@ test("R9: relatório de produção por técnico agrupa por mês quando pedido", 
   });
   assert.equal(plain.data.report[0].month, undefined);
 });
+
+// ---------- Matriz de permissões ----------
+
+test("Permissões: cada rota restrita recusa o perfil errado", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  const cases: Array<{ name: string; method: string; path: string; body?: any; role: "tecnico" | "admin"; expected: number }> = [
+    { name: "técnico cria usuário", method: "POST", path: "/api/users", role: "tecnico", expected: 403,
+      body: { name: "X", email: `p.${Date.now()}@unicap.br`, role: "tecnico", registration: `P${Date.now()}` } },
+    { name: "técnico lista usuários", method: "GET", path: "/api/users", role: "tecnico", expected: 200 },
+    { name: "técnico ajusta estoque", method: "POST", path: "/api/supplies/adjustments", role: "tecnico", expected: 403,
+      body: { supplyId: "sup-x", quantity: 1, reason: "teste" } },
+    { name: "técnico remove máquina", method: "DELETE", path: "/api/machines/mach-5", role: "tecnico", expected: 403 },
+    { name: "técnico altera status de usuário", method: "PATCH", path: "/api/users/usr-aluno-beatriz/status", role: "tecnico", expected: 403,
+      body: { status: "inativo" } },
+    { name: "técnico registra máquina", method: "POST", path: "/api/machines", role: "tecnico", expected: 400,
+      body: {} },
+  ];
+
+  for (const c of cases) {
+    const headers = c.role === "admin" ? adminHeaders : tech.headers;
+    const res = await makeRequest(c.path, { method: c.method, headers, body: c.body });
+    assert.equal(res.status, c.expected, `${c.name}: esperado ${c.expected}, veio ${res.status} ${JSON.stringify(res.data)}`);
+  }
+});
+
+test("Permissões: sem token, rotas protegidas devolvem 401", async () => {
+  for (const path of ["/api/productions", "/api/machines", "/api/loans", "/api/reports/production", "/api/dashboard/summary"]) {
+    const res = await makeRequest(path);
+    assert.equal(res.status, 401, path);
+    assert.equal(res.data.error.code, "UNAUTHORIZED", path);
+  }
+});
+
+// ---------- Máquinas ----------
+
+test("Máquinas: cadastro, consulta, filtros e atualização", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tag = `TAG-T-${Date.now()}`;
+
+  const created = await makeRequest("/api/machines", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Impressora de Teste", tag, type: "printer_3d_fdm", dimensions: "200x200mm" },
+  });
+  assert.equal(created.status, 201);
+  const id = created.data.machine.id;
+  assert.equal(created.data.machine.tag, tag.toUpperCase());
+
+  const byId = await makeRequest(`/api/machines/${id}`, { headers: adminHeaders });
+  assert.equal(byId.status, 200);
+  assert.equal(byId.data.machine.name, "Impressora de Teste");
+
+  const filtered = await makeRequest("/api/machines?type=printer_3d_fdm&status=ativa", { headers: adminHeaders });
+  assert.equal(filtered.status, 200);
+  assert.ok(filtered.data.machines.some((m: any) => m.id === id));
+  assert.ok(filtered.data.machines.every((m: any) => m.type === "printer_3d_fdm" && m.status === "ativa"));
+
+  const updated = await makeRequest(`/api/machines/${id}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { name: "Impressora Renomeada", status: "manutencao" },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.data.machine.name, "Impressora Renomeada");
+  assert.equal(updated.data.machine.status, "manutencao");
+
+  const missing = await makeRequest("/api/machines/mach-inexistente", { headers: adminHeaders });
+  assert.equal(missing.status, 404);
+});
+
+test("Máquinas: remoção sem histórico apaga; com histórico apenas inativa", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+
+  const fresh = await makeRequest("/api/machines", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Scanner Descartável", tag: `DEL-${Date.now()}`, type: "scanner" },
+  });
+  const removed = await makeRequest(`/api/machines/${fresh.data.machine.id}`, { method: "DELETE", headers: adminHeaders });
+  assert.equal(removed.status, 200);
+  assert.equal((await makeRequest(`/api/machines/${fresh.data.machine.id}`, { headers: adminHeaders })).status, 404);
+
+  // mach-1 já tem produções e manutenções nos testes anteriores: deve ser apenas inativada
+  const kept = await makeRequest("/api/machines/mach-1", { method: "DELETE", headers: adminHeaders });
+  assert.equal(kept.status, 200);
+  const after = await makeRequest("/api/machines/mach-1", { headers: adminHeaders });
+  assert.equal(after.data.machine.status, "inativa");
+  await makeRequest("/api/machines/mach-1", { method: "PATCH", headers: adminHeaders, body: { status: "ativa" } });
+});
+
+// ---------- Manutenção ----------
+
+test("Manutenção: em andamento coloca a máquina em manutenção; concluída devolve à operação", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+  const machine = await makeRequest("/api/machines", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Máquina Manutenção", tag: `MNT-${Date.now()}`, type: "printer_3d_resin" },
+  });
+  const machineId = machine.data.machine.id;
+
+  const open = await makeRequest("/api/maintenances", {
+    method: "POST",
+    headers: tech.headers,
+    body: { machineId, type: "corretiva", status: "em_andamento", date: "2026-10-20", description: "Troca de tela" },
+  });
+  assert.equal(open.status, 201);
+  assert.equal((await makeRequest(`/api/machines/${machineId}`, { headers: adminHeaders })).data.machine.status, "manutencao");
+
+  const done = await makeRequest(`/api/maintenances/${open.data.record.id}`, {
+    method: "PATCH",
+    headers: tech.headers,
+    body: { status: "concluida", cost: 45.5, parts: "Tela LCD" },
+  });
+  assert.equal(done.status, 200);
+  assert.equal(done.data.record.status, "concluida");
+
+  const machineAfter = (await makeRequest(`/api/machines/${machineId}`, { headers: adminHeaders })).data.machine;
+  assert.equal(machineAfter.status, "ativa");
+  assert.equal(machineAfter.lastMaintenance, "2026-10-20");
+  assert.equal(machineAfter.nextMaintenanceDate, "2026-11-19");
+});
+
+test("Manutenção: listagem filtra por máquina e consulta inexistente dá 404", async () => {
+  const tech = await createTechnician();
+  const list = await makeRequest("/api/maintenances?machineId=mach-1", { headers: tech.headers });
+  assert.equal(list.status, 200);
+  assert.ok(list.data.records.every((r: any) => r.machine_id === "mach-1"));
+
+  const missing = await makeRequest("/api/maintenances/maint-inexistente", { headers: tech.headers });
+  assert.equal(missing.status, 404);
+});
+
+// ---------- Empréstimo: devolução ----------
+
+test("Empréstimo: devolução libera o equipamento e fecha o empréstimo", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const equip = await makeRequest("/api/equipment", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Câmera de Teste", code: `CAM-${Date.now()}` },
+  });
+  const equipId = equip.data.item.id;
+
+  const loan = await makeRequest("/api/loans", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { equipmentId: equipId, responsibleName: "Professora Teste", dueDate: "2026-12-01" },
+  });
+  assert.equal(loan.status, 201);
+
+  const returned = await makeRequest(`/api/loans/${loan.data.loan.id}/return`, { method: "POST", headers: adminHeaders });
+  assert.equal(returned.status, 200);
+  assert.equal(returned.data.loan.status, "devolvido");
+
+  const equipAfter = await makeRequest(`/api/equipment/${equipId}`, { headers: adminHeaders });
+  assert.equal(equipAfter.data.item.status, "disponivel");
+  assert.equal(equipAfter.data.item.currentLoanId, null);
+
+  const twice = await makeRequest(`/api/loans/${loan.data.loan.id}/return`, { method: "POST", headers: adminHeaders });
+  assert.equal(twice.status, 400);
+});
+
+// ---------- Relatórios e dashboard ----------
+
+test("Relatórios: estoque, empréstimos e manutenções devolvem métricas e registros", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+  const period = "from=2020-01-01&to=2099-12-31";
+
+  const stock = await makeRequest(`/api/reports/stock-consumption?${period}`, { headers: tech.headers });
+  assert.equal(stock.status, 200);
+  assert.ok(Array.isArray(stock.data.report));
+  assert.ok(stock.data.report.every((r: any) => typeof r.totalConsumedKg === "number" && typeof r.totalReceivedKg === "number"));
+
+  const loans = await makeRequest(`/api/reports/loans?${period}`, { headers: adminHeaders });
+  assert.equal(loans.status, 200);
+  for (const key of ["totalLoans", "activeLoans", "overdueLoans", "returnedLoans"]) {
+    assert.equal(typeof loans.data.metrics[key], "number", key);
+  }
+
+  const before = await makeRequest(`/api/reports/maintenances?${period}`, { headers: adminHeaders });
+  await makeRequest("/api/maintenances", {
+    method: "POST",
+    headers: tech.headers,
+    body: { machineId: "mach-2", type: "preventiva", date: "2026-10-21", description: "Limpeza", cost: 10 },
+  });
+  const after = await makeRequest(`/api/reports/maintenances?${period}`, { headers: adminHeaders });
+  assert.equal(after.data.metrics.totalMaintenances, before.data.metrics.totalMaintenances + 1);
+  assert.equal(after.data.metrics.preventiveCount, before.data.metrics.preventiveCount + 1);
+  assert.equal(after.data.metrics.totalCost, Number((before.data.metrics.totalCost + 10).toFixed(2)));
+});
+
+test("Dashboard: resumo traz contagens numéricas de máquinas, usuários e empréstimos", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const res = await makeRequest("/api/dashboard/summary", { headers: adminHeaders });
+  assert.equal(res.status, 200);
+  for (const group of ["machines", "users", "loans"]) {
+    assert.ok(res.data[group], group);
+    assert.equal(typeof res.data[group].total, "number", `${group}.total`);
+  }
+  assert.ok(res.data.machines.total >= res.data.machines.active);
+});

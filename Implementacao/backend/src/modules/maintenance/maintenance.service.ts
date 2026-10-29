@@ -136,23 +136,27 @@ export class MaintenanceService {
       if (status === "em_andamento") {
         query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", data.machineId);
       } else if (status === "concluida") {
-        // Calcula próxima manutenção preventiva (30 dias à frente conforme requisito da preventiva mensal)
-        const dateObj = new Date(data.date);
-        dateObj.setDate(dateObj.getDate() + 30);
-        const nextDate = dateObj.toISOString().split("T")[0];
-
-        query.run(
-          `UPDATE machines
-           SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
-           WHERE id = ?`,
-          data.date,
-          nextDate,
-          data.machineId
-        );
+        this.markMachineOperational(data.machineId, data.date);
       }
 
       return this.getById(id);
     });
+  }
+
+  // Máquina volta à operação; a próxima preventiva é calculada 30 dias depois (preventiva mensal)
+  private static markMachineOperational(machineId: string, date: string) {
+    const dateObj = new Date(date);
+    dateObj.setDate(dateObj.getDate() + 30);
+    const nextDate = dateObj.toISOString().split("T")[0];
+
+    query.run(
+      `UPDATE machines
+       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      date,
+      nextDate,
+      machineId
+    );
   }
 
   static update(id: string, data: {
@@ -183,7 +187,7 @@ export class MaintenanceService {
     );
 
     if (status === "concluida") {
-      query.run("UPDATE machines SET status = 'ativa' WHERE id = ?", existing.machine_id);
+      this.markMachineOperational(existing.machine_id, existing.date);
     } else if (status === "em_andamento") {
       query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", existing.machine_id);
     }
