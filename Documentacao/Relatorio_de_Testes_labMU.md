@@ -14,7 +14,7 @@ Este documento segue o formato **"Era para ser" x "Está sendo feito"**. Para ca
 | `npm test` no backend | **9/9 passam** (arquivo `tests/api.test.ts`) |
 | `npx tsc --noEmit` no backend | Sem erros |
 | `npm run build` na SPA | **Passa** (tsc + vite) |
-| Testes automatizados após a correção de R1–R5, V1 e V2 | **16/16 passam** (9 antigos + 7 novos, um por item corrigido) |
+| Testes automatizados (`tests/api.test.ts`) | **40/40 passam**: autenticação, recuperação, estoque, empréstimo, produção, relatórios, dashboard, permissões por perfil, máquinas, manutenção e segurança |
 | Verificações manuais de API (script próprio, 39 checagens) | **13 passam, 26 falham** na medição original; não foram rodadas de novo após as correções |
 | Telas da SPA conectadas à API | **Apenas login, cadastro e recuperação de senha** |
 
@@ -110,17 +110,17 @@ Classificação: **Alta** = viola requisito de segurança ou gera dado/relatóri
 | S3 ✅ | Segurança | Alta | Logout não invalida o token |
 | S4 ✅ | Segurança | Alta | Sem limite de tentativas de login |
 | S5 ✅ | Segurança | Alta | Token de recuperação pode ser usado várias vezes |
-| S6 | Segurança | Média | Recuperação de senha revela se a conta existe (e se é admin) |
+| S6 ✅ | Segurança | Média | Recuperação de senha revela se a conta existe (e se é admin) |
 | S7 ✅ | Segurança | Alta | Senhas padrão são criadas em qualquer ambiente; segredo JWT fixo no código |
-| S8 | Segurança | Média | Resposta de segurança gravada em texto puro |
+| S8 ✅ | Segurança | Média | Resposta de segurança gravada em texto puro |
 | R1 ✅ | Regra | Alta | Técnico registra produção em nome de outro usuário |
 | R2 ✅ | Regra | Alta | Produção aceita máquina inativa, tipo incoerente e consumo em escaneamento |
 | R3 ✅ | Regra | Alta | Empréstimo aceita data prevista inválida ou no passado |
 | R4 ✅ | Regra | Alta | Relatórios com "até" excluem o último dia |
 | R5 ✅ | Regra | Média | `reference_id` do movimento de estoque guarda o ID da máquina |
-| R6 | Faltando | Média | Não existe estorno/cancelamento de produção |
-| R7 | Faltando | Média | Equipamentos e insumos não podem ser editados nem inativados |
-| R8 | Faltando | Média | Não há como colocar equipamento "em manutenção" |
+| R6 ✅ | Faltando | Média | Não existe estorno/cancelamento de produção |
+| R7 ✅ | Faltando | Média | Equipamentos e insumos não podem ser editados nem inativados |
+| R8 ✅ | Faltando | Média | Não há como colocar equipamento "em manutenção" |
 | R9 | Regra | Baixa | Relatórios "mensais" não agrupam por mês; dashboard sem período |
 | V1 ✅ | Validação | Média | Entrada inválida devolve HTTP 500 |
 | V2 ✅ | Validação | Média | Valores negativos aceitos (saldo inicial, custo de manutenção) |
@@ -215,7 +215,8 @@ for i in 1 2; do curl -s -o /dev/null -w '%{http_code} ' -X POST $API/auth/forgo
 
 #### S6 — Recuperação de senha revela se a conta existe (Média)
 
-- **Status:** parcial. A conta inativa agora só é recusada depois da senha (401 genérico com senha errada). A enumeração de contas em `verify-email` continua aberta.
+- **Status:** corrigido. E-mail inexistente, de administrador e de aluno recebem a mesma resposta (pergunta-isca para contas que não são técnicos). Administrador deixa de receber a mensagem específica de recuperação restrita. A conta inativa também só é revelada após a senha. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 
 - **Era para ser:** "resposta que não enumere contas" e "mensagens que não revelem se um e-mail existe" (Backend_Requisitos §7).
 - **Está sendo feito:** `auth.service.ts:183-185` responde `404` com "E-mail não encontrado" para e-mail inexistente, e `200` com a pergunta para e-mail existente. Além disso, `auth.service.ts:187-194` revela que a conta é de administrador.
@@ -249,6 +250,8 @@ curl -s -X POST $API/auth/login -H 'Content-Type: application/json' -d '{"email"
 - **Correção:** só semear se `NODE_ENV !== 'production'`; exigir `JWT_SECRET` no boot e falhar se não existir.
 
 #### S8 — Resposta de segurança em texto puro (Média)
+
+- **Status:** corrigido. Resposta de segurança normalizada e guardada com bcrypt. Contas antigas com texto puro são aceitas e migradas no primeiro uso. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** o mesmo cuidado de hash usado para senha. Backend_Requisitos §11 pede que segredos não sejam expostos.
 - **Está sendo feito:** a coluna `users.security_answer` guarda a resposta em texto (`schema.sql:13`). A comparação é feita em minúsculas (`auth.service.ts:239-240`).
@@ -347,12 +350,16 @@ curl -s "$API/reports/production?from=$HOJE&to=$HOJE" -H "Authorization: Bearer 
 
 #### R6 — Não existe estorno nem cancelamento de produção (Média)
 
+- **Status:** corrigido. `POST /productions/:id/cancel` (técnico responsável ou administrador) grava movimento `estorno`, devolve o insumo e tira a produção dos relatórios. Relatórios de consumo descontam os estornos. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "Definir política para produção cancelada, quantidade corrigida e estorno" (Backend_Requisitos §5 e §11, pergunta 5). O schema já prevê `status = 'cancelada'` (`schema.sql:116`) e o tipo `movement 'estorno'`.
 - **Está sendo feito:** `production.routes.ts` só tem `GET` e `POST`. Não há rota para cancelar nem para estornar; o consumo, uma vez debitado, não volta.
 - **Como ver:** `curl -s -o /dev/null -w '%{http_code}\n' -X PATCH $API/productions/<id> -H "Authorization: Bearer $TEC"` → `404 ROUTE_NOT_FOUND`.
 - **Correção:** ação explícita `POST /productions/:id/cancel`, que grava movimento `estorno` na mesma transação.
 
 #### R7 — Equipamentos e insumos não podem ser editados nem inativados (Média)
+
+- **Status:** corrigido. `PATCH /equipment/:id` e `PATCH /supplies/:id` editam; equipamento e insumo podem ser inativados (`active: false` em insumos). Insumo inativo não recebe consumo (`SUPPLY_INACTIVE`). Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "CRUD de ... máquinas, equipamentos portáteis e suprimentos" (Backend_Requisitos §11, Etapa 2); "Cadastro e listagem funcionais dos principais domínios" (Sprints/8, Sprint 3).
 - **Está sendo feito:** `equipment.routes.ts` tem `GET` e `POST`. `supplies.routes.ts` tem `GET` e `POST`. Não existe `PATCH` nem inativação.
@@ -361,11 +368,15 @@ curl -s "$API/reports/production?from=$HOJE&to=$HOJE" -H "Authorization: Bearer 
 
 #### R8 — Não há como colocar equipamento "em manutenção" (Média)
 
+- **Status:** corrigido. `PATCH /equipment/:id/status` define `disponivel`, `manutencao` ou `inativo`. Empréstimo recusa equipamento indisponível (`EQUIPMENT_UNAVAILABLE`), e a mudança é recusada com empréstimo ativo (`EQUIPMENT_IN_USE`). Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** o schema prevê `portable_equipment.status` com `manutencao` e `inativo` (`schema.sql:85`), e o empréstimo não deveria sair de item indisponível.
 - **Está sendo feito:** nenhuma rota altera esse status. `loans.service.ts:80-83` não olha o status do equipamento, então quando houver como definir, a checagem já precisa existir.
 - **Correção:** ligada a R7; checar `status` em `checkoutLoan`.
 
 #### R9 — Relatórios "mensais" sem agrupamento mensal; dashboard sem período (Baixa)
+
+- **Status:** parcial. `GET /reports/production-by-technician?groupBy=month` agrupa por mês. O dashboard ainda não aceita período. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "Relatório de Produção Mensal por Técnico", "Relatório de Consumo Mensal de Estoque", "Relatório Mensal de Empréstimos" (Funcionalidades 9, 10, 11); `GET /dashboard/summary?from=&to=` (Backend_Requisitos §6).
 - **Está sendo feito:** os relatórios aceitam período e devolvem um total único (`reports.service.ts`). Não agrupam por mês. O dashboard não aceita período.
@@ -375,7 +386,8 @@ curl -s "$API/reports/production?from=$HOJE&to=$HOJE" -H "Authorization: Bearer 
 
 #### V1 — Entrada inválida devolve HTTP 500 (Média)
 
-- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
+- **Status:** corrigido também para enums explícitos: perfil, situação, tipo e status de máquina, usuário e manutenção são validados nos serviços, com código específico (`INVALID_ROLE`, `INVALID_MAINTENANCE_TYPE`, etc.). Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 
 - **Era para ser:** `400` ou `422` para validação, `500` só para erro inesperado (Backend_Requisitos §6).
 - **Está sendo feito:** `errorHandler.ts:33` converte só erros de `UNIQUE`. Violação de `CHECK` (ex.: tipo fora da lista) e `SyntaxError` do JSON caem em `500`. Também `req.body` ausente gera `TypeError` → `500`. Datas inválidas quebram em `maintenance.service.ts:119-121` (`RangeError` no `toISOString`).
@@ -468,11 +480,15 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 
 #### F2 — Cadastro offline grava a senha em texto puro (Alta)
 
+- **Teste:** Teste de falha esperada (`it.fails`) em `RegisterPage.test.tsx` documenta o problema. Quando o fallback for removido, o teste passa a falhar e deve virar teste normal.
+
 - **Era para ser:** "Remover MOCK_USERS, labmu:accounts e a senha em texto puro de RegisterPage" (Backend_Requisitos §8.4).
 - **Está sendo feito:** `RegisterPage.tsx:165` guarda `password: form.password` e, em `RegisterPage.tsx:176`, grava o array inteiro em `localStorage["labmu:accounts"]`. Esse caminho roda quando o backend está fora do ar.
 - **Como ver:** com o backend parado, faça um cadastro na tela e depois, no console do navegador: `localStorage.getItem("labmu:accounts")`. A senha aparece em texto puro.
 
 #### F3 — Login offline aceita credenciais fixas do código (Alta)
+
+- **Teste:** Teste de falha esperada (`it.fails`) em `LoginPage.test.tsx` documenta o problema. Quando o fallback for removido, o teste passa a falhar e deve virar teste normal.
 
 - **Era para ser:** "Remover MOCK_USERS" e "O token atual `mock-token` não autentica ninguém" (Backend_Requisitos §8.4 e §11).
 - **Está sendo feito:** `LoginPage.tsx:16-18` tem `MOCK_USERS` com as mesmas senhas do backend. `LoginPage.tsx:22` tem `USE_MOCK: true`. Quando o servidor não responde, o login aceita esses dados e cria sessão local.
@@ -495,6 +511,10 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Está sendo feito:** `services/api.ts` usa `VITE_API_URL` (com fallback `/api`), mas não há `AbortController` nem timeout. `VITE_API_TIMEOUT` não é lido em lugar nenhum.
 
 #### F7 — Sem testes automatizados no frontend (Baixa)
+
+- **Status:** corrigido. A SPA tem 33 testes automatizados (Vitest + Testing Library) para cliente de API, sessão, login, cadastro e recuperação de senha. Rodar com `npm test` em `Implementacao/frontend/perfil_adm`.
+
+- **Status:** corrigido. A SPA tem 33 testes automatizados (Vitest + Testing Library): cliente de API, sessão, login, cadastro e recuperação de senha. Rodar com `npm test` em `Implementacao/frontend/perfil_adm`.
 
 - **Era para ser:** "Testes de regressão UI para login, criação de usuário, edição, registro de máquina, entrada/saída e devolução" (Backend_Requisitos §10).
 - **Está sendo feito:** `package.json` da SPA não tem script `test` nem biblioteca de testes. Só há `build` e `type-check`.
@@ -520,7 +540,7 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Concorrência real:** a garantia de "um empréstimo ativo" e de "saldo não negativo" vem da transação `BEGIN IMMEDIATE` do SQLite e de a API ser síncrona. Não disparei requisições paralelas para medir.
 - **Carga e desempenho:** não testado.
 - **Permissões de relatórios:** qualquer usuário autenticado acessa `/reports/*` e `/dashboard/summary`. Não há decisão documentada sobre isso.
-- **Cobertura dos testes automatizados:** os 9 testes cobrem autenticação, recuperação, estoque, empréstimo (status por fuso), produção e ajuste. Não cobrem matriz de permissões por perfil, relatórios, manutenção, cadastro de máquinas e os casos de validação da seção 4.
+- **Cobertura dos testes automatizados:** 40 testes cobrem autenticação e segurança (S1 a S7), recuperação, estoque, empréstimo (inclusive devolução), produção, cancelamento, relatórios, dashboard, matriz de permissões por perfil, cadastro e remoção de máquinas, manutenção e as regras R1 a R9 e V1 e V2. Não cobrem a interface da SPA, concorrência real, carga, nem o conteúdo numérico completo de cada relatório.
 
 ---
 

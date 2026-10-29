@@ -355,8 +355,21 @@ Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de
 | Token de recuperação | Uso único; revogado após a redefinição. | `INVALID_TOKEN` (401) |
 | CORS | Só as origens de `CORS_ORIGINS` (padrão: `localhost:3000`). | — |
 | Produção | `NODE_ENV=production` exige `JWT_SECRET` e não cria contas padrão. | — |
+| Recuperação de senha | E-mails sem técnico com pergunta recebem a mesma pergunta-isca e a mesma resposta de erro. A resposta de segurança fica em hash bcrypt. | `INCORRECT_ANSWER` (400) |
 
-Pendências de segurança: a enumeração de contas em `verify-email` (S6) e a resposta de segurança em texto puro (S8) continuam abertas. Em produção, o primeiro administrador ainda precisa de um procedimento próprio de criação, porque o seed foi desativado.
+### Cancelamento, edição e inativação
+
+| Operação | Regra | Código de erro |
+|---|---|---|
+| `POST /productions/:id/cancel` | Técnico responsável ou administrador. Devolve o insumo com movimento `estorno`. Produção cancelada sai dos relatórios. | `PRODUCTION_CANCEL_FORBIDDEN`, `PRODUCTION_ALREADY_CANCELLED` |
+| `PATCH /equipment/:id` | Edita dados; o código continua único e não pode colidir com máquina fixa. | `CODE_EXISTS`, `FIXED_MACHINE_RESTRICTION` |
+| `PATCH /equipment/:id/status` | Define `disponivel`, `manutencao` ou `inativo`. Não muda com empréstimo ativo. | `EQUIPMENT_IN_USE`, `INVALID_EQUIPMENT_STATUS` |
+| Empréstimo | Equipamento em `manutencao` ou `inativo` não é emprestado. | `EQUIPMENT_UNAVAILABLE` |
+| `PATCH /supplies/:id` | Edita nome, tipo, cor e saldo mínimo; `active: false` inativa. O saldo muda só por entradas, consumo e ajustes. | `INVALID_MINIMUM_BALANCE`, `INVALID_ACTIVE` |
+| Produção com insumo inativo | Não consome. | `SUPPLY_INACTIVE` |
+| Relatório por técnico | `groupBy=month` agrupa por mês; sem o parâmetro, o formato é o de antes. | — |
+
+Pendência de segurança: a resposta de segurança não tem limite de tentativas (só o login tem limite). Em produção, o primeiro administrador ainda precisa de um procedimento próprio de criação, porque o seed foi desativado.
 
 ### Pendências de regra (dependem do laboratório)
 

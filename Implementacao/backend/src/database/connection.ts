@@ -35,6 +35,9 @@ try {
 try {
   db.exec("ALTER TABLE users ADD COLUMN security_answer TEXT;");
 } catch {}
+try {
+  db.exec("ALTER TABLE supplies ADD COLUMN active INTEGER NOT NULL DEFAULT 1;");
+} catch {}
 
 let transactionDepth = 0;
 

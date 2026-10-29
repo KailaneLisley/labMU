@@ -10,3 +10,6 @@ equipmentRouter.get("/", EquipmentController.list);
 equipmentRouter.get("/:id", EquipmentController.getById);
 equipmentRouter.post("/", requireRole("administrador", "tecnico"), EquipmentController.create);
 
+// Edição e status (manutenção/inativo) são feitos por administradores e técnicos
+equipmentRouter.patch("/:id", requireRole("administrador", "tecnico"), EquipmentController.update);
+equipmentRouter.patch("/:id/status", requireRole("administrador", "tecnico"), EquipmentController.setStatus);

@@ -75,4 +75,13 @@ export class SuppliesController {
       next(error);
     }
   };
+
+  static update = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      const supply = SuppliesService.updateSupply(String(req.params.id), req.body);
+      res.status(200).json({ supply });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

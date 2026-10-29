@@ -132,5 +132,73 @@ export class EquipmentService {
 
     return this.getEquipmentById(id);
   }
+
+  static updateEquipment(
+    id: string,
+    data: { name?: string; code?: string; category?: string; serialNumber?: string; location?: string; condition?: string; accessories?: string }
+  ) {
+    const current = this.getEquipmentById(id);
+
+    const name = data.name !== undefined ? String(data.name).trim() : current.name;
+    const code = data.code !== undefined ? String(data.code).trim() : current.code;
+    if (!name || !code) {
+      throw new AppError("Nome e código/TAG do equipamento portátil são obrigatórios.", 400);
+    }
+
+    const fixedMachineConflict = query.get("SELECT id FROM machines WHERE UPPER(tag) = ?", code.toUpperCase());
+    if (fixedMachineConflict) {
+      throw new AppError(
+        "Este código já pertence a uma máquina fixa do laboratório. Máquinas fixas não são portáteis e não podem ser cadastradas para empréstimo.",
+        400,
+        "FIXED_MACHINE_RESTRICTION"
+      );
+    }
+
+    const existingCode = query.get("SELECT id FROM portable_equipment WHERE UPPER(code) = ? AND id <> ?", code.toUpperCase(), id);
+    if (existingCode) {
+      throw new AppError("Já existe um equipamento portátil cadastrado com este código.", 409, "CODE_EXISTS");
+    }
+
+    query.run(
+      `UPDATE portable_equipment
+       SET name = ?, code = ?, category = ?, serial_number = ?, location = ?, condition = ?, accessories = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      name,
+      code,
+      data.category ?? current.category,
+      data.serialNumber ?? current.serialNumber,
+      data.location ?? current.location,
+      data.condition ?? current.condition,
+      data.accessories ?? current.accessories,
+      id
+    );
+
+    return this.getEquipmentById(id);
+  }
+
+  // Status manual: disponível, em manutenção ou inativo. Enquanto houver empréstimo ativo, não pode mudar.
+  static setEquipmentStatus(id: string, status: string) {
+    const MANUAL_STATUSES = ["disponivel", "manutencao", "inativo"];
+    if (!MANUAL_STATUSES.includes(status)) {
+      throw new AppError("Status de equipamento inválido.", 400, "INVALID_EQUIPMENT_STATUS");
+    }
+
+    this.getEquipmentById(id);
+
+    const activeLoan = query.get(
+      `SELECT id FROM loans l WHERE l.equipment_id = ? AND ${ACTIVE_LOAN_SQL("l")}`,
+      id
+    );
+    if (activeLoan) {
+      throw new AppError(
+        "Este equipamento está emprestado. Registre a devolução antes de alterar o status.",
+        409,
+        "EQUIPMENT_IN_USE"
+      );
+    }
+
+    query.run(`UPDATE portable_equipment SET status = ?, updated_at = datetime('now') WHERE id = ?`, status, id);
+    return this.getEquipmentById(id);
+  }
 }
 

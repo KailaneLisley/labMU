@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, HelpCircle, KeyRound, Mail, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, HelpCircle, KeyRound, Mail } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../../lib/accounts";
 import { readJsonFromStorage } from "../../lib/storage";
@@ -22,7 +22,6 @@ export const ForgotPasswordPage = (): JSX.Element => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [adminNotice, setAdminNotice] = useState(false);
 
   const inputClass =
     "w-full h-11 pl-11 pr-4 py-3 bg-[#f7f0f0] rounded-[10px] border-2 border-transparent outline-none transition-colors font-medium text-sm text-[#1f1a1b] placeholder:text-[#a79b9d] focus:border-[#8B1329] focus:bg-white";
@@ -31,7 +30,6 @@ export const ForgotPasswordPage = (): JSX.Element => {
   const handleVerifyEmail = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    setAdminNotice(false);
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
@@ -53,25 +51,15 @@ export const ForgotPasswordPage = (): JSX.Element => {
         setLoading(false);
         return;
       } catch (apiErr: any) {
-        // Se for erro específico do backend (ex: Administrador restrito ou email não encontrado)
+        // Erro devolvido pela API (ex: e-mail não encontrado); a falha de conexão segue para o fallback local
         if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
-          if (apiErr.message.includes("Administrador")) {
-            setAdminNotice(true);
-          } else {
-            setError(apiErr.message);
-          }
+          setError(apiErr.message);
           setLoading(false);
           return;
         }
       }
 
       // Fallback local (caso backend offline)
-      if (cleanEmail === "admin.musarq@unicap.br") {
-        setAdminNotice(true);
-        setLoading(false);
-        return;
-      }
-
       const localAccounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
       const account = localAccounts.find((a) => a.email.toLowerCase() === cleanEmail);
 
@@ -79,9 +67,7 @@ export const ForgotPasswordPage = (): JSX.Element => {
         setQuestion("Qual o nome do seu primeiro animal de estimação?");
         setStep("QUESTION");
       } else if (account) {
-        if (account.role === "administrador") {
-          setAdminNotice(true);
-        } else if (account.securityQuestion) {
+        if (account.securityQuestion) {
           setQuestion(account.securityQuestion);
           setStep("QUESTION");
         } else {
@@ -237,33 +223,6 @@ export const ForgotPasswordPage = (): JSX.Element => {
           {step === "NEW_PASSWORD" && "Etapa 3 de 3: Definição da Nova Senha"}
           {step === "SUCCESS" && "Recuperação Concluída"}
         </p>
-
-        {/* Alerta de Administrador Restrito */}
-        {adminNotice && (
-          <div
-            role="alert"
-            className="mb-6 p-4 rounded-[12px] text-xs leading-relaxed bg-[#fff1f3] border border-[#f6c4cb] text-[#901328]"
-          >
-            <div className="flex items-center gap-2 mb-2 font-bold text-sm text-[#c0182f]">
-              <ShieldAlert className="h-5 w-5 shrink-0" />
-              Recuperação Restrita para Administradores
-            </div>
-            <p className="mb-2">
-              Contas de Administrador possuem privilégios de gestão total do sistema e, por motivos de segurança, não
-              podem redefinir senha por perguntas automáticas.
-            </p>
-            <p>
-              Para redefinir seu acesso gestor, entre em contato com a equipe de desenvolvimento/administração do labMU
-              pelo e-mail:{" "}
-              <a
-                href="mailto:musarq@unicap.br?subject=Solicita%C3%A7%C3%A3o%20de%20Redefini%C3%A7%C3%A3o%20de%20Senha%20Administrador%20labMU"
-                className="font-bold underline text-[#8B1329]"
-              >
-                musarq@unicap.br
-              </a>
-            </p>
-          </div>
-        )}
 
         {/* Mensagem de Erro Geral */}
         {error && (

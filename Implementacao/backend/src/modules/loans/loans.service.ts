@@ -87,6 +87,14 @@ export class LoansService {
         throw new AppError("Equipamento portátil não encontrado.", 404, "EQUIPMENT_NOT_FOUND");
       }
 
+      if (equipment.status === "manutencao" || equipment.status === "inativo") {
+        throw new AppError(
+          "Este equipamento está em manutenção ou inativo e não pode ser emprestado.",
+          409,
+          "EQUIPMENT_UNAVAILABLE"
+        );
+      }
+
       // 2. Verifica se já está emprestado
       const activeLoan = query.get<any>(
         `SELECT id FROM loans l WHERE l.equipment_id = ? AND ${ACTIVE_LOAN_SQL("l")}`,
