@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { seedDatabase } from "../src/database/seed.js";
+import { query } from "../src/database/connection.js";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -149,13 +150,12 @@ test("POST /api/auth/register cria novo Técnico e permite login imediato", asyn
 });
 
 test("Fluxo de Recuperação de Senha: Admin tem recuperação restrita e Técnico recupera por pergunta de segurança", async () => {
-  // 1. Tentar recuperar senha com e-mail de Administrador deve falhar com 403 e aviso para falar com devs
+  // 1. E-mail de Administrador recebe a mesma resposta de qualquer conta inexistente (ver S6)
   const adminForgot = await makeRequest("/api/auth/forgot-password/verify-email", {
     method: "POST",
     body: { email: env.DEFAULT_ADMIN_EMAIL },
   });
-  assert.equal(adminForgot.status, 403);
-  assert.equal(adminForgot.data.error.code, "ADMIN_RECOVERY_RESTRICTED");
+  assert.equal(adminForgot.status, 200);
 
   // 2. Verificar e-mail com Técnico Padrão retorna a pergunta cadastrada
   const techForgot = await makeRequest("/api/auth/forgot-password/verify-email", {
@@ -829,4 +829,295 @@ test("S7: em produção, nenhuma conta padrão é criada", () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout.trim(), "0");
+});
+
+test("S6: e-mail inexistente, de administrador e de aluno recebem a mesma resposta", async () => {
+  const unknown = await makeRequest("/api/auth/forgot-password/verify-email", {
+    method: "POST",
+    body: { email: `nao.existe.${Date.now()}@unicap.br` },
+  });
+  const admin = await makeRequest("/api/auth/forgot-password/verify-email", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL },
+  });
+  const aluno = await makeRequest("/api/auth/forgot-password/verify-email", {
+    method: "POST",
+    body: { email: await createUserWithPassword("aluno", "Senha1234").then((u) => u.email) },
+  });
+
+  for (const res of [unknown, admin, aluno]) {
+    assert.equal(res.status, 200);
+    assert.deepEqual(Object.keys(res.data).sort(), ["email", "question"]);
+  }
+
+  // Resposta de segurança incorreta para quem não é técnico, igual à de conta inexistente
+  const adminAnswer = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, answer: "qualquer" },
+  });
+  assert.equal(adminAnswer.status, 400);
+  assert.equal(adminAnswer.data.error.code, "INCORRECT_ANSWER");
+});
+
+test("S8: resposta de segurança é guardada com hash e continua válida após migração", async () => {
+  const suffix = `${Date.now()}`;
+  const email = `resposta.hash.${suffix}@unicap.br`;
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Hash",
+      email,
+      registration: `REG-H-${suffix}`,
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome da sua escola?",
+      securityAnswer: "Unicap",
+    },
+  });
+  assert.equal(reg.status, 201);
+
+  const stored = query.get<any>("SELECT security_answer FROM users WHERE email = ?", email);
+  assert.notEqual(stored.security_answer.toLowerCase(), "unicap");
+  assert.ok(stored.security_answer.startsWith("$2"), "resposta deve estar em hash bcrypt");
+
+  const ok = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email, answer: "UNICAP" },
+  });
+  assert.equal(ok.status, 200);
+
+  // Conta antiga, com resposta em texto puro, continua funcionando e é migrada no primeiro uso
+  const legacyEmail = `resposta.legada.${suffix}@unicap.br`;
+  query.run(
+    `INSERT INTO users (id, name, email, role, registration, status, password_hash, security_question, security_answer, initials, avatar_color)
+     VALUES (?, 'Técnico Legado', ?, 'tecnico', ?, 'ativo', 'x', 'Qual o nome da sua escola?', 'Unicap', 'TL', 'bg-orange-200')`,
+    `usr-legacy-${suffix}`,
+    legacyEmail,
+    `REG-L-${suffix}`
+  );
+  const legacy = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email: legacyEmail, answer: "unicap" },
+  });
+  assert.equal(legacy.status, 200);
+  const migrated = query.get<any>("SELECT security_answer FROM users WHERE email = ?", legacyEmail);
+  assert.ok(migrated.security_answer.startsWith("$2"), "resposta legada deve ser migrada para hash");
+});
+
+test("R6: cancelamento de produção devolve o insumo ao estoque e não conta nos relatórios", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+  const other = await createTechnician();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const entry = await makeRequest("/api/supplies/entries", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Insumo Estorno ${Date.now()}`, color: "Verde", type: "PLA", quantity: 4, lot: "LOTE-EST" },
+  });
+  const supplyId = entry.data.supply.id;
+
+  const prod = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Para cancelar", machineId: "mach-1", supplyId, supplyConsumed: 1 },
+  });
+  assert.equal(prod.status, 201);
+  const productionId = prod.data.production.id;
+
+  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  const supplyBefore = await makeRequest(`/api/supplies/${supplyId}`, { headers: adminHeaders });
+  assert.equal(supplyBefore.data.supply.balance, 3);
+
+  const forbidden = await makeRequest(`/api/productions/${productionId}/cancel`, { method: "POST", headers: other.headers });
+  assert.equal(forbidden.status, 403);
+  assert.equal(forbidden.data.error.code, "PRODUCTION_CANCEL_FORBIDDEN");
+
+  const cancel = await makeRequest(`/api/productions/${productionId}/cancel`, {
+    method: "POST",
+    headers: tech.headers,
+    body: { reason: "Peça com defeito" },
+  });
+  assert.equal(cancel.status, 200);
+  assert.equal(cancel.data.production.status, "cancelada");
+
+  const supplyAfter = await makeRequest(`/api/supplies/${supplyId}`, { headers: adminHeaders });
+  assert.equal(supplyAfter.data.supply.balance, 4);
+
+  const estorno = query.get<any>(
+    "SELECT type, quantity, reference_id FROM stock_movements WHERE reference_id = ? AND type = 'estorno'",
+    productionId
+  );
+  assert.ok(estorno, "deve gravar movimento de estorno referenciando a produção");
+  assert.equal(estorno.quantity, 1);
+
+  const again = await makeRequest(`/api/productions/${productionId}/cancel`, { method: "POST", headers: tech.headers });
+  assert.equal(again.status, 400);
+  assert.equal(again.data.error.code, "PRODUCTION_ALREADY_CANCELLED");
+
+  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  // A produção cancelada sai do relatório: o total cai em uma unidade
+  assert.equal(after.data.metrics.totalJobs, before.data.metrics.totalJobs - 1);
+});
+
+test("R7: equipamento e insumo podem ser editados e inativados", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  const equip = await makeRequest("/api/equipment", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Multímetro", code: `MM-${Date.now()}`, category: "Eletrônica" },
+  });
+  const equipId = equip.data.item.id;
+
+  const edited = await makeRequest(`/api/equipment/${equipId}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { name: "Multímetro Digital", location: "Armário 2" },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.item.name, "Multímetro Digital");
+  assert.equal(edited.data.item.location, "Armário 2");
+
+  const fixedCode = await makeRequest(`/api/equipment/${equipId}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { code: "TAG #N01" },
+  });
+  assert.equal(fixedCode.status, 400);
+  assert.equal(fixedCode.data.error.code, "FIXED_MACHINE_RESTRICTION");
+
+  const supply = await makeRequest("/api/supplies/entries", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Insumo Inativar ${Date.now()}`, color: "Roxo", type: "PLA", quantity: 2, lot: "LOTE-INA" },
+  });
+  const supplyId = supply.data.supply.id;
+
+  const renamed = await makeRequest(`/api/supplies/${supplyId}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { minimumBalance: 3 },
+  });
+  assert.equal(renamed.status, 200);
+  assert.equal(renamed.data.supply.minimum_balance, 3);
+
+  const inactivated = await makeRequest(`/api/supplies/${supplyId}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { active: false },
+  });
+  assert.equal(inactivated.status, 200);
+  assert.equal(inactivated.data.supply.active, 0);
+
+  const consumeInactive = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Insumo inativo", machineId: "mach-1", supplyId, supplyConsumed: 0.5 },
+  });
+  assert.equal(consumeInactive.status, 409);
+  assert.equal(consumeInactive.data.error.code, "SUPPLY_INACTIVE");
+});
+
+test("R8: equipamento em manutenção não pode ser emprestado", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const equip = await makeRequest("/api/equipment", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Scanner Portátil", code: `SP-${Date.now()}` },
+  });
+  const equipId = equip.data.item.id;
+
+  const toMaintenance = await makeRequest(`/api/equipment/${equipId}/status`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { status: "manutencao" },
+  });
+  assert.equal(toMaintenance.status, 200);
+  assert.equal(toMaintenance.data.item.status, "manutencao");
+
+  const loan = await makeRequest("/api/loans", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { equipmentId: equipId, responsibleName: "Aluno", dueDate: "2026-12-01" },
+  });
+  assert.equal(loan.status, 409);
+  assert.equal(loan.data.error.code, "EQUIPMENT_UNAVAILABLE");
+
+  const back = await makeRequest(`/api/equipment/${equipId}/status`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { status: "disponivel" },
+  });
+  assert.equal(back.status, 200);
+
+  const loanOk = await makeRequest("/api/loans", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { equipmentId: equipId, responsibleName: "Aluno", dueDate: "2026-12-01" },
+  });
+  assert.equal(loanOk.status, 201);
+
+  const busy = await makeRequest(`/api/equipment/${equipId}/status`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { status: "manutencao" },
+  });
+  assert.equal(busy.status, 409);
+  assert.equal(busy.data.error.code, "EQUIPMENT_IN_USE");
+});
+
+test("V1: valores fora do domínio são recusados com código específico", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  const badUserRole = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Fulano", email: `enum.${Date.now()}@unicap.br`, role: "hacker", registration: `E${Date.now()}` },
+  });
+  assert.equal(badUserRole.status, 400);
+  assert.equal(badUserRole.data.error.code, "INVALID_ROLE");
+
+  const badMaintenanceType = await makeRequest("/api/maintenances", {
+    method: "POST",
+    headers: tech.headers,
+    body: { machineId: "mach-1", type: "xpto", date: "2026-10-19", description: "x" },
+  });
+  assert.equal(badMaintenanceType.status, 400);
+  assert.equal(badMaintenanceType.data.error.code, "INVALID_MAINTENANCE_TYPE");
+
+  const badMachineType = await makeRequest("/api/machines", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Máquina X", tag: `X-${Date.now()}`, type: "laser" },
+  });
+  assert.equal(badMachineType.status, 400);
+  assert.equal(badMachineType.data.error.code, "INVALID_MACHINE_TYPE");
+});
+
+test("R9: relatório de produção por técnico agrupa por mês quando pedido", async () => {
+  const tech = await createTechnician();
+  const today = new Date().toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+
+  await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Mensal", machineId: "mach-1" },
+  });
+
+  const grouped = await makeRequest(`/api/reports/production-by-technician?from=${today}&to=${today}&groupBy=month`, {
+    headers: tech.headers,
+  });
+  assert.equal(grouped.status, 200);
+  const row = grouped.data.report.find((r: any) => r.technicianId === tech.id);
+  assert.ok(row, "técnico deve aparecer no agrupamento");
+  assert.equal(row.month, month);
+  assert.ok(row.totalJobs >= 1);
+
+  const plain = await makeRequest(`/api/reports/production-by-technician?from=${today}&to=${today}`, {
+    headers: tech.headers,
+  });
+  assert.equal(plain.data.report[0].month, undefined);
 });

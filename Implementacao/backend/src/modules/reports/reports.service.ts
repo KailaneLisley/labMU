@@ -14,7 +14,7 @@ export class ReportsService {
       JOIN machines m ON m.id = p.machine_id
       JOIN users u ON u.id = p.technician_id
       LEFT JOIN supplies s ON s.id = p.supply_id
-      WHERE 1=1
+      WHERE p.status != 'cancelada'
     `;
     const params: any[] = [];
 
@@ -52,7 +52,7 @@ export class ReportsService {
   }
 
   // 2. Relatório de Produção Mensal por Técnico
-  static getProductionByTechnician(filters: { from?: string; to?: string }) {
+  static getProductionByTechnician(filters: { from?: string; to?: string; groupBy?: string }) {
     let sql = `
       SELECT u.id as technician_id, u.name as technician_name,
              COUNT(p.id) as total_jobs,
@@ -62,7 +62,7 @@ export class ReportsService {
              SUM(CASE WHEN p.type = 'escaneamento' THEN 1 ELSE 0 END) as scan_count
       FROM productions p
       JOIN users u ON u.id = p.technician_id
-      WHERE 1=1
+      WHERE p.status != 'cancelada'
     `;
     const params: any[] = [];
 
@@ -76,10 +76,17 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    sql += ` GROUP BY u.id, u.name ORDER BY total_jobs DESC`;
+    // Agrupamento mensal: uma linha por técnico e mês
+    if (filters.groupBy === "month") {
+      sql = sql.replace("SELECT u.id as technician_id,", "SELECT strftime('%Y-%m', p.created_at) as month, u.id as technician_id,");
+      sql += ` GROUP BY month, u.id, u.name ORDER BY month DESC, total_jobs DESC`;
+    } else {
+      sql += ` GROUP BY u.id, u.name ORDER BY total_jobs DESC`;
+    }
 
     const rows = query.all(sql, ...params);
     return rows.map((r) => ({
+      ...(filters.groupBy === "month" ? { month: r.month } : {}),
       technicianId: r.technician_id,
       technicianName: r.technician_name,
       totalJobs: r.total_jobs,
@@ -95,7 +102,8 @@ export class ReportsService {
     let sql = `
       SELECT s.id as supply_id, s.name as supply_name, s.color as supply_color, s.type as supply_type, s.balance as current_balance,
              COALESCE(SUM(CASE WHEN sm.type = 'entrada' THEN sm.quantity ELSE 0 END), 0) as total_received_kg,
-             COALESCE(SUM(CASE WHEN sm.type = 'saida_producao' THEN ABS(sm.quantity) ELSE 0 END), 0) as total_consumed_kg
+             COALESCE(SUM(CASE WHEN sm.type = 'saida_producao' THEN ABS(sm.quantity)
+                               WHEN sm.type = 'estorno' THEN -ABS(sm.quantity) ELSE 0 END), 0) as total_consumed_kg
       FROM supplies s
       LEFT JOIN stock_movements sm ON sm.supply_id = s.id
       WHERE 1=1

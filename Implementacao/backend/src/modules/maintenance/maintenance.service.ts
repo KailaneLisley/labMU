@@ -3,6 +3,9 @@ import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isValidDateInput } from "../../utils/dates.js";
 
+const MAINTENANCE_TYPES = ["preventiva", "corretiva"];
+const MAINTENANCE_STATUSES = ["agendada", "em_andamento", "concluida", "cancelada"];
+
 export class MaintenanceService {
   static list(filters: {
     machineId?: string;
@@ -86,6 +89,14 @@ export class MaintenanceService {
   }) {
     if (!data.machineId || !data.type || !data.date || !data.description) {
       throw new AppError("Máquina, tipo, data e descrição são obrigatórios.", 400);
+    }
+
+    if (!MAINTENANCE_TYPES.includes(data.type)) {
+      throw new AppError("Tipo de manutenção inválido.", 400, "INVALID_MAINTENANCE_TYPE");
+    }
+
+    if (data.status !== undefined && !MAINTENANCE_STATUSES.includes(data.status)) {
+      throw new AppError("Situação de manutenção inválida.", 400, "INVALID_MAINTENANCE_STATUS");
     }
 
     if (!isValidDateInput(data.date)) {

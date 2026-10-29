@@ -12,3 +12,5 @@ productionRouter.get("/:id", ProductionController.getById);
 // Registro de produção realizado por técnicos ou administradores
 productionRouter.post("/", requireRole("administrador", "tecnico"), ProductionController.create);
 
+// Cancelamento devolve o insumo ao estoque; o técnico só cancela as próprias produções
+productionRouter.post("/:id/cancel", requireRole("administrador", "tecnico"), ProductionController.cancel);

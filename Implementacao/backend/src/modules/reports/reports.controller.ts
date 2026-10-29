@@ -19,10 +19,11 @@ export class ReportsController {
 
   static productionByTechnician = (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
-      const { from, to } = req.query;
+      const { from, to, groupBy } = req.query;
       const report = ReportsService.getProductionByTechnician({
         from: from as string,
         to: to as string,
+        groupBy: groupBy as string,
       });
       res.status(200).json({ report });
     } catch (error) {
