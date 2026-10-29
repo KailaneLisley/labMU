@@ -524,6 +524,14 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Era para ser:** "estados visíveis de carregamento, lista vazia, erro, retry e conflito" (Backend_Requisitos §8.6).
 - **Está sendo feito:** o login e o cadastro mostram mensagem de erro vinda da API. As telas de dados não consultam a API, então não há estado de erro para elas.
 
+#### F9 - No deploy, ao recarregar a página, a aplicação quebra. 
+
+#### F10 - O Front precisa ter informações mais esclarecidas sobre os caminhos (correção de ui/ux)
+- No teste, foi verificado coisas como:
+- Ter uma lixeira para excluir usuários.
+- Ao clicar em "ver detalhes" na aba de relatórios gerenciais, não apresenta informações adicionais propriamente. É um botão redundante, que apresenta informações já mostradas na tela.
+- Ao clicar em "cadastrar novo usuário" ou "cadastrar novo equipamento", o usuário não vai para a aba de cadastro propriamente, mas para uma tela de gerenciamento de usuários ou equipamento. 
+
 ---
 
 ## 6. Documentação
@@ -543,6 +551,8 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 - **Cobertura dos testes automatizados:** 40 testes cobrem autenticação e segurança (S1 a S7), recuperação, estoque, empréstimo (inclusive devolução), produção, cancelamento, relatórios, dashboard, matriz de permissões por perfil, cadastro e remoção de máquinas, manutenção e as regras R1 a R9 e V1 e V2. Não cobrem a interface da SPA, concorrência real, carga, nem o conteúdo numérico completo de cada relatório.
 
 ---
+
+
 
 ## 8. Ordem sugerida de correção
 
