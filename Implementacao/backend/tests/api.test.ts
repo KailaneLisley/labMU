@@ -4,6 +4,13 @@ import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { seedDatabase } from "../src/database/seed.js";
 import http from "node:http";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 let server: http.Server;
 let baseUrl: string;
@@ -474,4 +481,352 @@ test("Ajuste manual de estoque: administrador ajusta com motivo e técnico é bl
   assert.ok(adj, "movimento de ajuste deve existir");
   assert.equal(adj.type, "ajuste");
   assert.equal(adj.quantity, -0.5);
+});
+
+async function loginAs(email: string, password: string, role: string): Promise<{ Authorization: string }> {
+  const res = await makeRequest("/api/auth/login", { method: "POST", body: { email, password, role } });
+  assert.equal(res.status, 200);
+  return { Authorization: `Bearer ${res.data.token}` };
+}
+
+// Cria um técnico próprio para cada teste: a senha do técnico padrão muda no teste de recuperação
+async function createTechnician(): Promise<{ id: string; headers: { Authorization: string } }> {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const email = `tec.${suffix}@unicap.br`;
+  const password = "SenhaTeste@123";
+  const created = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Técnico de Regras", email, role: "tecnico", registration: `REG-${suffix}`, password },
+  });
+  assert.equal(created.status, 201);
+
+  const login = await makeRequest("/api/auth/login", { method: "POST", body: { email, password, role: "tecnico" } });
+  assert.equal(login.status, 200);
+  return { id: login.data.user.id, headers: { Authorization: `Bearer ${login.data.token}` } };
+}
+
+test("R1: técnico não registra produção em nome de outro usuário", async () => {
+  const tech = await createTechnician();
+
+  const other = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Em nome de outro", machineId: "mach-1", technicianId: "usr-admin-musarq" },
+  });
+  assert.equal(other.status, 403);
+  assert.equal(other.data.error.code, "PRODUCTION_TECHNICIAN_MISMATCH");
+
+  const own = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Próprio", machineId: "mach-1", technicianId: tech.id },
+  });
+  assert.equal(own.status, 201);
+  assert.equal(own.data.production.technician_id, tech.id);
+
+  const noTechnician = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Sem técnico informado", machineId: "mach-1" },
+  });
+  assert.equal(noTechnician.status, 201);
+  assert.equal(noTechnician.data.production.technician_id, tech.id);
+});
+
+test("R2: produção recusa máquina inativa, tipo incompatível e consumo em escaneamento", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  await makeRequest("/api/machines/mach-1", { method: "PATCH", headers: adminHeaders, body: { status: "inativa" } });
+  const inactive = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Máquina inativa", machineId: "mach-1" },
+  });
+  assert.equal(inactive.status, 400);
+  assert.equal(inactive.data.error.code, "MACHINE_INACTIVE");
+  await makeRequest("/api/machines/mach-1", { method: "PATCH", headers: adminHeaders, body: { status: "ativa" } });
+
+  const wrongType = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Impressão no scanner", machineId: "mach-5" },
+  });
+  assert.equal(wrongType.status, 400);
+  assert.equal(wrongType.data.error.code, "MACHINE_TYPE_MISMATCH");
+
+  const supplies = await makeRequest("/api/supplies", { headers: adminHeaders });
+  const supplyId = supplies.data.supplies[0].id;
+  const scanWithConsumption = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "escaneamento", description: "Scan com consumo", machineId: "mach-5", supplyId, supplyConsumed: 1 },
+  });
+  assert.equal(scanWithConsumption.status, 400);
+  assert.equal(scanWithConsumption.data.error.code, "SCAN_NO_CONSUMPTION");
+});
+
+test("R3: empréstimo recusa data prevista em formato inválido", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const equip = await makeRequest("/api/equipment", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Tablet de Validação", code: `VAL-${Date.now()}` },
+  });
+  const equipmentId = equip.data.item.id;
+
+  const invalid = await makeRequest("/api/loans", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { equipmentId, responsibleName: "Teste", dueDate: "abc" },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.data.error.code, "INVALID_DUE_DATE");
+
+  const loansAfter = await makeRequest("/api/loans", { headers: adminHeaders });
+  assert.equal(loansAfter.data.loans.filter((l: any) => l.equipment_id === equipmentId).length, 0);
+});
+
+test("R4: relatório com 'até' igual à data inclui os registros do último dia", async () => {
+  const tech = await createTechnician();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Para o relatório", machineId: "mach-1" },
+  });
+  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+
+  assert.equal(after.data.metrics.totalJobs, before.data.metrics.totalJobs + 1);
+});
+
+test("R5: movimento de consumo referencia o ID da produção e não o da máquina", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+  const entry = await makeRequest("/api/supplies/entries", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Insumo Ref ${Date.now()}`, color: "Preto", type: "PLA", quantity: 5, lot: "LOTE-REF" },
+  });
+  assert.equal(entry.status, 201);
+  const supplyId = entry.data.supply.id;
+
+  const prod = await makeRequest("/api/productions", {
+    method: "POST",
+    headers: tech.headers,
+    body: { type: "impressao_3d", description: "Ref", machineId: "mach-1", supplyId, supplyConsumed: 0.5 },
+  });
+  assert.equal(prod.status, 201, JSON.stringify(prod.data));
+
+  const movements = await makeRequest(`/api/supplies/movements?supplyId=${supplyId}`, { headers: tech.headers });
+  const movement = movements.data.movements.find((m: any) => m.type === "saida_producao" && m.reference_id === prod.data.production.id);
+  assert.ok(movement, "movimento de saída deve referenciar o ID da produção");
+});
+
+test("V1: entradas inválidas devolvem 400, nunca 500", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  const badRole = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Fulano X", email: `x.${Date.now()}@unicap.br`, role: "hacker", registration: `H${Date.now()}` },
+  });
+  assert.equal(badRole.status, 400);
+
+  const badJson = await new Promise<number>((resolve, reject) => {
+    const req = http.request(new URL("/api/productions", baseUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...tech.headers },
+    }, (res) => { res.resume(); res.on("end", () => resolve(res.statusCode || 500)); });
+    req.on("error", reject);
+    req.write("{ isto nao e json");
+    req.end();
+  });
+  assert.equal(badJson, 400);
+
+  const noBody = await makeRequest("/api/machines", { method: "POST", headers: adminHeaders });
+  assert.equal(noBody.status, 400);
+
+  const badDate = await makeRequest("/api/maintenances", {
+    method: "POST",
+    headers: tech.headers,
+    body: { machineId: "mach-1", type: "preventiva", date: "abc", description: "x" },
+  });
+  assert.equal(badDate.status, 400);
+  assert.equal(badDate.data.error.code, "INVALID_DATE");
+});
+
+test("V2: saldo inicial e custo de manutenção negativos são recusados", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const tech = await createTechnician();
+
+  const negBalance = await makeRequest("/api/supplies", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Teste", type: "PLA", color: "Azul", balance: -5 },
+  });
+  assert.equal(negBalance.status, 400);
+  assert.equal(negBalance.data.error.code, "INVALID_BALANCE");
+
+  const negCost = await makeRequest("/api/maintenances", {
+    method: "POST",
+    headers: tech.headers,
+    body: { machineId: "mach-1", type: "corretiva", date: "2026-10-19", description: "x", cost: -100 },
+  });
+  assert.equal(negCost.status, 400);
+  assert.equal(negCost.data.error.code, "INVALID_COST");
+});
+
+function getRawHeaders(requestPath: string, headers: Record<string, string>): Promise<http.IncomingHttpHeaders> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(new URL(requestPath, baseUrl), { method: "GET", headers }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.headers));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function createUserWithPassword(role: string, password: string): Promise<{ id: string; email: string }> {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const email = `${role}.${suffix}@unicap.br`;
+  const created = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: `Conta ${role}`, email, role, registration: `REG-${suffix}`, password },
+  });
+  assert.equal(created.status, 201);
+  return { id: created.data.user.id, email };
+}
+
+test("S1: conta de aluno não autentica no sistema", async () => {
+  const { email } = await createUserWithPassword("aluno", "Senha1234");
+
+  const login = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "Senha1234" } });
+  assert.equal(login.status, 403);
+  assert.equal(login.data.error.code, "ROLE_NOT_ALLOWED");
+});
+
+test("S2: CORS libera apenas a origem do frontend", async () => {
+  const evil = await getRawHeaders("/api/health", { Origin: "https://site-malicioso.exemplo" });
+  assert.equal(evil["access-control-allow-origin"], undefined);
+
+  const frontend = await getRawHeaders("/api/health", { Origin: "http://localhost:3000" });
+  assert.equal(frontend["access-control-allow-origin"], "http://localhost:3000");
+});
+
+test("S3: logout revoga o token", async () => {
+  const tech = await createTechnician();
+
+  const before = await makeRequest("/api/auth/me", { headers: tech.headers });
+  assert.equal(before.status, 200);
+
+  const logout = await makeRequest("/api/auth/logout", { method: "POST", headers: tech.headers });
+  assert.equal(logout.status, 200);
+
+  const after = await makeRequest("/api/auth/me", { headers: tech.headers });
+  assert.equal(after.status, 401);
+  assert.equal(after.data.error.code, "TOKEN_REVOKED");
+});
+
+test("S4: login é bloqueado após tentativas seguidas com senha errada", async () => {
+  const email = `forca.bruta.${Date.now()}@unicap.br`;
+
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const res = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "errada" } });
+    statuses.push(res.status);
+    if (res.status === 429) {
+      assert.equal(res.data.error.code, "TOO_MANY_ATTEMPTS");
+    }
+  }
+  assert.deepEqual(statuses, [401, 401, 401, 401, 401, 429]);
+});
+
+test("S5: token de recuperação só redefine a senha uma vez", async () => {
+  const suffix = `${Date.now()}`;
+  const email = `recupera.${suffix}@unicap.br`;
+
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Recuperação",
+      email,
+      registration: `REG-${suffix}`,
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome do seu animal de estimação?",
+      securityAnswer: "Totó",
+    },
+  });
+  assert.equal(reg.status, 201);
+
+  const verify = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email, answer: "Totó" },
+  });
+  const resetToken = verify.data.resetToken;
+
+  const first = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: { email, resetToken, newPassword: "NovaSenha@2026" },
+  });
+  assert.equal(first.status, 200);
+
+  const second = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: { email, resetToken, newPassword: "OutraSenha@2026" },
+  });
+  assert.equal(second.status, 401);
+  assert.equal(second.data.error.code, "INVALID_TOKEN");
+});
+
+test("S6: conta inativa não revela o status antes da senha", async () => {
+  const { id, email } = await createUserWithPassword("tecnico", "Senha1234");
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const deactivated = await makeRequest(`/api/users/${id}/status`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { status: "inativo" },
+  });
+  assert.equal(deactivated.status, 200);
+
+  const wrongPassword = await makeRequest("/api/auth/login", { method: "POST", body: { email, password: "errada1" } });
+  assert.equal(wrongPassword.status, 401);
+  assert.equal(wrongPassword.data.error.code, "INVALID_CREDENTIALS");
+});
+
+test("S7: em produção, o servidor não inicia sem JWT_SECRET", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "-e", 'import("./src/config/env.ts")'], {
+    cwd: backendRoot,
+    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "" },
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /JWT_SECRET/);
+});
+
+test("S7: em produção, nenhuma conta padrão é criada", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "labmu-prod-"));
+  const script = [
+    'import("./src/bootstrap.ts")',
+    '  .then(({ initializeData }) => { initializeData(); return import("./src/database/connection.ts"); })',
+    '  .then(({ query }) => console.log(query.get("SELECT COUNT(*) AS n FROM users").n));',
+  ].join("\n");
+
+  const result = spawnSync(process.execPath, ["--import", "tsx", "-e", script], {
+    cwd: backendRoot,
+    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "segredo-de-teste", DATABASE_FILE: path.join(dir, "prod.sqlite") },
+    encoding: "utf8",
+  });
+  rmSync(dir, { recursive: true, force: true });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "0");
 });

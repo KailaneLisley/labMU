@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { isValidDateInput } from "../../utils/dates.js";
 import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "./loanStatus.js";
 
 export class LoansService {
@@ -73,6 +74,10 @@ export class LoansService {
   }) {
     if (!data.equipmentId || !data.responsibleName || !data.dueDate) {
       throw new AppError("Equipamento, responsável e data prevista de devolução são obrigatórios.", 400);
+    }
+
+    if (!isValidDateInput(data.dueDate)) {
+      throw new AppError("Data prevista de devolução inválida. Use o formato AAAA-MM-DD ou ISO 8601.", 400, "INVALID_DUE_DATE");
     }
 
     return query.transaction(() => {

@@ -14,16 +14,16 @@ Este documento segue o formato **"Era para ser" x "Está sendo feito"**. Para ca
 | `npm test` no backend | **9/9 passam** (arquivo `tests/api.test.ts`) |
 | `npx tsc --noEmit` no backend | Sem erros |
 | `npm run build` na SPA | **Passa** (tsc + vite) |
-| Verificações manuais de API (script próprio, 39 checagens) | **13 passam, 26 falham** |
+| Testes automatizados após a correção de R1–R5, V1 e V2 | **16/16 passam** (9 antigos + 7 novos, um por item corrigido) |
+| Verificações manuais de API (script próprio, 39 checagens) | **13 passam, 26 falham** na medição original; não foram rodadas de novo após as correções |
 | Telas da SPA conectadas à API | **Apenas login, cadastro e recuperação de senha** |
 
 **Leitura geral:**
 
 - O backend existe e está bem organizado por módulos. As regras mais importantes de empréstimo (máquina fixa não sai, um empréstimo ativo por equipamento), de estoque (débito atômico, saldo insuficiente bloqueado, ajuste só para administrador) e de recuperação de senha funcionam.
 - A segurança ainda está incompleta: conta sem perfil de Administrador/Técnico consegue entrar, o CORS aceita qualquer origem, o logout não invalida nada, não há limite de tentativas e o token de recuperação pode ser reutilizado.
-- Há várias regras de negócio que deixam passar dados incoerentes (produção em máquina inativa, impressão 3D em scanner, empréstimo com data inválida ou passada).
-- Há um bug de relatório que afeta números: filtrar "até hoje" **exclui os registros de hoje**.
-- Entradas inválidas em vários endpoints devolvem **HTTP 500** em vez de 400.
+- Atualização: as regras de dados incoerentes (R1 a R5) e as validações (V1 e V2) foram corrigidas. Produção em máquina inativa ou incompatível, produção em nome de outro técnico, data de empréstimo inválida, saldo e custo negativos e relatórios com "até" são recusados ou calculados corretamente, e entradas inválidas devolvem 400.
+- Pendente: a passada manual de 39 checagens de API ainda não foi refeita, e as pendências de segurança (S1 a S8) continuam abertas.
 - O frontend ainda funciona majoritariamente com `localStorage`. Só a autenticação fala com a API.
 - O arquivo `Backend_Requisitos_e_Integracao.md` está **desatualizado**: afirma que não existe backend. Ele deve ser revisado.
 
@@ -105,25 +105,25 @@ Classificação: **Alta** = viola requisito de segurança ou gera dado/relatóri
 
 | ID | Tipo | Prioridade | Descrição curta |
 |---|---|---|---|
-| S1 | Segurança | Alta | Conta de aluno/professor com senha consegue logar |
-| S2 | Segurança | Alta | CORS aceita qualquer origem com credenciais |
-| S3 | Segurança | Alta | Logout não invalida o token |
-| S4 | Segurança | Alta | Sem limite de tentativas de login |
-| S5 | Segurança | Alta | Token de recuperação pode ser usado várias vezes |
+| S1 ✅ | Segurança | Alta | Conta de aluno/professor com senha consegue logar |
+| S2 ✅ | Segurança | Alta | CORS aceita qualquer origem com credenciais |
+| S3 ✅ | Segurança | Alta | Logout não invalida o token |
+| S4 ✅ | Segurança | Alta | Sem limite de tentativas de login |
+| S5 ✅ | Segurança | Alta | Token de recuperação pode ser usado várias vezes |
 | S6 | Segurança | Média | Recuperação de senha revela se a conta existe (e se é admin) |
-| S7 | Segurança | Alta | Senhas padrão são criadas em qualquer ambiente; segredo JWT fixo no código |
+| S7 ✅ | Segurança | Alta | Senhas padrão são criadas em qualquer ambiente; segredo JWT fixo no código |
 | S8 | Segurança | Média | Resposta de segurança gravada em texto puro |
-| R1 | Regra | Alta | Técnico registra produção em nome de outro usuário |
-| R2 | Regra | Alta | Produção aceita máquina inativa, tipo incoerente e consumo em escaneamento |
-| R3 | Regra | Alta | Empréstimo aceita data prevista inválida ou no passado |
-| R4 | Regra | Alta | Relatórios com "até" excluem o último dia |
-| R5 | Regra | Média | `reference_id` do movimento de estoque guarda o ID da máquina |
+| R1 ✅ | Regra | Alta | Técnico registra produção em nome de outro usuário |
+| R2 ✅ | Regra | Alta | Produção aceita máquina inativa, tipo incoerente e consumo em escaneamento |
+| R3 ✅ | Regra | Alta | Empréstimo aceita data prevista inválida ou no passado |
+| R4 ✅ | Regra | Alta | Relatórios com "até" excluem o último dia |
+| R5 ✅ | Regra | Média | `reference_id` do movimento de estoque guarda o ID da máquina |
 | R6 | Faltando | Média | Não existe estorno/cancelamento de produção |
 | R7 | Faltando | Média | Equipamentos e insumos não podem ser editados nem inativados |
 | R8 | Faltando | Média | Não há como colocar equipamento "em manutenção" |
 | R9 | Regra | Baixa | Relatórios "mensais" não agrupam por mês; dashboard sem período |
-| V1 | Validação | Média | Entrada inválida devolve HTTP 500 |
-| V2 | Validação | Média | Valores negativos aceitos (saldo inicial, custo de manutenção) |
+| V1 ✅ | Validação | Média | Entrada inválida devolve HTTP 500 |
+| V2 ✅ | Validação | Média | Valores negativos aceitos (saldo inicial, custo de manutenção) |
 | C1 | Contrato | Baixa | Datas sem ISO 8601 com fuso |
 | C2 | Contrato | Baixa | Listagens sem paginação (só `/users` pagina) |
 | D1 | Decisão | Decisão | Técnico vê e-mail, matrícula e telefone de todos |
@@ -132,6 +132,8 @@ Classificação: **Alta** = viola requisito de segurança ou gera dado/relatóri
 ### 4.2 Segurança
 
 #### S1 — Conta de aluno/professor consegue entrar no sistema (Alta)
+
+- **Status:** corrigido. Conta de aluno/professor recusada no login (403 `ROLE_NOT_ALLOWED`) e no middleware. Também recusada em tokens já emitidos. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** só Administrador e Técnico autenticam; Cliente não tem login (Sprints/2; README).
 - **Está sendo feito:** `auth.service.ts:35` compara o perfil só quando o cliente envia `role` no corpo. Qualquer conta com senha entra e recebe token. O middleware (`auth.ts`) também aceita qualquer perfil.
@@ -149,6 +151,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/login -H 'Content-Typ
 
 #### S2 — CORS aceita qualquer origem com credenciais (Alta)
 
+- **Status:** corrigido. CORS restrito à lista `CORS_ORIGINS` (padrão: `localhost:3000`). Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "CORS restrito ao domínio do frontend" (Backend_Requisitos §7).
 - **Está sendo feito:** `app.ts:18` usa `cors({ origin: true, credentials: true })`, que reflete a origem de quem pede.
 - **Como ver:**
@@ -160,6 +164,8 @@ curl -si $API/health -H 'Origin: https://site-malicioso.exemplo' | grep -i acces
 - **Resultado atual:** `Access-Control-Allow-Origin: https://site-malicioso.exemplo`. **Esperado:** nada, ou apenas a origem do frontend (ex.: `http://localhost:3000`).
 
 #### S3 — Logout não invalida o token (Alta)
+
+- **Status:** corrigido. Logout revoga o token (`revoked_tokens`); tokens revogados devolvem 401 `TOKEN_REVOKED`. Tokens emitidos antes desta correção não têm identificador de sessão e precisam de novo login. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "logout real", com "expiração/revogação de sessão" (Backend_Requisitos §7).
 - **Está sendo feito:** `auth.controller.ts:68-70` só responde `200`. O token JWT (validade de 7 dias, `.env.example`) continua valendo.
@@ -175,6 +181,8 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/auth/me -H "Authorization: Bearer 
 
 #### S4 — Sem limite de tentativas de login (Alta)
 
+- **Status:** corrigido. Após 5 falhas por conta ou 20 por IP em 15 minutos, login devolve 429 `TOO_MANY_ATTEMPTS`. Contadores ficam em memória e zeram ao reiniciar o servidor. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "limitação de tentativas de login" (Backend_Requisitos §7).
 - **Está sendo feito:** nada no código de login; nenhum middleware de limite.
 - **Como ver:**
@@ -188,6 +196,8 @@ for i in $(seq 15); do curl -s -o /dev/null -w '%{http_code} ' -X POST $API/auth
 - **Correção:** `express-rate-limit` ou contador de falhas por conta e por IP.
 
 #### S5 — Token de recuperação pode ser usado mais de uma vez (Alta)
+
+- **Status:** corrigido. Token de recuperação é de uso único: após a redefinição, é revogado. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "token aleatório, curto prazo de validade, **uso único**" (Backend_Requisitos §7).
 - **Está sendo feito:** o token é um JWT de 15 minutos (`auth.service.ts:244-248`). A redefinição não o marca como usado (`auth.service.ts:256-299`).
@@ -204,6 +214,8 @@ for i in 1 2; do curl -s -o /dev/null -w '%{http_code} ' -X POST $API/auth/forgo
 - **Correção:** guardar o `jti` do token usado (ou um hash do token) em tabela e recusar reuso.
 
 #### S6 — Recuperação de senha revela se a conta existe (Média)
+
+- **Status:** parcial. A conta inativa agora só é recusada depois da senha (401 genérico com senha errada). A enumeração de contas em `verify-email` continua aberta.
 
 - **Era para ser:** "resposta que não enumere contas" e "mensagens que não revelem se um e-mail existe" (Backend_Requisitos §7).
 - **Está sendo feito:** `auth.service.ts:183-185` responde `404` com "E-mail não encontrado" para e-mail inexistente, e `200` com a pergunta para e-mail existente. Além disso, `auth.service.ts:187-194` revela que a conta é de administrador.
@@ -227,6 +239,8 @@ curl -s -X POST $API/auth/login -H 'Content-Type: application/json' -d '{"email"
 
 #### S7 — Senhas padrão em qualquer ambiente e segredo JWT fixo no código (Alta)
 
+- **Status:** corrigido. Em `NODE_ENV=production`, o servidor não inicia sem `JWT_SECRET` e não cria contas padrão. Fora de produção, o segredo de desenvolvimento só é usado com aviso no console. Coberto por teste em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "Remover credenciais mockadas antes de disponibilizar em produção"; "seed de desenvolvimento isolado"; "Dados seed ... nunca carregados em produção" (Backend_Requisitos §7 e §10).
 - **Está sendo feito:**
   - `server.ts:6` chama `seedDatabase()` sempre, sem checar `NODE_ENV`. Em produção seria criado `admin.musarq@unicap.br` com senha `Admin@123`, que aparece no README e no `.env.example`.
@@ -245,6 +259,8 @@ curl -s -X POST $API/auth/login -H 'Content-Type: application/json' -d '{"email"
 
 #### R1 — Técnico registra produção em nome de outro usuário (Alta)
 
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** o técnico responsável é quem registra, e o relatório "Técnico responsável correto" deve bater com quem operou (Sprints/18).
 - **Está sendo feito:** `production.controller.ts:34-35` usa `req.body.technicianId` antes do usuário logado. E `production.service.ts:103-106` só confere se o ID existe, sem checar perfil.
 - **Como ver:**
@@ -258,6 +274,8 @@ curl -s -X POST $API/productions -H "Authorization: Bearer $TEC" -H 'Content-Typ
 - **Correção:** usar sempre `req.user.id` no técnico, ou aceitar `technicianId` só para administrador.
 
 #### R2 — Produção aceita máquina inativa, tipo incoerente e consumo em escaneamento (Alta)
+
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "Máquina correta" (Sprints/18); "Quando houver uso de scanner, o insumo consumido pode ser zero" (regra de scanner com consumo zero); máquina inativa não deveria produzir.
 - **Está sendo feito:** `production.service.ts:98-101` só confere se a máquina existe. Não olha `status` nem `type`.
@@ -284,6 +302,8 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/productions -H "Authorizat
 
 #### R3 — Empréstimo aceita data prevista inválida ou no passado (Alta)
 
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "Um empréstimo ativo deve ter responsável e data prevista" (Backend_Requisitos §5).
 - **Está sendo feito:** `loans.service.ts:74-76` só confere se o campo foi enviado. Não valida formato nem se a data é futura. A data `abc` é gravada como está.
 - **Como ver:**
@@ -301,6 +321,8 @@ curl -s -X POST $API/loans -H "Authorization: Bearer $TEC" -H 'Content-Type: app
 
 #### R4 — Relatórios com "até" excluem o último dia (Alta)
 
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** "Relatório reflete o período e filtro escolhido" (Testes_de_Qualidade).
 - **Está sendo feito:** `created_at` é gravado como `2026-10-19 12:22:37`. Quando o filtro é só a data (`to=2026-10-19`), a comparação `created_at <= '2026-10-19'` deixa de fora tudo o que aconteceu no dia. Acontece em `reports.service.ts:24-27` (produção), `106-109` (estoque), `139-141` (empréstimos) e `180-182` (manutenções).
 - **Como ver** (substitua pela data de hoje):
@@ -315,6 +337,8 @@ curl -s "$API/reports/production?from=$HOJE&to=$HOJE" -H "Authorization: Bearer 
 - **Correção:** para `to` de data pura, comparar com `< date(to, '+1 day')`, ou usar `date(created_at) <= ?`.
 
 #### R5 — `reference_id` do movimento de estoque guarda o ID da máquina (Média)
+
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "gravar o movimento com referência ao registro de produção" (Backend_Requisitos §5, `production_records`).
 - **Está sendo feito:** `production.service.ts:159` grava `data.machineId` na coluna `reference_id`.
@@ -351,6 +375,8 @@ curl -s "$API/reports/production?from=$HOJE&to=$HOJE" -H "Authorization: Bearer 
 
 #### V1 — Entrada inválida devolve HTTP 500 (Média)
 
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
+
 - **Era para ser:** `400` ou `422` para validação, `500` só para erro inesperado (Backend_Requisitos §6).
 - **Está sendo feito:** `errorHandler.ts:33` converte só erros de `UNIQUE`. Violação de `CHECK` (ex.: tipo fora da lista) e `SyntaxError` do JSON caem em `500`. Também `req.body` ausente gera `TypeError` → `500`. Datas inválidas quebram em `maintenance.service.ts:119-121` (`RangeError` no `toISOString`).
 - **Como ver:**
@@ -368,6 +394,8 @@ curl -s -X POST $API/maintenances -H "Authorization: Bearer $TEC" -H 'Content-Ty
 - **Correção:** validar enums nos serviços (`role`, `type`, `status`), tratar `SyntaxError` do JSON como `400`, e mapear `CHECK constraint failed` para `400 VALIDATION_ERROR`.
 
 #### V2 — Valores negativos aceitos (Média)
+
+- **Status:** corrigido. Coberto por teste automatizado em `Implementacao/backend/tests/api.test.ts`.
 
 - **Era para ser:** "Validar no servidor limites, formatos, estados permitidos" (Backend_Requisitos §6).
 - **Está sendo feito:** `supplies.service.ts:58` usa `Number(data.balance) || 0` sem checar sinal. `maintenance.service.ts:110` aceita `cost` negativo.
@@ -498,9 +526,9 @@ Estes dois itens não são bugs de código, mas o comportamento atual tem risco 
 
 ## 8. Ordem sugerida de correção
 
-1. **Segurança mínima (S1, S2, S3, S4, S5, S7):** são pequenas mudanças no login, no CORS, no middleware e no seed. Bloqueiam qualquer uso real.
-2. **Dados errados (R1, R2, R3, R4, R5):** afetam relatórios e a rastreabilidade do estoque.
-3. **Validação (V1, V2):** trocar os `500` por `400` com uma regra central no `errorHandler` e validação de enums nos serviços.
+1. ~~**Segurança mínima (S1, S2, S3, S4, S5, S7)**~~ — corrigido. Faltam S6 (enumeração de contas em `verify-email`) e S8 (resposta de segurança em texto puro). **Próximo passo.**
+2. ~~**Dados errados (R1, R2, R3, R4, R5)**~~ — corrigido.
+3. ~~**Validação (V1, V2)**~~ — corrigido com tratamento central no `errorHandler` e validações nos serviços. Ainda falta validar enums de forma explícita nos serviços (`role`, `type`, `status`); hoje a violação de `CHECK` do banco devolve `400 VALIDATION_ERROR`, sem dizer qual campo.
 4. **Frontend:** remover o fallback offline com senha (F2, F3), depois conectar as telas de usuários, máquinas, estoque e empréstimo à API (F1), e só então dashboard e relatórios (que dependem das regras acima).
 5. **Decidir** D1 e D2 com o laboratório antes de fechar o contrato de cadastro.
 6. **Atualizar** `Backend_Requisitos_e_Integracao.md` com o estado real.

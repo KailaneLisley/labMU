@@ -29,6 +29,28 @@ export const errorHandler = (
     return;
   }
 
+  // Corpo JSON malformado enviado pelo cliente
+  if (err?.type === "entity.parse.failed") {
+    res.status(400).json({
+      error: {
+        code: "INVALID_JSON",
+        message: "O corpo da requisição não é um JSON válido.",
+      },
+    });
+    return;
+  }
+
+  // Valor fora do domínio permitido pelo banco (ex.: perfil ou tipo inexistente)
+  if (String(err?.message).includes("CHECK constraint failed")) {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Um dos valores informados não é permitido.",
+      },
+    });
+    return;
+  }
+
   // SQLite constraints error
   if (err?.code === "SQLITE_CONSTRAINT" || String(err).includes("UNIQUE constraint failed")) {
     res.status(409).json({

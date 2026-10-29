@@ -55,8 +55,15 @@ export class SuppliesService {
     }
 
     const id = `sup-${crypto.randomUUID()}`;
-    const initialBalance = Number(data.balance) || 0;
-    const minBalance = Number(data.minimumBalance) || 1.0;
+    const initialBalance = data.balance == null ? 0 : Number(data.balance);
+    const minBalance = data.minimumBalance == null ? 1.0 : Number(data.minimumBalance);
+
+    if (!Number.isFinite(initialBalance) || initialBalance < 0) {
+      throw new AppError("O saldo inicial deve ser um número maior ou igual a zero.", 400, "INVALID_BALANCE");
+    }
+    if (!Number.isFinite(minBalance) || minBalance < 0) {
+      throw new AppError("O saldo mínimo deve ser um número maior ou igual a zero.", 400, "INVALID_MINIMUM_BALANCE");
+    }
 
     let status = "regular";
     if (initialBalance <= minBalance * 0.5) status = "critico";

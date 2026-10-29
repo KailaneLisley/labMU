@@ -1,9 +1,8 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
-import { seedDatabase } from "./database/seed.js";
+import { initializeData } from "./bootstrap.js";
 
-// Garante a existência do schema e dados iniciais (incluindo Administrador padrão)
-seedDatabase();
+initializeData();
 
 app.listen(env.PORT, () => {
   console.log(`

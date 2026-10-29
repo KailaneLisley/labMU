@@ -10,5 +10,5 @@ authRouter.post("/forgot-password/verify-email", AuthController.verifyForgotEmai
 authRouter.post("/forgot-password/verify-answer", AuthController.verifyForgotAnswer);
 authRouter.post("/forgot-password/reset", AuthController.resetPassword);
 authRouter.get("/me", authenticateToken, AuthController.getMe);
-authRouter.post("/logout", AuthController.logout);
+authRouter.post("/logout", authenticateToken, AuthController.logout);
 

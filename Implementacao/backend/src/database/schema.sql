@@ -130,3 +130,9 @@ CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_productions_machine ON productions(machine_id);
 CREATE INDEX IF NOT EXISTS idx_productions_technician ON productions(technician_id);
 
+
+-- Tokens JWT revogados (logout e token de recuperação já usado). Expiram junto com o próprio token.
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    jti TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL
+);

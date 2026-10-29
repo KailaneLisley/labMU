@@ -99,9 +99,9 @@ export class UsersService {
     status?: "ativo" | "inativo" | "pendente";
     password?: string;
   }) {
-    const name = data.name.trim();
-    const email = data.email.trim().toLowerCase();
-    const registration = data.registration.trim();
+    const name = String(data.name ?? "").trim();
+    const email = String(data.email ?? "").trim().toLowerCase();
+    const registration = String(data.registration ?? "").trim();
 
     if (!name || !email || !registration) {
       throw new AppError("Nome, e-mail e matrícula são obrigatórios.", 400);

@@ -6,7 +6,7 @@ export class AuthController {
   static login = (req: Request, res: Response, next: NextFunction): void => {
     try {
       const { email, password, role } = req.body;
-      const result = AuthService.login(email, password, role);
+      const result = AuthService.login(email, password, role, req.ip);
       res.status(200).json(result);
     } catch (error) {
       next(error);
@@ -65,8 +65,15 @@ export class AuthController {
     }
   };
 
-  static logout = (_req: Request, res: Response): void => {
-    res.status(200).json({ message: "Logout realizado com sucesso." });
+  static logout = (req: AuthRequest, res: Response, next: NextFunction): void => {
+    try {
+      if (req.auth) {
+        AuthService.logout(req.auth);
+      }
+      res.status(200).json({ message: "Logout realizado com sucesso." });
+    } catch (error) {
+      next(error);
+    }
   };
 }
 

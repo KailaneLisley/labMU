@@ -88,8 +88,8 @@ export class MachinesService {
     lastMaintenance?: string;
     nextMaintenanceDate?: string;
   }) {
-    const name = data.name.trim();
-    const tag = data.tag.trim().toUpperCase();
+    const name = String(data.name ?? "").trim();
+    const tag = String(data.tag ?? "").trim().toUpperCase();
 
     if (!name || !tag || !data.type) {
       throw new AppError("Nome, TAG e tipo da máquina são obrigatórios.", 400);

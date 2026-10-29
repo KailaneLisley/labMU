@@ -4,7 +4,8 @@ Este documento explica a estrutura existente, separa requisitos documentados de 
 
 ## 1. Resumo executivo
 
-- O repositório contém documentação de produto e protótipos de frontend, mas **não contém um backend implementado nem uma base de dados**.
+- O repositório contém a API em `Implementacao/backend/` (Express 5, TypeScript, SQLite com `node:sqlite`), com módulos por domínio, transações nas operações de estoque e empréstimo e testes automatizados. A seção 13 descreve o estado atual.
+- Ainda há protótipos de frontend e documentação de produto. A SPA consome a API apenas em login, cadastro e recuperação de senha; as demais telas usam dados locais (ver seção 8).
 - A aplicação principal mais completa está em `Implementacao/frontend/perfil_adm`: React 18, TypeScript, Vite, React Router e Tailwind.
 - `login_adm` e `cadastro_adm` são protótipos separados; não fazem parte do build da aplicação React e não estão integrados entre si.
 - A aplicação React hoje simula autenticação e persiste cadastros no `localStorage`. A proteção de rotas acontece apenas no navegador e não é controle de segurança.
@@ -32,7 +33,7 @@ Este documento explica a estrutura existente, separa requisitos documentados de 
 | `Implementacao/frontend/login_adm/` | HTML + CSS + JavaScript sem build de aplicação | Protótipo independente. O JS possui um caminho de `fetch` para `/api/auth/login`, mas `USE_MOCK` está ligado e a tela não está integrada à SPA. |
 | `Implementacao/frontend/cadastro_adm/` | Componente TSX exportado, Tailwind e arquivos de ícones | O submit só altera estado visual; não cria conta nem chama serviço. Não é rota da SPA. |
 | `Implementacao/frontend/` | Contém um `package-lock.json`, mas não tem `package.json` próprio | Instalação/build da SPA devem ser feitos em `Implementacao/frontend/perfil_adm/`. |
-| `Implementacao/backend/` | Não existe atualmente | A criação do serviço, configuração, migrações e testes é trabalho novo. |
+| `Implementacao/backend/` | API Express 5 + TypeScript, SQLite (`node:sqlite`), 9 módulos e testes em `tests/api.test.ts` | Ponto de integração da SPA. Ver seção 13 para o estado atual e a seção 12 para os arquivos. |
 
 `login_adm/index.html` contém links para `recuperar-senha.html` e `cadastro-admin.html`, que não aparecem entre os arquivos atuais de `login_adm`. Na SPA, o link de recuperação abre e-mail e o acesso administrativo é encaminhado à coordenação. Portanto, esses documentos HTML não devem ser confundidos com as rotas React `/login` e `/cadastro`.
 
@@ -236,7 +237,7 @@ O contrato atual da SPA espera algo parecido com `{ token, user: { name, email, 
 9. Implementar a tela de registro de produção ou ajustar os requisitos antes de afirmar que o ciclo produtivo está funcional.
 10. Atualizar os tipos TypeScript a partir de contratos compartilhados/OpenAPI e testar o comportamento contra uma API de desenvolvimento.
 
-Os campos `VITE_API_URL` e `VITE_API_TIMEOUT` aparecem em `.env.example`, mas a configuração atual da SPA não os consome ainda. O login HTML separado aponta para `/api/auth/login` apenas se `USE_MOCK` for desligado; isso não liga automaticamente o React a esse endpoint.
+A SPA lê `VITE_API_URL` em `src/services/api.ts` (padrão `/api`) e já usa a API no login, no cadastro e na recuperação de senha. `VITE_API_TIMEOUT` aparece em `.env.example`, mas ainda não é usado. O login HTML separado (`login_adm`) continua sem integração: ele só chama `/api/auth/login` se `USE_MOCK` for desligado.
 
 ## 9. Sequência de implementação recomendada
 
@@ -303,6 +304,14 @@ Os campos `VITE_API_URL` e `VITE_API_TIMEOUT` aparecem em `.env.example`, mas a 
 
 ## 12. Referências no código
 
+Backend (`Implementacao/backend/`):
+
+- Entrada da API: `src/app.ts`; erros centralizados: `src/middlewares/errorHandler.ts`; autenticação e perfis: `src/middlewares/auth.ts`.
+- Banco: `src/database/schema.sql` (constraints `CHECK` de domínio) e `src/database/connection.ts`.
+- Módulos: `src/modules/<dominio>/` (auth, users, machines, maintenance, supplies, equipment, loans, production, reports, dashboard).
+- Utilitários de data (validação ISO e filtro "até" inclusivo): `src/utils/dates.ts`.
+- Testes: `tests/api.test.ts`.
+
 - Aplicação React: `Implementacao/frontend/perfil_adm/src/App.tsx`, `src/main.tsx`.
 - Sessão local: `src/lib/session.ts`; estado local: `src/hooks/usePersistentState.ts`; contas demonstrativas: `src/lib/accounts.ts`.
 - Login/cadastro: `src/pages/LoginPage.tsx`, `src/pages/RegisterPage.tsx`.
@@ -311,3 +320,47 @@ Os campos `VITE_API_URL` e `VITE_API_TIMEOUT` aparecem em `.env.example`, mas a 
 - Módulos ainda demonstrativos: `src/pages/DashboardPage.tsx`, `src/pages/MaintenanceManagementPage.tsx`, `src/pages/ReportsPage.tsx`.
 - Login HTML independente: `Implementacao/frontend/login_adm/index.html` e `js/login.js`.
 - Cadastro TSX independente: `Implementacao/frontend/cadastro_adm/index.tsx`.
+
+## 13. Estado atual do backend
+
+Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de ausência de backend das seções 1 e 2.
+
+### Regras de negócio e validação aplicadas
+
+| Regra | Comportamento atual | Código de erro |
+|---|---|---|
+| Produção em nome próprio | Técnico registra só em seu nome; `technicianId` de outro usuário devolve `403`. Administrador pode informar o responsável. | `PRODUCTION_TECHNICIAN_MISMATCH` |
+| Máquina apta para produção | Máquina só com status `ativa` recebe produção. | `MACHINE_INACTIVE` |
+| Compatibilidade de máquina | `impressao_3d` exige impressora 3D; `escaneamento` exige scanner. | `MACHINE_TYPE_MISMATCH` |
+| Escaneamento sem insumo | Escaneamento aceita só consumo zero. | `SCAN_NO_CONSUMPTION` |
+| Movimento de estoque da produção | O movimento `saida_producao` grava o ID da produção em `reference_id`. | — |
+| Data prevista do empréstimo | Aceita `AAAA-MM-DD` ou ISO 8601 com fuso. Datas passadas são aceitas (ver pendência abaixo). | `INVALID_DUE_DATE` |
+| Data da manutenção | Mesmo formato de data. | `INVALID_DATE` |
+| Custo da manutenção | Maior ou igual a zero. | `INVALID_COST` |
+| Saldo inicial e mínimo do insumo | Maiores ou iguais a zero. | `INVALID_BALANCE`, `INVALID_MINIMUM_BALANCE` |
+| Relatórios "até" | Data sem hora inclui o dia inteiro. | — |
+| JSON malformado | Devolve `400`. | `INVALID_JSON` |
+| Violação de domínio do banco | Perfil, status ou tipo fora da lista devolve `400`. | `VALIDATION_ERROR` |
+| Corpo ausente | Campos obrigatórios devolvem `400`, não `500`. | conforme o caso |
+
+### Autenticação e segurança aplicadas
+
+| Controle | Comportamento atual | Código de erro |
+|---|---|---|
+| Perfis com acesso | Só `administrador` e `tecnico` autenticam, no login e em qualquer requisição. | `ROLE_NOT_ALLOWED` (403) |
+| Logout | Revoga o token (`revoked_tokens`). Requer token válido. | `TOKEN_REVOKED` (401) |
+| Token sem sessão | Tokens sem identificador (emitidos antes desta versão) são recusados; o usuário faz login de novo. | `INVALID_TOKEN` (401) |
+| Limite de tentativas | 5 falhas por conta ou 20 por IP em 15 minutos. Contadores em memória. | `TOO_MANY_ATTEMPTS` (429) |
+| Conta inativa | Só é revelada depois da senha correta. | `ACCOUNT_INACTIVE` (403) |
+| Token de recuperação | Uso único; revogado após a redefinição. | `INVALID_TOKEN` (401) |
+| CORS | Só as origens de `CORS_ORIGINS` (padrão: `localhost:3000`). | — |
+| Produção | `NODE_ENV=production` exige `JWT_SECRET` e não cria contas padrão. | — |
+
+Pendências de segurança: a enumeração de contas em `verify-email` (S6) e a resposta de segurança em texto puro (S8) continuam abertas. Em produção, o primeiro administrador ainda precisa de um procedimento próprio de criação, porque o seed foi desativado.
+
+### Pendências de regra (dependem do laboratório)
+
+- **Datas passadas no empréstimo:** a API aceita `dueDate` no passado, para permitir regularizar empréstimos antigos. Se a regra for proibir, a checagem entra em `loans.service.ts`.
+- **Permissões de relatórios:** qualquer usuário autenticado acessa `/reports/*` e `/dashboard/summary`.
+- **Estorno de produção:** ainda não existe cancelamento. O consumo debitado não volta ao estoque.
+- **Exposição de dados pessoais:** técnicos recebem e-mail, matrícula e telefone de todos os usuários (`GET /users`).
