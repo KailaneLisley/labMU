@@ -204,7 +204,7 @@ O projeto foi preparado para deploy simplificado e gratuito:
 Projeto desenvolvido no âmbito das disciplinas de Engenharia de Software da Universidade Católica de Pernambuco:
 
 - **Arthur Amaral**
-- **Christian Lucas**
+- **Christian Araújo**
 - **Lucas Mendes**
 - **Quezia Costa**
 - **Kailane Lisley**
