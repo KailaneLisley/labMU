@@ -1,0 +1,16 @@
+{
+  "name": "labmu-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Testes end-to-end da plataforma labMU (Playwright)",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.47.2"
+  }
+}

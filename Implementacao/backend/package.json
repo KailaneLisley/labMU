@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "rm -f data/test-labmu.sqlite* && DATABASE_FILE=./data/test-labmu.sqlite tsx --test tests/**/*.test.ts",
     "seed": "tsx src/database/seed.ts"
   },
   "keywords": [
