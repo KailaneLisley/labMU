@@ -38,4 +38,7 @@ export const env = {
   DEFAULT_ADMIN_PASSWORD: process.env.DEFAULT_ADMIN_PASSWORD || "Admin@123",
   DEFAULT_TECH_EMAIL: (process.env.DEFAULT_TECH_EMAIL || "tecnico.musarq@unicap.br").toLowerCase(),
   DEFAULT_TECH_PASSWORD: process.env.DEFAULT_TECH_PASSWORD || "Tecnico@123",
+  // Primeiro administrador em produção (usado só se ainda não existir nenhum administrador)
+  INITIAL_ADMIN_EMAIL: (process.env.INITIAL_ADMIN_EMAIL || "").trim().toLowerCase(),
+  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || "",
 };
