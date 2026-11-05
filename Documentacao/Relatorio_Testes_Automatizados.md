@@ -14,7 +14,7 @@
 
 Os testes de falha esperada (`it.fails`) passam enquanto o bug existe. Quando o bug for corrigido, o teste falha de propósito e deve virar um teste normal.
 
-Dos bugs encontrados, **5 foram corrigidos** durante este trabalho e **8 continuam abertos** (seção 4).
+Dos bugs encontrados, **6 foram corrigidos** durante este trabalho e **8 continuam abertos** (seção 4).
 
 ## 2. O que foi testado
 
@@ -45,6 +45,16 @@ Ferramentas: Vitest 0.34, Testing Library (React 14) e jsdom. Os testes chamam a
 
 **Não coberto no frontend:** telas autenticadas (dashboard, usuários, máquinas, estoque, empréstimos, relatórios, perfil). Elas ainda usam dados locais em boa parte dos casos e não têm testes.
 
+### 2.3 End-to-end — `Implementacao/e2e`
+
+Ferramenta: **Playwright** (`@playwright/test` 1.47.2) com Chromium. O Playwright sobe o backend (porta 3001, banco de teste novo a cada execução) e a SPA (porta 3100), e roda os testes contra eles.
+
+- **UI (`tests/ui/`, 14 testes):** login, cadastro, recuperação de senha pela tela, encerramento de sessão, bloqueio de rota sem sessão, todas as telas protegidas abrindo sem erro, menu lateral, rota inexistente.
+- **API (`tests/api/`, 13 testes):** autenticação e perfis contra o backend, bloqueio por tentativas e fluxos entre módulos (estoque com produção, cancelamento e relatório; empréstimo com devolução; manutenção bloqueando produção; insumo inativo; relatório mensal; recuperação com token de uso único).
+- **Resultado:** 27 testes executados, 26 passam e 1 é falha esperada (bug I).
+
+Limite: as telas de estoque, máquinas, usuários, empréstimos e relatórios leem dados do navegador (F1). Os testes dessas telas verificam que abrem e navegam, não que os dados vêm do servidor.
+
 ## 3. Bugs corrigidos
 
 | # | Onde | Problema | Como foi encontrado | Correção |
@@ -54,6 +64,7 @@ Ferramentas: Vitest 0.34, Testing Library (React 14) e jsdom. Os testes chamam a
 | 3 | Backend, S6 | O e-mail de administrador mostrava uma resposta diferente da de conta inexistente, o que revelava a existência da conta. | Teste de resposta uniforme | Pergunta-isca e resposta de erro iguais para quem não é técnico |
 | 4 | Backend, S8 | Resposta de segurança guardada em texto puro. | Teste de hash | Hash bcrypt, com migração das contas antigas no primeiro uso |
 | 5 | Backend, validação | Perfis, situações, tipos e status fora do domínio eram aceitos ou devolviam erro genérico. | Teste de enums | Validação explícita nos serviços, com código específico |
+| 6 | Infra de testes | A suíte do backend gravava no banco de desenvolvimento `data/labmu.sqlite`. | Verificação da data de modificação do arquivo após `npm test` | `npm test` usa `data/test-labmu.sqlite`, recriado a cada execução |
 
 Os itens R6 a R9 e V1 a V2 foram corrigidos antes desta rodada, com testes de regressão. Estão documentados em `Relatorio_de_Testes_labMU.md`.
 
@@ -65,10 +76,10 @@ Os itens R6 a R9 e V1 a V2 foram corrigidos antes desta rodada, com testes de re
 | B | Alta | Frontend, cadastro (F2) | Com o servidor fora do ar, o cadastro grava a senha em texto puro no `localStorage` (`labmu:accounts`). | `RegisterPage.test.tsx`, teste `it.fails` (F2) |
 | C | Média | Frontend, recuperação de senha | O fallback offline revela, a partir das contas locais, se o e-mail existe e se é administrador. O teste não cobre esse caminho. | Leitura de `ForgotPasswordPage.tsx`, linhas do fallback |
 | D | Média | Backend, recuperação de senha | A resposta de segurança não tem limite de tentativas. Só o login tem limite, então a resposta pode ser tentada à vontade. | Leitura de `verifyForgotAnswer` |
-| E | Média | Infra de testes | A suíte do backend grava no banco de desenvolvimento `data/labmu.sqlite`, porque nenhum teste define `DATABASE_FILE`. Rodar `npm test` altera os dados locais. | Data de modificação do arquivo após `npm test` |
 | F | Média | Infra de testes | Parte dos testes antigos depende da ordem de execução. O teste de recuperação troca a senha do técnico padrão, e o primeiro insumo fica com saldo zero depois dos ajustes. Os testes novos não dependem disso, mas os antigos ainda dependem. | Falhas reproduzidas durante o desenvolvimento |
 | G | Baixa | Frontend, API (F6) | `VITE_API_TIMEOUT` não é lido e não há timeout nas requisições. Uma requisição pode ficar pendurada indefinidamente. | Leitura de `services/api.ts` |
 | H | Baixa | Backend, produção | Com `NODE_ENV=production` não há administrador criado, e não existe procedimento para criar o primeiro. | Seed desligado, sem substituto |
+| I | Alta | Frontend, logout (E2E) | O botão "Encerrar Sessão" limpa só o armazenamento do navegador e não chama `POST /auth/logout`. O token continua válido no servidor e `/auth/me` responde 200 com ele. A revogação do S3 não tem efeito pela interface. | `tests/ui/auth.spec.ts`, teste `test.fail` (o teste executado sem `fail` recebe 200 em vez de 401) |
 
 ## 5. Pontos não verificados
 
@@ -79,6 +90,13 @@ Os itens R6 a R9 e V1 a V2 foram corrigidos antes desta rodada, com testes de re
 - **Itens de regra abertos:** C1 (datas com fuso), C2 (paginação), dashboard com período, D1 e D2 (decisões do laboratório).
 
 ## 6. Como rodar
+
+E2E:
+
+```bash
+cd Implementacao/e2e && npm install && npx playwright install chromium && npm test
+```
+
 
 ```bash
 # Backend
