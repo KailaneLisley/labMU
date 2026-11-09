@@ -5,6 +5,7 @@ import { query } from "../../database/connection.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isLoginBlocked, recordLoginFailure, resetAccountFailures } from "./loginAttempts.js";
+import { isAnswerBlocked, recordAnswerFailure, resetAnswerFailures } from "./answerAttempts.js";
 import { isTokenRevoked, revokeToken } from "./tokenRevocation.js";
 
 // Perfis que acessam o sistema; Aluno, Professor e Cliente não têm login
@@ -236,7 +237,7 @@ export class AuthService {
     };
   }
 
-  static verifyForgotAnswer(email: string, answer: string) {
+  static verifyForgotAnswer(email: string, answer: string, ip = "desconhecido") {
     const normalizedEmail = email?.trim().toLowerCase();
     const cleanAnswer = answer?.trim();
 
@@ -249,11 +250,22 @@ export class AuthService {
       normalizedEmail
     );
 
+    if (isAnswerBlocked(normalizedEmail, ip)) {
+      throw new AppError(
+        "Muitas tentativas de resposta de segurança. Aguarde 15 minutos e tente novamente.",
+        429,
+        "TOO_MANY_ATTEMPTS"
+      );
+    }
+
     // Mesma resposta para conta inexistente, de administrador ou de aluno (ver verifyForgotEmail)
     const isTechnician = user?.role === "tecnico";
     if (!isTechnician || !matchesSecurityAnswer(user.id, user.security_answer, cleanAnswer)) {
+      recordAnswerFailure(normalizedEmail, ip);
       throw new AppError("Resposta de segurança incorreta. Tente novamente.", 400, "INCORRECT_ANSWER");
     }
+
+    resetAnswerFailures(normalizedEmail);
 
     const resetToken = jwt.sign(
       { sub: user.id, email: user.email, purpose: "password_reset", jti: crypto.randomUUID() },

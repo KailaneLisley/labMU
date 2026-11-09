@@ -48,7 +48,7 @@ export class AuthController {
   static verifyForgotAnswer = (req: Request, res: Response, next: NextFunction): void => {
     try {
       const { email, answer } = req.body;
-      const result = AuthService.verifyForgotAnswer(email, answer);
+      const result = AuthService.verifyForgotAnswer(email, answer, req.ip);
       res.status(200).json(result);
     } catch (error) {
       next(error);

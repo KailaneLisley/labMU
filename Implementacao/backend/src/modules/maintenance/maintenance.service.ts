@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isValidDateInput } from "../../utils/dates.js";
+import { assertAllowed } from "../../utils/validation.js";
 
 const MAINTENANCE_TYPES = ["preventiva", "corretiva"];
 const MAINTENANCE_STATUSES = ["agendada", "em_andamento", "concluida", "cancelada"];
@@ -168,6 +169,7 @@ export class MaintenanceService {
   }) {
     const existing = this.getById(id);
 
+    if (data.status !== undefined) assertAllowed(data.status, MAINTENANCE_STATUSES, "status");
     const status = data.status || existing.status;
     const description = data.description || existing.description;
     const parts = data.parts !== undefined ? data.parts : existing.parts;

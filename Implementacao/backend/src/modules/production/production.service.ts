@@ -3,6 +3,9 @@ import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { upperBoundClause } from "../../utils/dates.js";
 import { supplyStatusFor } from "../supplies/supplyStatus.js";
+import { assertAllowed } from "../../utils/validation.js";
+
+const PRODUCTION_STATUSES = ["em_andamento", "concluida", "cancelada"] as const;
 
 export class ProductionService {
   static listProductions(filters: {
@@ -129,6 +132,7 @@ export class ProductionService {
       );
     }
 
+    if (data.status !== undefined) assertAllowed(data.status, PRODUCTION_STATUSES, "status");
     const isScan = data.type === "escaneamento";
     const compatible = isScan ? machine.type === "scanner" : machine.type.startsWith("printer_3d");
     if (!compatible) {
