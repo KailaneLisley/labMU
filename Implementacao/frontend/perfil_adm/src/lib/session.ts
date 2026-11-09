@@ -1,6 +1,6 @@
 export type UserRole = "administrador" | "tecnico";
 
-export interface UserSession {
+interface UserSession {
   token: string;
   user: {
     name: string;
