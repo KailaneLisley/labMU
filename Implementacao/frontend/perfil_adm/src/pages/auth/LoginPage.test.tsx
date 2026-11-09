@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./LoginPage";
 import { api } from "../../services/api";
+import { getSession } from "../../lib/session";
 
 function renderLogin() {
   const view = render(
@@ -125,10 +126,8 @@ describe("LoginPage: autenticação pela API", () => {
 });
 
 describe("LoginPage: segurança", () => {
-  // F3 do relatório: com o servidor fora do ar, a tela aceita as credenciais fixas do código.
-  // O teste está marcado como "falha esperada": quando o fallback for removido, ele passa a falhar
-  // e deve ser trocado por um teste normal.
-  it.fails("F3: sem servidor, não aceita credenciais fixas do código", async () => {
+  // F3 do relatório: sem servidor, a tela não aceita credenciais fixas do código.
+  it("sem servidor, não aceita credenciais fixas do código e não cria sessão", async () => {
     vi.spyOn(api, "login").mockRejectedValue(new Error("Não foi possível conectar ao servidor do labMU."));
     const page = renderLogin();
 
@@ -137,8 +136,8 @@ describe("LoginPage: segurança", () => {
     await userEvent.type(page.password(), "Admin@123");
     fireEvent.click(page.submit());
 
-    // Espera o fluxo de fallback terminar (atraso simulado de 500 ms + redirecionamento de 600 ms)
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(await screen.findByText("Não foi possível conectar ao servidor do labMU.")).toBeTruthy();
     expect(screen.queryByText("PAINEL")).toBeNull();
+    expect(getSession()).toBeNull();
   });
 });

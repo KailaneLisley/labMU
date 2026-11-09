@@ -2,24 +2,9 @@ import { FormEvent, useState, useEffect } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSession, saveSession as persistSession, UserRole } from "../../lib/session";
-import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../../lib/accounts";
-import { readJsonFromStorage } from "../../lib/storage";
 import { api } from "../../services/api";
 
-interface MockUser {
-  email: string;
-  password: string;
-  role: UserRole;
-  name: string;
-}
-
-const MOCK_USERS: MockUser[] = [
-  { email: "admin.musarq@unicap.br", password: "Admin@123", role: "administrador", name: "Administrador MUSARQ" },
-  { email: "tecnico.musarq@unicap.br", password: "Tecnico@123", role: "tecnico", name: "Técnico MUSARQ" },
-];
-
 const CONFIG = {
-  USE_MOCK: true,
   EMAIL_DOMAIN: "@unicap.br",
   MIN_PASSWORD_LENGTH: 6,
   ROUTES: {
@@ -87,32 +72,8 @@ export const LoginPage = (): JSX.Element => {
     }
   };
 
-  // Autenticação
-  const authenticate = async (payload: { email: string; password: string; role: string }) => {
-    try {
-      const data = await api.login(payload);
-      return data;
-    } catch (apiError) {
-      if (CONFIG.USE_MOCK && (apiError as Error).message.includes("Não foi possível conectar ao servidor")) {
-        await sleep(500);
-        const user =
-          MOCK_USERS.find((candidate) => candidate.email === payload.email && candidate.password === payload.password) ??
-          (readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [])
-            .filter((account) => account.email === payload.email && account.password === payload.password)
-            .map((account) => ({ ...account, role: "tecnico" as const }))[0];
-        if (!user) {
-          throw new Error("E-mail ou senha incorretos.");
-        }
-        if (user.role !== payload.role) {
-          throw new Error(
-            `Este usuário não possui o perfil de ${payload.role === "administrador" ? "Administrador" : "Técnico"}.`
-          );
-        }
-        return { token: "mock-token", user: { name: user.name, email: user.email, role: user.role } };
-      }
-      throw apiError;
-    }
-  };
+  // Autenticação: sem servidor, o login falha (não há conta de demonstração no cliente)
+  const authenticate = (payload: { email: string; password: string; role: string }) => api.login(payload);
 
   // Submit
   const handleSubmit = async (e: FormEvent) => {

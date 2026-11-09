@@ -25,6 +25,19 @@ function renderPage() {
   };
 }
 
+describe("ForgotPasswordPage: sem servidor", () => {
+  it("não avança nem revela contas locais: mostra o erro de conexão", async () => {
+    vi.spyOn(api, "verifyForgotEmail").mockRejectedValue(new Error("Não foi possível conectar ao servidor do labMU."));
+    const page = renderPage();
+
+    await userEvent.type(page.email(), "admin.musarq@unicap.br");
+    fireEvent.click(page.continueButton());
+
+    expect(await screen.findByText("Não foi possível conectar ao servidor do labMU.")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Digite a resposta correta")).toBeNull();
+  });
+});
+
 describe("ForgotPasswordPage", () => {
   it("recusa e-mail que não é institucional sem chamar a API", async () => {
     const verify = vi.spyOn(api, "verifyForgotEmail");

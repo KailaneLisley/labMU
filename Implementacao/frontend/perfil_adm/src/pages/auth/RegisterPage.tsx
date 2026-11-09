@@ -1,9 +1,6 @@
 import { FormEvent, useState } from "react";
 import { ArrowLeft, Eye, EyeOff, HelpCircle, KeyRound, Mail, Phone, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { initialUsers, User, USERS_STORAGE_KEY } from "../../data/users";
-import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../../lib/accounts";
-import { readJsonFromStorage } from "../../lib/storage";
 import { api } from "../../services/api";
 
 interface RegistrationForm {
@@ -17,8 +14,6 @@ interface RegistrationForm {
   customSecurityQuestion: string;
   securityAnswer: string;
 }
-
-const DEMO_EMAILS = ["admin.musarq@unicap.br", "tecnico.musarq@unicap.br"];
 
 export const RegisterPage = (): JSX.Element => {
   const navigate = useNavigate();
@@ -98,97 +93,22 @@ export const RegisterPage = (): JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      // 1. Tenta cadastrar no backend via API
-      try {
-        await api.register({
-          name,
-          email,
-          registration,
-          phone,
-          password: form.password,
-          securityQuestion: finalSecurityQuestion,
-          securityAnswer: cleanSecurityAnswer,
-        });
-
-        navigate("/login", {
-          replace: true,
-          state: { registeredEmail: email },
-        });
-        return;
-      } catch (apiErr: any) {
-        if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
-          // Erro retornado pela API do backend (ex: email duplicado, validação)
-          setError(apiErr.message);
-          setIsSubmitting(false);
-          return;
-        }
-        // Se o servidor estiver indisponível, segue para o fallback local
-        console.warn("Backend offline, persistindo cadastro localmente...");
-      }
-
-      const users = readJsonFromStorage<User[]>(USERS_STORAGE_KEY) ?? initialUsers;
-      const accounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
-      const emailExists =
-        users.some((user) => user.email.toLowerCase() === email) ||
-        accounts.some((account) => account.email.toLowerCase() === email) ||
-        DEMO_EMAILS.includes(email);
-      if (emailExists) {
-        setError("Este e-mail já possui um cadastro. Acesse sua conta ou solicite ajuda à coordenação.");
-        setIsSubmitting(false);
-        return;
-      }
-      if (users.some((user) => user.registration.trim() === registration)) {
-        setError("Esta matrícula já está vinculada a outro usuário.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const initials = name
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join("")
-        .toUpperCase();
-      const newUser: User = {
-        id: `cadastro-${Date.now()}`,
+      await api.register({
         name,
         email,
-        role: "tecnico",
         registration,
-        phone: phone || "Não informado",
-        status: "ativo",
-        initials,
-        avatarColor: "bg-[#fdeaea]",
-      };
-      const newAccount: RegisteredAccount = {
-        email,
+        phone,
         password: form.password,
-        name,
-        role: "tecnico",
         securityQuestion: finalSecurityQuestion,
         securityAnswer: cleanSecurityAnswer,
-      };
-      const previousUsers = localStorage.getItem(USERS_STORAGE_KEY);
-      const previousAccounts = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-
-      try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([...users, newUser]));
-        localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
-      } catch (storageError) {
-        if (previousUsers === null) localStorage.removeItem(USERS_STORAGE_KEY);
-        else localStorage.setItem(USERS_STORAGE_KEY, previousUsers);
-        if (previousAccounts === null) localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
-        else localStorage.setItem(ACCOUNTS_STORAGE_KEY, previousAccounts);
-        throw storageError;
-      }
+      });
 
       navigate("/login", {
         replace: true,
         state: { registeredEmail: email },
       });
-    } catch (storageError) {
-      console.error("Não foi possível salvar o cadastro no navegador.", storageError);
-      setError("Não foi possível salvar o cadastro neste navegador. Verifique o espaço disponível e tente novamente.");
+    } catch (apiErr: any) {
+      setError(apiErr.message);
       setIsSubmitting(false);
     }
   };
