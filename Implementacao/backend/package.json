@@ -4,9 +4,12 @@
   "description": "API REST do Sistema de Gestão labMU - MUSARQ UNICAP",
   "type": "module",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/database/schema.sql', 'dist/database/schema.sql')\"",
     "start": "node dist/server.js",
     "test": "rm -f data/test-labmu.sqlite* && DATABASE_FILE=./data/test-labmu.sqlite tsx --test tests/**/*.test.ts",
     "seed": "tsx src/database/seed.ts"

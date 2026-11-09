@@ -193,9 +193,13 @@ labMU/
 
 O projeto foi preparado para deploy simplificado e gratuito:
 
-- **Frontend na [Vercel](https://vercel.com/):** Deploy contínuo da pasta `Implementacao/frontend/perfil_adm` com a variável `VITE_API_URL` apontando para o backend.
-- **Backend no [Render](https://render.com/):** Deploy como Web Service da pasta `Implementacao/backend` com `NODE_VERSION=22.12.0`.
-- **Alternativa Unificada:** Configuração do Express para servir a pasta `dist` gerada pelo Vite em um único serviço gratuito no Render.
+- **Backend no [Render](https://render.com/):** o arquivo `render.yaml` (na raiz) descreve o Web Service. Ao criar o serviço com "Blueprint", ele já define o build (`npm install && npm run build`), o start (`npm start`), a versão do Node (22.13.0 ou superior, necessária para o `node:sqlite` sem flag) e a checagem de saúde em `/api/health`. Você precisa preencher manualmente:
+  - `CORS_ORIGINS`: URL exata do frontend na Vercel, sem barra final (ex.: `https://labmu.vercel.app`).
+  - `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`: primeiro administrador (senha com ao menos 8 caracteres, letras e números). Só é criado se não houver nenhum administrador.
+  - `JWT_SECRET` é gerado automaticamente pelo blueprint; em produção o servidor não sobe sem ele.
+  - Atenção: o SQLite fica no disco do serviço. No plano gratuito o disco é efêmero e os dados são perdidos a cada novo deploy ou reinício. Para persistência, use um disco persistente pago ou outro banco.
+- **Frontend na [Vercel](https://vercel.com/):** importe o repositório e defina o *Root Directory* como `Implementacao/frontend/perfil_adm` (framework Vite, build `npm run build`, saída `dist`). Defina a variável `VITE_API_URL` com a URL do backend no Render (ex.: `https://labmu-api.onrender.com`), sem barra final. A variável é embutida no build: depois de alterá-la, faça um novo deploy. O arquivo `vercel.json` da pasta redireciona todas as rotas para `index.html`, para que recarregar páginas como `/dashboard` funcione.
+- **Ordem recomendada:** suba o backend primeiro, copie a URL do Render para `VITE_API_URL` na Vercel e, depois, copie a URL da Vercel para `CORS_ORIGINS` no Render.
 
 ---
 

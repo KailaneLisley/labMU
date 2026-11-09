@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: labmu-api
+    runtime: node
+    rootDir: Implementacao/backend
+    # Render instala as devDependencies (tsc) para gerar o dist/ antes de iniciar
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      # node:sqlite precisa de Node 22.13.0 ou superior sem flag experimental
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DATABASE_FILE
+        value: ./data/labmu.sqlite
+      # URL exata do frontend na Vercel, sem barra final (ex.: https://labmu.vercel.app)
+      - key: CORS_ORIGINS
+        sync: false
+      # Primeiro administrador; preencher no painel do Render
+      - key: INITIAL_ADMIN_EMAIL
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

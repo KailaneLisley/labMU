@@ -3,6 +3,12 @@ import { getSession } from "../lib/session";
 const API_BASE = (import.meta as any).env?.VITE_API_URL || "/api";
 
 async function request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  // Em produção o "/api" padrão cai no próprio site (Vercel) e não na API.
+  // Falhar aqui deixa claro o que falta configurar, em vez de um erro genérico.
+  if (!(import.meta as any).env?.VITE_API_URL && (import.meta as any).env?.PROD) {
+    throw new Error("Configuração ausente: defina VITE_API_URL com a URL do backend e gere o deploy novamente.");
+  }
+
   const session = getSession();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
