@@ -3,6 +3,7 @@ import { ChevronLeft, Lock, Upload, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getProfileStorageKey, getSession, saveSession } from "../../lib/session";
 import { readJsonFromStorage } from "../../lib/storage";
+import { api } from "../../services/api";
 
 interface FormData {
   name: string;
@@ -145,8 +146,11 @@ export const EditProfilePage = (): JSX.Element => {
     setIsSubmitting(true);
 
     try {
-      // Simular API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await api.updateProfile({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+      }).catch(() => null);
 
       if (session) {
         const previousKey = getProfileStorageKey(session.user.email);

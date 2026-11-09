@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { Equipment, initialEquipment, LOANS_STORAGE_KEY } from "../../data/loans";
+import { api } from "../../services/api";
 
 type ConservationState = "novo" | "excelente" | "calibracao";
 
@@ -29,7 +30,7 @@ export const RegisterEquipmentPage = (): JSX.Element => {
     setFormData((prev) => ({ ...prev, conservation: state }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.category || !formData.tag.trim() || !formData.location.trim()) {
       setSubmitError("Preencha todos os campos obrigatórios.");
       return;
@@ -39,10 +40,27 @@ export const RegisterEquipmentPage = (): JSX.Element => {
       return;
     }
     setSubmitError("");
+
+    let createdId = `${Date.now()}`;
+    try {
+      const res = await api.createEquipment({
+        name: formData.name.trim(),
+        code: formData.tag.trim(),
+        category: formData.category,
+        location: formData.location.trim(),
+        serialNumber: formData.serialNumber.trim(),
+        conservation: formData.conservation,
+        accessories: formData.accessories.trim(),
+      });
+      if (res?.item?.id) createdId = String(res.item.id);
+    } catch {
+      // Fallback
+    }
+
     setEquipment((current) => [
       ...current,
       {
-        id: `${Date.now()}`,
+        id: createdId,
         name: formData.name.trim(),
         code: formData.tag.trim(),
         responsible: "—",

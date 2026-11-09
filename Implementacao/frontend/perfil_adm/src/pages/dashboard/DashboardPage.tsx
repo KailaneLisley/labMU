@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock, AlertCircle, AlertTriangle, Clock3 } from "lucide-react";
+import { api } from "../../services/api";
 
 interface QuickAction {
   id: string;
@@ -167,6 +169,98 @@ const getAlertIcon = (type: Alert["type"]) => {
 
 export const DashboardPage = (): JSX.Element => {
   const navigate = useNavigate();
+  const [dashboardKpis, setDashboardKpis] = useState(kpis);
+  const [dashboardProductions, setDashboardProductions] = useState<Production[]>(productions);
+  const [dashboardAlerts, setDashboardAlerts] = useState<Alert[]>(alerts);
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .getDashboardSummary()
+      .then((data: any) => {
+        if (!mounted || !data) return;
+
+        // Montar KPIs dinâmicos a partir do backend
+        const dynamicKpis = [
+          {
+            title: "USUÁRIOS CADASTRADOS",
+            value: String(data.users?.total ?? 48),
+            unit: "cadastrados",
+            details: [
+              `${data.users?.technicians ?? 0} Técnicos`,
+              `${data.users?.admins ?? 0} Administradores`,
+              `${data.users?.clients ?? 0} Clientes/Alunos`,
+            ],
+            icon: "👥",
+          },
+          {
+            title: "MÁQUINAS OPERANTES",
+            value: `${data.machines?.active ?? 0}/${data.machines?.total ?? 0}`,
+            unit: "ativas",
+            details: [
+              data.machines?.maintenance
+                ? `${data.machines.maintenance} em manutenção`
+                : "Parque 100% operacional",
+            ],
+            icon: "⚙️",
+          },
+          {
+            title: "EMPRÉSTIMOS ATIVOS",
+            value: String(data.loans?.active ?? 0),
+            unit: "equipamentos em campo",
+            details: [
+              data.loans?.overdue ? `${data.loans.overdue} devolução(ões) em atraso` : "Nenhum atraso registrado",
+            ],
+            icon: "📦",
+          },
+          {
+            title: "FILAMENTO DISPONÍVEL",
+            value: typeof data.supplies?.total_kg === "number" ? data.supplies.total_kg.toFixed(1) : "14.5",
+            unit: "kg",
+            details: [
+              data.supplies?.low_stock
+                ? `${data.supplies.low_stock} insumo(s) em nível crítico`
+                : "Estoque balanceado",
+            ],
+            icon: "📊",
+          },
+        ];
+        setDashboardKpis(dynamicKpis);
+
+        // Se houver produções reais vindas do backend
+        if (Array.isArray(data.recentProductions) && data.recentProductions.length > 0) {
+          const prods: Production[] = data.recentProductions.map((p: any) => ({
+            id: String(p.id),
+            name: p.description || p.type || "Produção",
+            technicians: p.technician_name ? [p.technician_name] : ["Técnico labMU"],
+            requesters: p.client_name ? [p.client_name] : ["Solicitante"],
+            status: "concluido",
+            time: p.created_at ? new Date(p.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "Hoje",
+          }));
+          setDashboardProductions(prods);
+        }
+
+        // Se houver manutenções agendadas, enriquecer os alertas
+        if (Array.isArray(data.upcomingMaintenances) && data.upcomingMaintenances.length > 0) {
+          const mAlerts: Alert[] = data.upcomingMaintenances.map((m: any) => ({
+            id: `m-${m.id}`,
+            type: "warning",
+            title: "Manutenção Agendada",
+            description: `${m.name} (${m.tag})`,
+            actionLabel: "Ver no parque",
+            path: "/maquinas",
+          }));
+          setDashboardAlerts(mAlerts);
+        }
+      })
+      .catch(() => {
+        // Fallback gracioso mantendo os valores padrão se a API estiver inacessível
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
       {/* Page Header */}
@@ -201,7 +295,7 @@ export const DashboardPage = (): JSX.Element => {
       {/* KPIs */}
       <div className="max-w-7xl mx-auto px-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpis.map((kpi, idx) => (
+          {dashboardKpis.map((kpi, idx) => (
             <div key={idx} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-2xl">{kpi.icon}</span>
@@ -249,7 +343,7 @@ export const DashboardPage = (): JSX.Element => {
               </div>
 
               <div className="space-y-4">
-                {productions.map((prod, idx) => (
+                {dashboardProductions.map((prod, idx) => (
                   <div key={prod.id} className={`pb-4 border-b border-[#efe6e6] last:border-0 ${idx === 0 ? "flex items-start gap-3" : ""}`}>
                     {idx === 0 && <span className="text-2xl flex-shrink-0">🖨️</span>}
                     <div className="flex-1">
@@ -290,7 +384,7 @@ export const DashboardPage = (): JSX.Element => {
               <p className="text-xs text-[#7a6e70] mb-4">Atenção requerida da coordenação técnica</p>
 
               <div className="space-y-4">
-                {alerts.map((alert) => (
+                {dashboardAlerts.map((alert) => (
                   <div
                     key={alert.id}
                     className={`border-l-4 rounded-lg p-4 ${

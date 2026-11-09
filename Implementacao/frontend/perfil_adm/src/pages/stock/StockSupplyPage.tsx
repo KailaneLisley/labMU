@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Download } from "lucide-react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { initialSupplies, Supply, SupplyEntry, SUPPLIES_STORAGE_KEY } from "../../data/supplies";
 import { downloadCsv } from "../../lib/exportCsv";
+import { api } from "../../services/api";
 
 interface AcquisitionRecord {
   id: string;
@@ -78,8 +79,52 @@ const getStatusLabel = (status: Supply["status"]) => {
 export const StockSupplyPage = (): JSX.Element => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [supplies] = usePersistentState<Supply[]>(SUPPLIES_STORAGE_KEY, initialSupplies);
-  const [entries] = usePersistentState<SupplyEntry[]>("labmu:supply-entries", []);
+  const [supplies, setSupplies] = usePersistentState<Supply[]>(SUPPLIES_STORAGE_KEY, initialSupplies);
+  const [entries, setEntries] = usePersistentState<SupplyEntry[]>("labmu:supply-entries", []);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getSupplies()
+      .then((res) => {
+        if (!active || !res || !Array.isArray(res.supplies)) return;
+        const apiSupplies: Supply[] = res.supplies.map((s: any) => ({
+          id: String(s.id),
+          name: s.name,
+          type: s.type || "Filamento",
+          color: s.color || "—",
+          balance: Number(s.balance ?? 0),
+          status: s.status || "regular",
+        }));
+        if (apiSupplies.length > 0) {
+          setSupplies(apiSupplies);
+        }
+      })
+      .catch(() => null);
+
+    api
+      .getStockMovements()
+      .then((res) => {
+        if (!active || !res || !Array.isArray(res.movements)) return;
+        const apiMovements: SupplyEntry[] = res.movements.map((m: any) => ({
+          id: String(m.id),
+          date: m.created_at ? new Date(m.created_at).toLocaleDateString("pt-BR") : "Hoje",
+          name: m.supply_name || "Insumo",
+          quantity: Number(m.quantity ?? 0),
+          units: m.units ? String(m.units) : "",
+          lot: m.lot || "",
+          observations: m.observations || "",
+        }));
+        if (apiMovements.length > 0) {
+          setEntries(apiMovements);
+        }
+      })
+      .catch(() => null);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredSupplies = supplies.filter((supply) =>
     `${supply.name} ${supply.type} ${supply.color}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),

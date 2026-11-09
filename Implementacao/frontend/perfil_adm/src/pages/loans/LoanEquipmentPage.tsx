@@ -1,8 +1,9 @@
-import { FormEvent, useState, useMemo } from "react";
+import { FormEvent, useState, useMemo, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { Equipment, initialEquipment, LoanStatus, LOANS_STORAGE_KEY } from "../../data/loans";
+import { api } from "../../services/api";
 
 const getStatusColor = (status: LoanStatus) => {
   switch (status) {
@@ -37,6 +38,31 @@ const getStatusLabel = (status: LoanStatus) => {
 export const LoanEquipmentPage = (): JSX.Element => {
   const navigate = useNavigate();
   const [equipment, setEquipment] = usePersistentState<Equipment[]>(LOANS_STORAGE_KEY, initialEquipment);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getEquipment()
+      .then((res) => {
+        if (!active || !res || !Array.isArray(res.equipment)) return;
+        const apiEquipment: Equipment[] = res.equipment.map((e: any) => ({
+          id: String(e.id),
+          name: e.name,
+          code: e.code || e.tag || "EQ-000",
+          responsible: e.responsible || "—",
+          dueDate: e.due_date || (e.status === "disponivel" ? "Disponível" : "Devolvido"),
+          status: e.status || "disponivel",
+        }));
+        if (apiEquipment.length > 0) {
+          setEquipment(apiEquipment);
+        }
+      })
+      .catch(() => null);
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const [selectedStatus, setSelectedStatus] = useState<LoanStatus | "todos" | "ativos">("todos");
   const [searchQuery, setSearchQuery] = useState("");
   const activeCount = equipment.filter((item) => !["disponivel", "devolvido"].includes(item.status)).length;
@@ -84,9 +110,16 @@ export const LoanEquipmentPage = (): JSX.Element => {
     }
   };
 
-  const handleBorrow = (event: FormEvent<HTMLFormElement>) => {
+  const handleBorrow = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!loanTarget) return;
+
+    await api.checkoutLoan({
+      equipmentId: loanTarget.id,
+      borrowerName: borrower.trim(),
+      expectedReturnDate: dueDate,
+    }).catch(() => null);
+
     setEquipment((current) =>
       current.map((item) =>
         item.id === loanTarget.id
@@ -102,8 +135,11 @@ export const LoanEquipmentPage = (): JSX.Element => {
     setLoanTarget(null);
   };
 
-  const confirmReturn = () => {
+  const confirmReturn = async () => {
     if (!returnTarget) return;
+
+    await api.returnLoan(returnTarget.id).catch(() => null);
+
     setEquipment((current) =>
       current.map((item) =>
         item.id === returnTarget.id
