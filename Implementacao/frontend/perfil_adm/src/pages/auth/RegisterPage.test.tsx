@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RegisterPage } from "./RegisterPage";
 import { api } from "../../services/api";
-import { ACCOUNTS_STORAGE_KEY } from "../../lib/accounts";
 
 const FUTURE_FLAGS = { v7_startTransition: true, v7_relativeSplatPath: true };
 const PASSWORD = "SenhaForte@123";
@@ -116,17 +115,17 @@ describe("RegisterPage: envio", () => {
 });
 
 describe("RegisterPage: segurança", () => {
-  // F2 do relatório: sem servidor, o cadastro local grava a senha em texto puro no localStorage.
-  // Marcado como "falha esperada" até o cadastro offline deixar de guardar a senha.
-  it.fails("F2: sem servidor, a senha não é gravada em texto puro", async () => {
+  // F2 do relatório: sem servidor, o cadastro não grava nada no navegador (nem a senha em texto puro).
+  it("F2: sem servidor, não cadastra e não grava a senha no navegador", async () => {
     vi.spyOn(api, "register").mockRejectedValue(new Error("Não foi possível conectar ao servidor do labMU."));
     const page = renderRegister();
 
     await fillValid(page);
     fireEvent.click(page.submit());
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY) ?? "";
-    expect(stored.includes(PASSWORD)).toBe(false);
+    expect(await screen.findByText("Não foi possível conectar ao servidor do labMU.")).toBeTruthy();
+    expect(screen.queryByText("TELA_LOGIN")).toBeNull();
+    const everything = Object.keys(localStorage).map((key) => localStorage.getItem(key) ?? "").join("\n");
+    expect(everything.includes(PASSWORD)).toBe(false);
   });
 });

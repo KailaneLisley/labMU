@@ -1,8 +1,6 @@
 import { FormEvent, useState } from "react";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, HelpCircle, KeyRound, Mail } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { ACCOUNTS_STORAGE_KEY, RegisteredAccount } from "../../lib/accounts";
-import { readJsonFromStorage } from "../../lib/storage";
 import { api } from "../../services/api";
 
 type Step = "EMAIL" | "QUESTION" | "NEW_PASSWORD" | "SUCCESS";
@@ -44,38 +42,9 @@ export const ForgotPasswordPage = (): JSX.Element => {
 
     setLoading(true);
     try {
-      try {
-        const res = await api.verifyForgotEmail(cleanEmail);
-        setQuestion(res.question);
-        setStep("QUESTION");
-        setLoading(false);
-        return;
-      } catch (apiErr: any) {
-        // Erro devolvido pela API (ex: e-mail não encontrado); a falha de conexão segue para o fallback local
-        if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
-          setError(apiErr.message);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fallback local (caso backend offline)
-      const localAccounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
-      const account = localAccounts.find((a) => a.email.toLowerCase() === cleanEmail);
-
-      if (cleanEmail === "tecnico.musarq@unicap.br") {
-        setQuestion("Qual o nome do seu primeiro animal de estimação?");
-        setStep("QUESTION");
-      } else if (account) {
-        if (account.securityQuestion) {
-          setQuestion(account.securityQuestion);
-          setStep("QUESTION");
-        } else {
-          setError("Esta conta não possui uma pergunta de segurança cadastrada. Fale com a coordenação.");
-        }
-      } else {
-        setError("E-mail não encontrado no sistema. Verifique os dados digitados.");
-      }
+      const res = await api.verifyForgotEmail(cleanEmail);
+      setQuestion(res.question);
+      setStep("QUESTION");
     } catch (err: any) {
       setError(err?.message || "Ocorreu um erro ao verificar o e-mail.");
     } finally {
@@ -96,34 +65,9 @@ export const ForgotPasswordPage = (): JSX.Element => {
 
     setLoading(true);
     try {
-      try {
-        const res = await api.verifyForgotAnswer(email.trim().toLowerCase(), cleanAnswer);
-        setResetToken(res.resetToken);
-        setStep("NEW_PASSWORD");
-        setLoading(false);
-        return;
-      } catch (apiErr: any) {
-        if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
-          setError(apiErr.message);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fallback local
-      const cleanEmail = email.trim().toLowerCase();
-      const localAccounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
-      const account = localAccounts.find((a) => a.email.toLowerCase() === cleanEmail);
-
-      const expectedAnswer =
-        cleanEmail === "tecnico.musarq@unicap.br" ? "rex" : (account?.securityAnswer || "").trim().toLowerCase();
-
-      if (cleanAnswer.toLowerCase() === expectedAnswer) {
-        setResetToken("mock-reset-token");
-        setStep("NEW_PASSWORD");
-      } else {
-        setError("Resposta incorreta. Tente novamente.");
-      }
+      const res = await api.verifyForgotAnswer(email.trim().toLowerCase(), cleanAnswer);
+      setResetToken(res.resetToken);
+      setStep("NEW_PASSWORD");
     } catch (err: any) {
       setError(err?.message || "Ocorreu um erro ao validar a resposta.");
     } finally {
@@ -152,30 +96,11 @@ export const ForgotPasswordPage = (): JSX.Element => {
     setLoading(true);
     try {
       const cleanEmail = email.trim().toLowerCase();
-      try {
-        await api.resetPassword({
-          email: cleanEmail,
-          resetToken,
-          newPassword,
-        });
-        setStep("SUCCESS");
-        setLoading(false);
-        return;
-      } catch (apiErr: any) {
-        if (!apiErr?.message?.includes("Não foi possível conectar ao servidor")) {
-          setError(apiErr.message);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fallback local
-      const localAccounts = readJsonFromStorage<RegisteredAccount[]>(ACCOUNTS_STORAGE_KEY) ?? [];
-      const updatedAccounts = localAccounts.map((a) =>
-        a.email.toLowerCase() === cleanEmail ? { ...a, password: newPassword } : a
-      );
-      localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(updatedAccounts));
-
+      await api.resetPassword({
+        email: cleanEmail,
+        resetToken,
+        newPassword,
+      });
       setStep("SUCCESS");
     } catch (err: any) {
       setError(err?.message || "Ocorreu um erro ao redefinir a senha.");
