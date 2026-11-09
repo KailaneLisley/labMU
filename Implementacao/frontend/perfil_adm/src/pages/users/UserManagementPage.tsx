@@ -161,7 +161,8 @@ export const UserManagementPage = (): JSX.Element => {
           </div>
           <div className="flex gap-2">
             <button onClick={() => openEditor("tecnico")} className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#efe6e6] rounded-lg font-semibold hover:bg-[#f7f0f0] transition-colors text-sm">
-              👤 + Novo Técnico
+              <img src="/user.svg" alt="" className="w-4 h-4 object-contain" />
+              + Novo Técnico
             </button>
             <button onClick={() => openEditor("aluno")} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors text-sm">
               <Plus className="w-4 h-4" />
