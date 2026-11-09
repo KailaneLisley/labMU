@@ -1,4 +1,4 @@
-import { getSession } from "../lib/session";
+import { clearSession, getSession } from "../lib/session";
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL || "/api";
 
@@ -36,6 +36,18 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401 && session?.token) {
+      clearSession();
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login") &&
+        !window.location.pathname.startsWith("/recuperar-senha") &&
+        !window.location.pathname.startsWith("/cadastro")
+      ) {
+        window.location.href = "/login?expired=true";
+      }
+    }
+
     const message =
       data?.error?.message ||
       (response.status === 401
@@ -81,6 +93,12 @@ export const api = {
     request<{ verified: boolean; resetToken: string }>("/auth/forgot-password/verify-answer", {
       method: "POST",
       body: JSON.stringify({ email, answer }),
+    }),
+
+  requestAdminPasswordReset: (email: string) =>
+    request<{ message: string; email: string; resetToken: string }>("/auth/forgot-password/admin/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
     }),
 
   resetPassword: (payload: { email: string; resetToken: string; newPassword: string }) =>

@@ -55,6 +55,16 @@ export class AuthController {
     }
   };
 
+  static requestAdminPasswordReset = (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const { email } = req.body;
+      const result = AuthService.requestAdminPasswordReset(email);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   static resetPassword = (req: Request, res: Response, next: NextFunction): void => {
     try {
       const { email, resetToken, newPassword } = req.body;

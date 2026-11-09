@@ -1385,3 +1385,44 @@ test("V3: valor de enum inválido em atualização diz qual campo está errado",
   assert.equal(badMachineType.data.error.code, "INVALID_FIELD_VALUE");
   assert.match(badMachineType.data.error.message, /"type"/);
 });
+
+test("Recuperação de Administrador por e-mail cadastrado gera token e redefine senha com sucesso", async () => {
+  const reqRes = await makeRequest("/api/auth/forgot-password/admin/request", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL },
+  });
+  assert.equal(reqRes.status, 200);
+  assert.ok(reqRes.data.resetToken);
+
+  const newPass = "AdminNovaSenha@2026";
+  const resetRes = await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: {
+      email: env.DEFAULT_ADMIN_EMAIL,
+      resetToken: reqRes.data.resetToken,
+      newPassword: newPass,
+    },
+  });
+  assert.equal(resetRes.status, 200);
+
+  // Valida login com nova senha
+  const loginRes = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL, password: newPass, role: "administrador" },
+  });
+  assert.equal(loginRes.status, 200);
+
+  // Restaura senha padrão
+  const restoreRes = await makeRequest("/api/auth/forgot-password/admin/request", {
+    method: "POST",
+    body: { email: env.DEFAULT_ADMIN_EMAIL },
+  });
+  await makeRequest("/api/auth/forgot-password/reset", {
+    method: "POST",
+    body: {
+      email: env.DEFAULT_ADMIN_EMAIL,
+      resetToken: restoreRes.data.resetToken,
+      newPassword: env.DEFAULT_ADMIN_PASSWORD,
+    },
+  });
+});
