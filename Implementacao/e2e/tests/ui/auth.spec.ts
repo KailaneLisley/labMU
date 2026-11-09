@@ -125,9 +125,8 @@ test.describe("Autenticação (UI + backend real)", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  // Bug: o botão "Encerrar Sessão" só limpa o armazenamento do navegador e não chama POST /auth/logout.
-  // O token continua válido no servidor. Marcado como falha esperada até o front chamar a API.
-  test.fail("encerrar sessão revoga o token no servidor (falha esperada: front não chama /auth/logout)", async ({ page }) => {
+  // O botão "Encerrar Sessão" chama POST /auth/logout antes de limpar o armazenamento local.
+  test("encerrar sessão revoga o token no servidor", async ({ page }) => {
     await loginUi(page, { ...TECH });
     const token = await page.evaluate(() => {
       const raw = sessionStorage.getItem("labmu:session") ?? localStorage.getItem("labmu:session");

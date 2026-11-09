@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Users, UserPlus, Wrench, Package, FileDown, Clock, AlertCircle, CheckCircle2, AlertTriangle, Clock3 } from "lucide-react";
+import { Clock, AlertCircle, AlertTriangle, Clock3 } from "lucide-react";
 
 interface QuickAction {
   id: string;
@@ -162,17 +162,6 @@ const getAlertIcon = (type: Alert["type"]) => {
       return <AlertTriangle className="w-5 h-5 text-red-600" />;
     case "info":
       return <Clock3 className="w-5 h-5 text-blue-600" />;
-  }
-};
-
-const getAlertBgColor = (type: Alert["type"]) => {
-  switch (type) {
-    case "warning":
-      return "bg-yellow-50 border-yellow-200";
-    case "critical":
-      return "bg-red-50 border-red-200";
-    case "info":
-      return "bg-blue-50 border-blue-200";
   }
 };
 

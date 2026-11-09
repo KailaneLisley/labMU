@@ -3,6 +3,7 @@ import { ChevronLeft, Edit2, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { clearSession, getProfileStorageKey, getSession } from "../../lib/session";
 import { readJsonFromStorage } from "../../lib/storage";
+import { api } from "../../services/api";
 
 interface UserProfile {
   name: string;
@@ -41,6 +42,8 @@ export const ProfilePage = (): JSX.Element => {
 
   const handleLogout = async () => {
     setIsLoading(true);
+    // Revoga o token no servidor antes de apagar a sessão local (o token é lido de getSession)
+    await api.logout();
     clearSession();
     navigate("/login", { replace: true });
     setIsLoading(false);

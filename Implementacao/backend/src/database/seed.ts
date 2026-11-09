@@ -24,7 +24,7 @@ export function seedDatabase() {
       "AD",
       "bg-red-200"
     );
-    console.log(`[Seed] Administrador padrão criado: ${env.DEFAULT_ADMIN_EMAIL} (Senha: ${env.DEFAULT_ADMIN_PASSWORD})`);
+    console.log(`[Seed] Administrador padrão criado: ${env.DEFAULT_ADMIN_EMAIL}`);
   }
 
   const existingTech = query.get<any>("SELECT id, security_question FROM users WHERE email = ?", env.DEFAULT_TECH_EMAIL);
@@ -46,7 +46,7 @@ export function seedDatabase() {
       "TM",
       "bg-orange-200"
     );
-    console.log(`[Seed] Técnico padrão criado: ${env.DEFAULT_TECH_EMAIL} (Senha: ${env.DEFAULT_TECH_PASSWORD})`);
+    console.log(`[Seed] Técnico padrão criado: ${env.DEFAULT_TECH_EMAIL}`);
   } else if (!existingTech.security_question) {
     query.run(
       `UPDATE users SET security_question = ?, security_answer = ? WHERE id = ?`,

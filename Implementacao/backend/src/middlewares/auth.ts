@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { query } from "../database/connection.js";
 import { isTokenRevoked } from "../modules/auth/tokenRevocation.js";
 
-export interface AuthenticatedUser {
+interface AuthenticatedUser {
   id: string;
   name: string;
   email: string;

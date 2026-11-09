@@ -16,7 +16,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-export const db = new DatabaseSync(dbPath);
+const db = new DatabaseSync(dbPath);
 
 // Enable foreign keys
 db.exec("PRAGMA foreign_keys = ON;");
