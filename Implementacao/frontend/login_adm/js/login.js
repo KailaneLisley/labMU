@@ -17,8 +17,8 @@
     EMAIL_DOMAIN: "@unicap.br",
     MIN_PASSWORD_LENGTH: 6,
     ROUTES: {
-      administrador: "dashboard-admin.html",
-      tecnico: "dashboard-tecnico.html",
+      administrador: "../perfil_adm/index.html#/dashboard",
+      tecnico: "../perfil_adm/index.html#/dashboard",
     },
   };
 
