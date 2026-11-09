@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS supplies (
     balance REAL NOT NULL DEFAULT 0,
     minimum_balance REAL NOT NULL DEFAULT 1.0,
     status TEXT NOT NULL DEFAULT 'regular' CHECK(status IN ('regular', 'abaixo', 'critico')),
+    active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

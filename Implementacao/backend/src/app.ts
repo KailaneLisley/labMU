@@ -15,6 +15,9 @@ import { env } from "./config/env.js";
 
 export const app = express();
 
+// Configura proxy reverso para identificar IP real do cliente (Render, Vercel, Nginx)
+app.set("trust proxy", 1);
+
 // Middlewares globais
 app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
 app.use(express.json());

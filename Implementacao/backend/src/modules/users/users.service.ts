@@ -37,13 +37,15 @@ export class UsersService {
 
     sql += ` ORDER BY created_at DESC`;
 
-    const allRecords = query.all(sql, ...params);
-    const total = allRecords.length;
+    const countSql = `SELECT COUNT(*) as total FROM users WHERE 1=1` + sql.slice(sql.indexOf(" WHERE 1=1") + " WHERE 1=1".length, sql.indexOf(" ORDER BY"));
+    const totalCountRow = query.get<{ total: number }>(countSql, ...params);
+    const total = totalCountRow?.total ?? 0;
 
     const page = Math.max(1, filters.page || 1);
     const limit = Math.max(1, filters.limit || 50);
-    const startIndex = (page - 1) * limit;
-    const paginated = allRecords.slice(startIndex, startIndex + limit);
+    const offset = (page - 1) * limit;
+
+    const paginated = query.all(`${sql} LIMIT ? OFFSET ?`, ...params, limit, offset);
 
     return {
       data: paginated.map((u) => ({

@@ -53,8 +53,14 @@ export class ReportsService {
 
   // 2. Relatório de Produção Mensal por Técnico
   static getProductionByTechnician(filters: { from?: string; to?: string; groupBy?: string }) {
+    const isMonthly = filters.groupBy === "month";
+    const selectMonth = isMonthly ? "strftime('%Y-%m', p.created_at) as month," : "";
+    const groupClause = isMonthly
+      ? "GROUP BY month, u.id, u.name ORDER BY month DESC, total_jobs DESC"
+      : "GROUP BY u.id, u.name ORDER BY total_jobs DESC";
+
     let sql = `
-      SELECT u.id as technician_id, u.name as technician_name,
+      SELECT ${selectMonth} u.id as technician_id, u.name as technician_name,
              COUNT(p.id) as total_jobs,
              SUM(p.duration_minutes) as total_minutes,
              SUM(p.supply_consumed) as total_material_kg,
@@ -76,13 +82,7 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    // Agrupamento mensal: uma linha por técnico e mês
-    if (filters.groupBy === "month") {
-      sql = sql.replace("SELECT u.id as technician_id,", "SELECT strftime('%Y-%m', p.created_at) as month, u.id as technician_id,");
-      sql += ` GROUP BY month, u.id, u.name ORDER BY month DESC, total_jobs DESC`;
-    } else {
-      sql += ` GROUP BY u.id, u.name ORDER BY total_jobs DESC`;
-    }
+    sql += ` ${groupClause}`;
 
     const rows = query.all(sql, ...params);
     return rows.map((r) => ({

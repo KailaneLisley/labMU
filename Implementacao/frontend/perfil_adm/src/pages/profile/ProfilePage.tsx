@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronLeft, Edit2, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { clearSession, getProfileStorageKey, getSession } from "../../lib/session";
@@ -31,13 +31,35 @@ const mockUserProfile: UserProfile = {
 export const ProfilePage = (): JSX.Element => {
   const navigate = useNavigate();
   const session = getSession();
-  const [profile] = useState<UserProfile>(() => {
+  const [profile, setProfile] = useState<UserProfile>(() => {
     if (!session) return mockUserProfile;
     const savedProfile = readJsonFromStorage<StoredProfile>(getProfileStorageKey(session.user.email));
     return savedProfile
       ? { ...mockUserProfile, ...savedProfile, avatar: savedProfile.photoPreview ?? savedProfile.avatar, role: session.user.role === "administrador" ? "Administrador de Laboratório" : "Técnico de Bancada" }
       : { ...mockUserProfile, name: session.user.name, email: session.user.email, role: session.user.role === "administrador" ? "Administrador de Laboratório" : "Técnico de Bancada" };
   });
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getMe()
+      .then((res) => {
+        if (!active || !res?.user) return;
+        setProfile((prev) => ({
+          ...prev,
+          name: res.user.name || prev.name,
+          email: res.user.email || prev.email,
+          phone: res.user.phone || prev.phone,
+          enrollment: res.user.registration || prev.enrollment,
+          role: res.user.role === "administrador" ? "Administrador de Laboratório" : "Técnico de Bancada",
+        }));
+      })
+      .catch(() => null);
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = async () => {

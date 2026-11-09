@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, ArrowLeft } from "lucide-react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { initialSupplies, Supply, SupplyEntry, SUPPLIES_STORAGE_KEY } from "../../data/supplies";
+import { api } from "../../services/api";
 
 const guidelines = [
   "Pesar cada carretel individualmente antes de registrar para descontar a tara plástica (aprox. 200g por carretel padrão).",
@@ -58,12 +59,20 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
     setShowNewSupply(false);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedSupply || !isValidBalance) {
       setFormError("Selecione um suprimento e informe uma quantidade positiva válida.");
       return;
     }
     setFormError("");
+
+    await api.registerSupplyEntry({
+      supplyId: selectedSupply.id,
+      quantity: quantityNum,
+      lot: lot.trim(),
+      observations: observations.trim(),
+    }).catch(() => null);
+
     setSupplies((current) =>
       current.map((supply) =>
         supply.id === selectedSupply.id

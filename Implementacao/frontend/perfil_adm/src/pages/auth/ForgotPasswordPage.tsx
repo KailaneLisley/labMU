@@ -9,12 +9,14 @@ export const ForgotPasswordPage = (): JSX.Element => {
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("EMAIL");
+  const [role, setRole] = useState<"tecnico" | "administrador">("tecnico");
   const [email, setEmail] = useState("");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -24,10 +26,11 @@ export const ForgotPasswordPage = (): JSX.Element => {
   const inputClass =
     "w-full h-11 pl-11 pr-4 py-3 bg-[#f7f0f0] rounded-[10px] border-2 border-transparent outline-none transition-colors font-medium text-sm text-[#1f1a1b] placeholder:text-[#a79b9d] focus:border-[#8B1329] focus:bg-white";
 
-  // Passo 1: Verificar se o e-mail existe e se é técnico
+  // Passo 1: Verificar se o e-mail existe
   const handleVerifyEmail = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAdminNotice(null);
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
@@ -42,9 +45,16 @@ export const ForgotPasswordPage = (): JSX.Element => {
 
     setLoading(true);
     try {
-      const res = await api.verifyForgotEmail(cleanEmail);
-      setQuestion(res.question);
-      setStep("QUESTION");
+      if (role === "administrador") {
+        const res = await api.requestAdminPasswordReset(cleanEmail);
+        setResetToken(res.resetToken);
+        setAdminNotice(res.message);
+        setStep("NEW_PASSWORD");
+      } else {
+        const res = await api.verifyForgotEmail(cleanEmail);
+        setQuestion(res.question);
+        setStep("QUESTION");
+      }
     } catch (err: any) {
       setError(err?.message || "Ocorreu um erro ao verificar o e-mail.");
     } finally {
@@ -143,11 +153,45 @@ export const ForgotPasswordPage = (): JSX.Element => {
 
         <h1 className="text-2xl font-bold text-center text-[#8B1329] mb-1">Recuperar Senha</h1>
         <p className="text-center text-sm text-[#7a6e70] mb-6">
-          {step === "EMAIL" && "Etapa 1 de 3: Identificação do Técnico"}
+          {step === "EMAIL" && (role === "administrador" ? "Etapa 1 de 2: Validação do Administrador" : "Etapa 1 de 3: Identificação do Técnico")}
           {step === "QUESTION" && "Etapa 2 de 3: Validação de Segurança"}
-          {step === "NEW_PASSWORD" && "Etapa 3 de 3: Definição da Nova Senha"}
+          {step === "NEW_PASSWORD" && (role === "administrador" ? "Etapa 2 de 2: Definição da Nova Senha" : "Etapa 3 de 3: Definição da Nova Senha")}
           {step === "SUCCESS" && "Recuperação Concluída"}
         </p>
+
+        {/* Seleção de Perfil para Recuperação */}
+        {step === "EMAIL" && (
+          <div className="flex rounded-[10px] bg-[#f7f0f0] p-1 mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setRole("tecnico");
+                setError(null);
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-[8px] transition-all ${
+                role === "tecnico"
+                  ? "bg-white text-[#8B1329] shadow-sm"
+                  : "text-[#7a6e70] hover:text-[#1f1a1b]"
+              }`}
+            >
+              Técnico (Pergunta Secreta)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRole("administrador");
+                setError(null);
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-[8px] transition-all ${
+                role === "administrador"
+                  ? "bg-white text-[#8B1329] shadow-sm"
+                  : "text-[#7a6e70] hover:text-[#1f1a1b]"
+              }`}
+            >
+              Administrador (E-mail Cadastrado)
+            </button>
+          </div>
+        )}
 
         {/* Mensagem de Erro Geral */}
         {error && (
@@ -163,7 +207,7 @@ export const ForgotPasswordPage = (): JSX.Element => {
         {step === "EMAIL" && (
           <form onSubmit={handleVerifyEmail} className="space-y-4" noValidate>
             <label className="block text-xs font-semibold text-[#7a6e70]" htmlFor="forgot-email">
-              E-mail Institucional do Técnico
+              {role === "administrador" ? "E-mail Institucional do Administrador" : "E-mail Institucional do Técnico"}
               <div className="relative mt-2">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#4a4244]" />
                 <input
@@ -171,19 +215,25 @@ export const ForgotPasswordPage = (): JSX.Element => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tecnico.musarq@unicap.br"
+                  placeholder={role === "administrador" ? "admin.musarq@unicap.br" : "tecnico.musarq@unicap.br"}
                   className={inputClass}
                   required
                 />
               </div>
             </label>
 
+            {role === "administrador" && (
+              <p className="text-xs text-[#7a6e70] bg-[#fff9f6] p-3 rounded-[10px] border border-[#efe6e6] leading-relaxed">
+                A recuperação de acesso do <strong>Administrador</strong> é realizada através do e-mail institucional pré-cadastrado na base de dados.
+              </p>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full h-12 bg-[#8B1329] text-white font-semibold rounded-[10px] shadow-[0_6px_14px_rgba(139,19,41,0.28)] hover:bg-[#6b0f1f] transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {loading ? "Verificando e-mail..." : "Continuar"}
+              {loading ? "Verificando e-mail..." : role === "administrador" ? "Recuperar por E-mail" : "Continuar"}
             </button>
           </form>
         )}
@@ -315,7 +365,7 @@ export const ForgotPasswordPage = (): JSX.Element => {
             </div>
             <h2 className="text-lg font-bold text-[#1f1a1b]">Senha Redefinida!</h2>
             <p className="text-xs text-[#7a6e70] leading-relaxed">
-              Sua senha de Técnico foi atualizada com sucesso. Agora você já pode acessar o sistema com as novas
+              Sua senha de {role === "administrador" ? "Administrador" : "Técnico"} foi atualizada com sucesso. Agora você já pode acessar o sistema com as novas
               credenciais.
             </p>
             <button

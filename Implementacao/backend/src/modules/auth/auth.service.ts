@@ -317,8 +317,8 @@ export class AuthService {
       throw new AppError("Usuário não encontrado.", 404, "USER_NOT_FOUND");
     }
 
-    if (user.role !== "tecnico") {
-      throw new AppError("Ação restrita a contas de Técnico.", 403, "UNAUTHORIZED_ROLE");
+    if (user.role !== "tecnico" && user.role !== "administrador") {
+      throw new AppError("Ação restrita a contas de Técnico e Administrador.", 403, "UNAUTHORIZED_ROLE");
     }
 
     const passwordHash = bcrypt.hashSync(newPassword, 10);
@@ -327,6 +327,42 @@ export class AuthService {
 
     return {
       message: "Senha redefinida com sucesso! Você já pode entrar com sua nova senha.",
+    };
+  }
+
+  static requestAdminPasswordReset(email: string) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new AppError("Informe o e-mail institucional.", 400, "MISSING_EMAIL");
+    }
+
+    const user = query.get<any>(
+      `SELECT id, name, email, role, status FROM users WHERE email = ?`,
+      normalizedEmail
+    );
+
+    if (!user || user.role !== "administrador") {
+      throw new AppError(
+        "Conta de Administrador não encontrada com este e-mail.",
+        404,
+        "ADMIN_NOT_FOUND"
+      );
+    }
+
+    if (user.status !== "ativo") {
+      throw new AppError("Esta conta de administrador está inativa.", 403, "ACCOUNT_INACTIVE");
+    }
+
+    const resetToken = jwt.sign(
+      { sub: user.id, email: user.email, purpose: "password_reset", jti: crypto.randomUUID() },
+      env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    return {
+      message: `Instruções de redefinição enviadas para o e-mail cadastrado (${user.email}).`,
+      email: user.email,
+      resetToken,
     };
   }
 

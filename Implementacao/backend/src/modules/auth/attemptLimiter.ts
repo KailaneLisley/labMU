@@ -19,7 +19,16 @@ export function createAttemptLimiter(policy: AttemptPolicy) {
   const keyOf = (key: string) => `key:${key}`;
   const ipOf = (ip: string) => `ip:${ip}`;
 
+  function purgeExpired(now: number): void {
+    for (const [id, entry] of failures.entries()) {
+      if (now - entry.windowStart > policy.windowMs) {
+        failures.delete(id);
+      }
+    }
+  }
+
   function isBlocked(key: string, ip: string, now = Date.now()): boolean {
+    purgeExpired(now);
     return (
       failuresFor(keyOf(key), now) >= policy.maxPerKey ||
       failuresFor(ipOf(ip), now) >= policy.maxPerIp
@@ -27,6 +36,7 @@ export function createAttemptLimiter(policy: AttemptPolicy) {
   }
 
   function recordFailure(key: string, ip: string, now = Date.now()): void {
+    purgeExpired(now);
     for (const id of [keyOf(key), ipOf(ip)]) {
       const current = failures.get(id);
       if (!current || now - current.windowStart > policy.windowMs) {

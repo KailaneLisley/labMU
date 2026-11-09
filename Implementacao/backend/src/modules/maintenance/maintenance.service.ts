@@ -146,8 +146,9 @@ export class MaintenanceService {
 
   // Máquina volta à operação; a próxima preventiva é calculada 30 dias depois (preventiva mensal)
   private static markMachineOperational(machineId: string, date: string) {
-    const dateObj = new Date(date);
-    dateObj.setDate(dateObj.getDate() + 30);
+    const raw = date.includes("T") ? date : `${date}T00:00:00Z`;
+    const dateObj = new Date(raw);
+    dateObj.setUTCDate(dateObj.getUTCDate() + 30);
     const nextDate = dateObj.toISOString().split("T")[0];
 
     query.run(

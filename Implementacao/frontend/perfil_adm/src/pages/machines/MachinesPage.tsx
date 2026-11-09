@@ -1,6 +1,7 @@
-import { FormEvent, useState, useMemo } from "react";
+import { FormEvent, useState, useMemo, useEffect } from "react";
 import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
 import { usePersistentState } from "../../hooks/usePersistentState";
+import { api } from "../../services/api";
 
 type MachineType = "printer_3d_fdm" | "printer_3d_resin" | "scanner";
 type MachineTypeFilter = MachineType | "3d" | "all";
@@ -105,6 +106,40 @@ const mockMachines: Machine[] = [
 
 export const MachinesPage = (): JSX.Element => {
   const [machines, setMachines] = usePersistentState<Machine[]>("labmu:machines", mockMachines);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getMachines()
+      .then((res) => {
+        if (!active || !res || !Array.isArray(res.machines)) return;
+        const apiMachines: Machine[] = res.machines.map((m: any) => ({
+          id: String(m.id),
+          name: m.name,
+          tag: m.tag,
+          type: m.type,
+          dimensions: m.dimensions,
+          location: {
+            bench: m.location?.bench || m.bench || "",
+            room: m.location?.room || m.room || "",
+          },
+          status: m.status,
+          lastMaintenance: m.lastMaintenance ? new Date(m.lastMaintenance) : undefined,
+          nextMaintenanceDate: m.nextMaintenanceDate ? new Date(m.nextMaintenanceDate) : undefined,
+          createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+          updatedAt: m.updatedAt ? new Date(m.updatedAt) : new Date(),
+        }));
+        if (apiMachines.length > 0) {
+          setMachines(apiMachines);
+        }
+      })
+      .catch(() => {
+        // Fallback gracioso mantendo os dados persistidos localmente
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [selectedType, setSelectedType] = useState<MachineTypeFilter>("all");
   const [selectedStatus, setSelectedStatus] = useState<MachineStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -168,7 +203,7 @@ export const MachinesPage = (): JSX.Element => {
     setEditorOpen(true);
   };
 
-  const handleSaveMachine = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveMachine = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const duplicateTag = machines.some(
       (machine) =>
@@ -180,35 +215,57 @@ export const MachinesPage = (): JSX.Element => {
       return;
     }
     const now = new Date();
-    setMachines((current) => {
+    const payload = {
+      name: formData.name.trim(),
+      tag: formData.tag.trim().toUpperCase(),
+      type: formData.type,
+      dimensions: formData.dimensions.trim(),
+      location: { bench: formData.bench.trim(), room: formData.room.trim() },
+      status: formData.status,
+    };
+
+    try {
       if (editingMachineId) {
-        return current.map((machine) =>
-          machine.id === editingMachineId
-            ? {
-                ...machine,
-                ...formData,
-                location: { bench: formData.bench, room: formData.room },
-                updatedAt: now,
-              }
-            : machine,
+        await api.updateMachine(editingMachineId, payload).catch(() => null);
+        setMachines((current) =>
+          current.map((machine) =>
+            machine.id === editingMachineId
+              ? {
+                  ...machine,
+                  ...payload,
+                  updatedAt: now,
+                }
+              : machine,
+          ),
         );
+      } else {
+        let createdId = `${Date.now()}`;
+        try {
+          const res = await api.createMachine(payload);
+          if (res?.machine?.id) createdId = String(res.machine.id);
+        } catch {
+          // Fallback caso a API esteja temporariamente offline
+        }
+
+        setMachines((current) => [
+          ...current,
+          {
+            id: createdId,
+            ...payload,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]);
       }
-      return [
-        ...current,
-        {
-          id: `${Date.now()}`,
-          ...formData,
-          location: { bench: formData.bench, room: formData.room },
-          createdAt: now,
-          updatedAt: now,
-        },
-      ];
-    });
-    setEditorOpen(false);
-    setEditorError("");
+      setEditorOpen(false);
+      setEditorError("");
+    } catch (err: any) {
+      setEditorError(err?.message || "Erro ao salvar máquina.");
+    }
   };
 
   const setMachineStatus = (id: string, status: MachineStatus) => {
+    api.updateMachine(id, { status }).catch(() => null);
     setMachines((current) =>
       current.map((machine) => (machine.id === id ? { ...machine, status, updatedAt: new Date() } : machine)),
     );
@@ -223,6 +280,7 @@ export const MachinesPage = (): JSX.Element => {
   const confirmDeleteMachine = () => {
     if (!machineToDelete) return;
     const id = machineToDelete.id;
+    api.deleteMachine(id).catch(() => null);
     setMachines((current) => current.filter((item) => item.id !== id));
     setMachineToDelete(null);
   };

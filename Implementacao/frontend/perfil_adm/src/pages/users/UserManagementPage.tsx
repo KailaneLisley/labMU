@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState, useMemo } from "react";
 import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { initialUsers, User, UserRole, UserStatus, USERS_STORAGE_KEY } from "../../data/users";
+import { api } from "../../services/api";
 
 const getRoleBadgeColor = (role: UserRole) => {
   switch (role) {
@@ -31,6 +32,43 @@ const getRoleLabel = (role: UserRole) => {
 
 export const UserManagementPage = (): JSX.Element => {
   const [users, setUsers] = usePersistentState<User[]>(USERS_STORAGE_KEY, initialUsers);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getUsers({ limit: 100 })
+      .then((res) => {
+        if (!active || !res || !Array.isArray(res.data)) return;
+        const apiUsers: User[] = res.data.map((u: any) => {
+          const initials = (u.name || "")
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((part: string) => part[0])
+            .join("")
+            .toUpperCase() || "U";
+          return {
+            id: String(u.id),
+            name: u.name,
+            email: u.email,
+            registration: u.registration || "",
+            phone: u.phone || "",
+            role: u.role as UserRole,
+            status: u.status === "inativo" ? "inativo" : "ativo",
+            initials,
+            avatarColor: "bg-[#fdeaea]",
+          };
+        });
+        if (apiUsers.length > 0) {
+          setUsers(apiUsers);
+        }
+      })
+      .catch(() => {
+        // Fallback gracioso com persistência local
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [selectedRole, setSelectedRole] = useState<UserRole | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<UserStatus | "all">("ativo");
@@ -83,7 +121,7 @@ export const UserManagementPage = (): JSX.Element => {
     setMenuOpen(null);
   };
 
-  const handleSaveUser = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editorRole) return;
     const name = formData.name.trim();
@@ -111,38 +149,59 @@ export const UserManagementPage = (): JSX.Element => {
       .join("")
       .toUpperCase();
 
-    if (editingUserId) {
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === editingUserId
-            ? { ...user, ...formData, name, email, initials }
-            : user,
-        ),
-      );
-    } else {
-      setUsers((current) => [
-        ...current,
-        {
-          id: `${Date.now()}`,
-          name,
-          email,
-          registration: formData.registration.trim(),
-          phone: formData.phone.trim(),
-          role: editorRole,
-          status: "ativo",
-          initials,
-          avatarColor: "bg-[#fdeaea]",
-        },
-      ]);
+    const userPayload = {
+      name,
+      email,
+      registration: formData.registration.trim(),
+      phone: formData.phone.trim(),
+      role: editorRole,
+    };
+
+    try {
+      if (editingUserId) {
+        await api.updateUser(editingUserId, userPayload).catch(() => null);
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === editingUserId
+              ? { ...user, ...userPayload, initials }
+              : user,
+          ),
+        );
+      } else {
+        let createdId = `${Date.now()}`;
+        try {
+          const res = await api.createUser({ ...userPayload, password: "TemporaryUser123!" });
+          if (res?.user?.id) createdId = String(res.user.id);
+        } catch {
+          // Fallback caso a API esteja temporariamente offline
+        }
+
+        setUsers((current) => [
+          ...current,
+          {
+            id: createdId,
+            ...userPayload,
+            status: "ativo",
+            initials,
+            avatarColor: "bg-[#fdeaea]",
+          },
+        ]);
+      }
+      setEditorRole(null);
+      setEditorError("");
+    } catch (err: any) {
+      setEditorError(err?.message || "Erro ao salvar usuário.");
     }
-    setEditorRole(null);
-    setEditorError("");
   };
 
   const toggleUserStatus = (id: string) => {
+    const targetUser = users.find((u) => u.id === id);
+    const nextStatus = targetUser?.status === "ativo" ? "inativo" : "ativo";
+    api.updateUserStatus(id, nextStatus).catch(() => null);
+
     setUsers((current) =>
       current.map((user) =>
-        user.id === id ? { ...user, status: user.status === "ativo" ? "inativo" : "ativo" } : user,
+        user.id === id ? { ...user, status: nextStatus } : user,
       ),
     );
     setMenuOpen(null);

@@ -17,7 +17,9 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
-  console.error("[Error Handler]", err);
+  if (process.env.NODE_ENV !== "test") {
+    console.error("[Error Handler]", err);
+  }
 
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
