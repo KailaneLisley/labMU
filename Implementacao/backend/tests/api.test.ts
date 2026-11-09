@@ -1327,3 +1327,61 @@ test("Dashboard: resumo traz contagens numéricas de máquinas, usuários e empr
   }
   assert.ok(res.data.machines.total >= res.data.machines.active);
 });
+
+test("S9: resposta de segurança é bloqueada após tentativas seguidas erradas", async () => {
+  const suffix = `${Date.now()}`;
+  const email = `bloqueio.resposta.${suffix}@unicap.br`;
+  const reg = await makeRequest("/api/auth/register", {
+    method: "POST",
+    body: {
+      name: "Técnico Bloqueio",
+      email,
+      registration: `REG-B-${suffix}`,
+      password: "SenhaForte@123",
+      securityQuestion: "Qual o nome da sua escola?",
+      securityAnswer: "Unicap",
+    },
+  });
+  assert.equal(reg.status, 201);
+
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const res = await makeRequest("/api/auth/forgot-password/verify-answer", {
+      method: "POST",
+      body: { email, answer: "errada" },
+    });
+    statuses.push(res.status);
+    if (res.status === 429) assert.equal(res.data.error.code, "TOO_MANY_ATTEMPTS");
+  }
+  assert.deepEqual(statuses, [400, 400, 400, 400, 400, 429]);
+
+  // Mesmo a resposta certa fica bloqueada enquanto a janela não passa
+  const right = await makeRequest("/api/auth/forgot-password/verify-answer", {
+    method: "POST",
+    body: { email, answer: "Unicap" },
+  });
+  assert.equal(right.status, 429);
+});
+
+test("V3: valor de enum inválido em atualização diz qual campo está errado", async () => {
+  const tech = await createTechnician();
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+
+  const badRole = await makeRequest(`/api/users/${tech.id}`, {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { role: "superusuario" },
+  });
+  assert.equal(badRole.status, 400);
+  assert.equal(badRole.data.error.code, "INVALID_FIELD_VALUE");
+  assert.match(badRole.data.error.message, /"role"/);
+
+  const badMachineType = await makeRequest("/api/machines/mach-1", {
+    method: "PATCH",
+    headers: adminHeaders,
+    body: { type: "laser_inventado" },
+  });
+  assert.equal(badMachineType.status, 400);
+  assert.equal(badMachineType.data.error.code, "INVALID_FIELD_VALUE");
+  assert.match(badMachineType.data.error.message, /"type"/);
+});

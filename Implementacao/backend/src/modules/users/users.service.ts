@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { assertAllowed } from "../../utils/validation.js";
 
 const USER_ROLES = ["administrador", "tecnico", "aluno", "professor", "cliente"];
 const USER_STATUSES = ["ativo", "inativo", "pendente"];
@@ -195,6 +196,8 @@ export class UsersService {
     const role = data.role !== undefined ? data.role : existing.role;
     const registration = data.registration !== undefined ? data.registration.trim() : existing.registration;
     const status = data.status !== undefined ? data.status : existing.status;
+    if (data.role !== undefined) assertAllowed(data.role, USER_ROLES, "role");
+    if (data.status !== undefined) assertAllowed(data.status, USER_STATUSES, "status");
     const avatar = data.avatar !== undefined ? data.avatar : existing.avatar;
     const initials = name.split(/\s+/).slice(0, 2).map((n: string) => n[0]).join("").toUpperCase();
 

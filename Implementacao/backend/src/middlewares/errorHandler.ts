@@ -42,10 +42,14 @@ export const errorHandler = (
 
   // Valor fora do domínio permitido pelo banco (ex.: perfil ou tipo inexistente)
   if (String(err?.message).includes("CHECK constraint failed")) {
+    // O SQLite informa a coluna na mensagem, ex.: "CHECK constraint failed: role IN (...)"
+    const field = String(err.message).match(/CHECK constraint failed:\s*\(?(\w+)\s+IN\b/)?.[1];
     res.status(400).json({
       error: {
         code: "VALIDATION_ERROR",
-        message: "Um dos valores informados não é permitido.",
+        message: field
+          ? `Valor inválido para o campo "${field}".`
+          : "Um dos valores informados não é permitido.",
       },
     });
     return;

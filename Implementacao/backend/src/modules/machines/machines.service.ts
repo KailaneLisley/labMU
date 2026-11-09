@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
+import { assertAllowed } from "../../utils/validation.js";
 
 const MACHINE_TYPES = ["printer_3d_fdm", "printer_3d_resin", "scanner"];
 const MACHINE_STATUSES = ["ativa", "manutencao", "inativa"];
@@ -159,6 +160,8 @@ export class MachinesService {
     const bench = data.location?.bench !== undefined ? data.location.bench : existing.location.bench;
     const room = data.location?.room !== undefined ? data.location.room : existing.location.room;
     const status = data.status !== undefined ? data.status : existing.status;
+    if (data.type !== undefined) assertAllowed(data.type, MACHINE_TYPES, "type");
+    if (data.status !== undefined) assertAllowed(data.status, MACHINE_STATUSES, "status");
     const lastMaintenance = data.lastMaintenance !== undefined ? data.lastMaintenance : existing.lastMaintenance;
     const nextMaintenanceDate = data.nextMaintenanceDate !== undefined ? data.nextMaintenanceDate : existing.nextMaintenanceDate;
 
