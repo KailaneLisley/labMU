@@ -2,6 +2,9 @@ import { query } from "../../database/connection.js";
 import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
 import { upperBoundClause } from "../../utils/dates.js";
 
+// Registros detalhados devolvidos por relatório; as métricas são calculadas sobre todos os registros
+const REPORT_RECORD_LIMIT = 500;
+
 export class ReportsService {
   // 1. Relatório de Produção Geral e Detalhado
   static getProductionReport(filters: { from?: string; to?: string; technicianId?: string }) {
@@ -32,13 +35,23 @@ export class ReportsService {
       params.push(filters.technicianId);
     }
 
-    sql += ` ORDER BY p.created_at DESC`;
+    const orderBy = ` ORDER BY p.created_at DESC`;
 
-    const records = query.all(sql, ...params);
-    const totalJobs = records.length;
-    const totalMinutes = records.reduce((acc, cur) => acc + (cur.duration_minutes || 0), 0);
-    const totalMaterialKg = records.reduce((acc, cur) => acc + (cur.supply_consumed || 0), 0);
+    // Métricas agregadas no banco (não carregam todos os registros na memória)
+    const agg = query.get<any>(
+      `SELECT COUNT(*) AS totalJobs,
+              COALESCE(SUM(duration_minutes), 0) AS totalMinutes,
+              COALESCE(SUM(supply_consumed), 0) AS totalMaterialKg
+       FROM (${sql})`,
+      ...params
+    );
+    const totalJobs = agg?.totalJobs ?? 0;
+    const totalMinutes = agg?.totalMinutes ?? 0;
+    const totalMaterialKg = agg?.totalMaterialKg ?? 0;
     const avgDurationMinutes = totalJobs > 0 ? Math.round(totalMinutes / totalJobs) : 0;
+
+    // Lista detalhada limitada aos registros mais recentes
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
@@ -48,6 +61,8 @@ export class ReportsService {
         totalMaterialKg: Number(totalMaterialKg.toFixed(2)),
       },
       records,
+      recordsLimit: REPORT_RECORD_LIMIT,
+      truncated: totalJobs > records.length,
     };
   }
 
@@ -154,22 +169,28 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    sql += ` ORDER BY l.checkout_date DESC`;
+    const orderBy = ` ORDER BY l.checkout_date DESC`;
 
-    const records = query.all(sql, ...params);
-    const totalLoans = records.length;
-    const activeLoans = records.filter((r) => r.status === "em_campo" || r.status === "devolucao_hoje").length;
-    const overdueLoans = records.filter((r) => r.status === "atrasado").length;
-    const returnedLoans = records.filter((r) => r.status === "devolvido").length;
+    const agg = query.get<any>(
+      `SELECT COUNT(*) AS totalLoans,
+              COALESCE(SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END), 0) AS activeLoans,
+              COALESCE(SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END), 0) AS overdueLoans,
+              COALESCE(SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END), 0) AS returnedLoans
+       FROM (${sql})`,
+      ...params
+    );
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
-        totalLoans,
-        activeLoans,
-        overdueLoans,
-        returnedLoans,
+        totalLoans: agg?.totalLoans ?? 0,
+        activeLoans: agg?.activeLoans ?? 0,
+        overdueLoans: agg?.overdueLoans ?? 0,
+        returnedLoans: agg?.returnedLoans ?? 0,
       },
       records,
+      recordsLimit: REPORT_RECORD_LIMIT,
+      truncated: (agg?.totalLoans ?? 0) > records.length,
     };
   }
 
@@ -196,22 +217,28 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    sql += ` ORDER BY m.date DESC`;
+    const orderBy = ` ORDER BY m.date DESC`;
 
-    const records = query.all(sql, ...params);
-    const totalMaintenances = records.length;
-    const preventiveCount = records.filter((r) => r.type === "preventiva").length;
-    const correctiveCount = records.filter((r) => r.type === "corretiva").length;
-    const totalCost = records.reduce((acc, cur) => acc + (cur.cost || 0), 0);
+    const agg = query.get<any>(
+      `SELECT COUNT(*) AS totalMaintenances,
+              COALESCE(SUM(CASE WHEN type = 'preventiva' THEN 1 ELSE 0 END), 0) AS preventiveCount,
+              COALESCE(SUM(CASE WHEN type = 'corretiva' THEN 1 ELSE 0 END), 0) AS correctiveCount,
+              COALESCE(SUM(cost), 0) AS totalCost
+       FROM (${sql})`,
+      ...params
+    );
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
-        totalMaintenances,
-        preventiveCount,
-        correctiveCount,
-        totalCost: Number(totalCost.toFixed(2)),
+        totalMaintenances: agg?.totalMaintenances ?? 0,
+        preventiveCount: agg?.preventiveCount ?? 0,
+        correctiveCount: agg?.correctiveCount ?? 0,
+        totalCost: Number((agg?.totalCost ?? 0).toFixed(2)),
       },
       records,
+      recordsLimit: REPORT_RECORD_LIMIT,
+      truncated: (agg?.totalMaintenances ?? 0) > records.length,
     };
   }
 }

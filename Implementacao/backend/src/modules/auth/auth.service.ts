@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "./passwords.js";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { query } from "../../database/connection.js";
@@ -27,27 +27,31 @@ function normalizeSecurityAnswer(answer: string): string {
   return answer.trim().toLowerCase();
 }
 
-function hashSecurityAnswer(answer: string): string {
-  return bcrypt.hashSync(normalizeSecurityAnswer(answer), 10);
+async function hashSecurityAnswer(answer: string): Promise<string> {
+  return hashPassword(normalizeSecurityAnswer(answer));
 }
 
 // Contas antigas guardam a resposta em texto puro: são aceitas e migradas para hash no primeiro uso.
-function matchesSecurityAnswer(userId: string, stored: string | null, answer: string): boolean {
+async function matchesSecurityAnswer(userId: string, stored: string | null, answer: string): Promise<boolean> {
   if (!stored) return false;
 
-  if (stored.startsWith("$2")) {
-    return bcrypt.compareSync(normalizeSecurityAnswer(answer), stored);
+  if (stored.startsWith("$2") || stored.startsWith("scrypt$")) {
+    const check = await verifyPassword(normalizeSecurityAnswer(answer), stored);
+    if (check.ok && check.needsRehash) {
+      query.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
+    }
+    return check.ok;
   }
 
   const matches = stored.trim().toLowerCase() === normalizeSecurityAnswer(answer);
   if (matches) {
-    query.run("UPDATE users SET security_answer = ? WHERE id = ?", hashSecurityAnswer(answer), userId);
+    query.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
   }
   return matches;
 }
 
 export class AuthService {
-  static login(email: string, password: string, requestedRole?: string, ip = "desconhecido") {
+  static async login(email: string, password: string, requestedRole?: string, ip = "desconhecido") {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
@@ -68,8 +72,8 @@ export class AuthService {
       normalizedEmail
     );
 
-    const isMatch = user?.password_hash ? bcrypt.compareSync(password, user.password_hash) : false;
-    if (!isMatch) {
+    const check = user?.password_hash ? await verifyPassword(password, user.password_hash) : { ok: false, needsRehash: false };
+    if (!check.ok) {
       recordLoginFailure(normalizedEmail, ip);
       throw new AppError("E-mail ou senha incorretos.", 401, "INVALID_CREDENTIALS");
     }
@@ -94,6 +98,11 @@ export class AuthService {
 
     resetAccountFailures(normalizedEmail);
 
+    // Contas com hash antigo (bcrypt) passam a usar scrypt no primeiro login bem-sucedido
+    if (check.needsRehash) {
+      query.run("UPDATE users SET password_hash = ? WHERE id = ?", await hashPassword(password), user.id);
+    }
+
     const token = signSession(user);
 
     return {
@@ -113,7 +122,7 @@ export class AuthService {
     };
   }
 
-  static register(data: {
+  static async register(data: {
     name: string;
     email: string;
     registration: string;
@@ -172,7 +181,7 @@ export class AuthService {
       throw new AppError("Esta matrícula já está vinculada a outro usuário.", 409, "REGISTRATION_EXISTS");
     }
 
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = await hashPassword(password);
     const userId = `usr-tech-${crypto.randomUUID()}`;
     const initials = name
       .split(/\s+/)
@@ -191,7 +200,7 @@ export class AuthService {
       phone,
       passwordHash,
       securityQuestion,
-      hashSecurityAnswer(securityAnswer),
+      await hashSecurityAnswer(securityAnswer),
       initials
     );
 
@@ -237,7 +246,7 @@ export class AuthService {
     };
   }
 
-  static verifyForgotAnswer(email: string, answer: string, ip = "desconhecido") {
+  static async verifyForgotAnswer(email: string, answer: string, ip = "desconhecido") {
     const normalizedEmail = email?.trim().toLowerCase();
     const cleanAnswer = answer?.trim();
 
@@ -260,7 +269,7 @@ export class AuthService {
 
     // Mesma resposta para conta inexistente, de administrador ou de aluno (ver verifyForgotEmail)
     const isTechnician = user?.role === "tecnico";
-    if (!isTechnician || !matchesSecurityAnswer(user.id, user.security_answer, cleanAnswer)) {
+    if (!isTechnician || !(await matchesSecurityAnswer(user.id, user.security_answer, cleanAnswer))) {
       recordAnswerFailure(normalizedEmail, ip);
       throw new AppError("Resposta de segurança incorreta. Tente novamente.", 400, "INCORRECT_ANSWER");
     }
@@ -279,7 +288,7 @@ export class AuthService {
     };
   }
 
-  static resetPassword(data: { email: string; resetToken: string; newPassword: string }) {
+  static async resetPassword(data: { email: string; resetToken: string; newPassword: string }) {
     const normalizedEmail = data.email?.trim().toLowerCase();
     const resetToken = data.resetToken;
     const newPassword = data.newPassword;
@@ -321,7 +330,7 @@ export class AuthService {
       throw new AppError("Ação restrita a contas de Técnico e Administrador.", 403, "UNAUTHORIZED_ROLE");
     }
 
-    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
     query.run("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", passwordHash, user.id);
     revokeToken(decoded.jti, decoded.exp);
 

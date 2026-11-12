@@ -15,10 +15,21 @@ import { env } from "./config/env.js";
 
 export const app = express();
 
-// Configura proxy reverso para identificar IP real do cliente (Render, Vercel, Nginx)
-app.set("trust proxy", 1);
+if (env.TRUST_PROXY > 0) {
+  app.set("trust proxy", env.TRUST_PROXY);
+}
 
 // Middlewares globais
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  if (env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
 app.use(express.json());
 // Requisição sem corpo chega como undefined; normaliza para que os controllers recebam um objeto

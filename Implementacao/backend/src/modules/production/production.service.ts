@@ -5,6 +5,9 @@ import { upperBoundClause } from "../../utils/dates.js";
 import { supplyStatusFor } from "../supplies/supplyStatus.js";
 import { assertAllowed } from "../../utils/validation.js";
 
+// Máximo de registros devolvidos por listagem (evita respostas sem limite com o crescimento do banco)
+const LIST_LIMIT = 500;
+
 const PRODUCTION_STATUSES = ["em_andamento", "concluida", "cancelada"] as const;
 
 export class ProductionService {
@@ -55,9 +58,10 @@ export class ProductionService {
       params.push(upper.value);
     }
 
-    sql += ` ORDER BY p.created_at DESC`;
+    // Lista limitada aos registros mais recentes; relatórios usam agregação no banco
+    sql += ` ORDER BY p.created_at DESC LIMIT ?`;
 
-    return query.all(sql, ...params);
+    return query.all(sql, ...params, LIST_LIMIT);
   }
 
   static getProductionById(id: string) {

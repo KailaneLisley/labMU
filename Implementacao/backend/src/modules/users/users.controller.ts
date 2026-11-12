@@ -28,9 +28,9 @@ export class UsersController {
     }
   };
 
-  static create = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static create = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const user = UsersService.createUser(req.body);
+      const user = await UsersService.createUser(req.body);
       res.status(201).json({ user });
     } catch (error) {
       next(error);

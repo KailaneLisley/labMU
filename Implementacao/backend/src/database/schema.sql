@@ -130,6 +130,10 @@ CREATE INDEX IF NOT EXISTS idx_loans_equipment ON loans(equipment_id);
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_productions_machine ON productions(machine_id);
 CREATE INDEX IF NOT EXISTS idx_productions_technician ON productions(technician_id);
+CREATE INDEX IF NOT EXISTS idx_productions_created ON productions(created_at);
+CREATE INDEX IF NOT EXISTS idx_maintenances_date ON maintenances(date);
+CREATE INDEX IF NOT EXISTS idx_loans_checkout ON loans(checkout_date);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_created ON stock_movements(created_at);
 
 
 -- Tokens JWT revogados (logout e token de recuperação já usado). Expiram junto com o próprio token.
