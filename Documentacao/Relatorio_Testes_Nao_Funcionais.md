@@ -15,11 +15,11 @@ Scripts usados estão em `Implementacao/testes-nao-funcionais/` (com README de e
 | Carga (50 usuários simultâneos, mix de endpoints) | 133 req/s, p95 747 ms, p99 1,06 s | **506 req/s, p95 219 ms, p99 339 ms** |
 | Carga (100 usuários simultâneos) | 119 req/s, p95 1,06 s, **p99 15 s** | **479 req/s, p95 431 ms, p99 867 ms** |
 | Stress: ponto de quebra (p95 > 3 s ou erro > 5%) | **400 usuários** (p95 5,2 s) | **não atingido até 800** (p95 2,7 s, 0% erro) |
-| Segurança local (24 checagens técnicas) | 20 OK / 4 falhas | **24 OK** |
-| Segurança local (10 checagens de autorização e sessão) | — | **10 OK** |
+| Segurança local (23 checagens técnicas) | 20 OK / 4 falhas | **23 OK** |
+| Segurança local (autorização e sessão) | — | **10 OK** + 1 informativa |
 | Dependências do backend (`npm audit`) | 1 alta + 1 moderada | **0** |
-| Testes automatizados do backend | — | **45** (inclui 1 novo teste de migração de senha) |
-| Testes automatizados do frontend | 35 | 35 |
+| Testes automatizados do backend | — | **46** (inclui 1 novo teste de migração de senha) |
+| Testes automatizados do frontend | 35 | 36 |
 | Playwright (interface + API) | 27 (1 teste marcado como "falha esperada") | **27 passam, sem falha esperada** |
 | Smoke do build de produção | — | **23/23 checagens** |
 
@@ -101,11 +101,11 @@ O processo terminou os testes com ~111 MB de RSS.
 - `https://labmu-api.onrender.com/api/health`: **sem resposta** após 120 s (duas tentativas, com intervalo).
 - `https://labmu.vercel.app/`: **HTTP 404** com `DEPLOYMENT_NOT_FOUND`. O projeto da Vercel não tem deploy publicado; `/dashboard` também devolve 404.
 
-Ou seja, não há versão do sistema online para testar neste momento. Os scripts estão prontos para rodar contra as URLs assim que os serviços voltarem (`BASE=https://labmu-api.onrender.com`, apenas `security.mjs` e `security2.mjs`). Vale verificar no painel do Render se o serviço está suspenso ou falhando no build, e na Vercel se o projeto aponta para a pasta `Implementacao/frontend/perfil_adm` e se tem deploy de produção.
+Ou seja, não há versão do sistema online para testar neste momento. Os scripts estão prontos para rodar contra as URLs assim que os serviços voltarem (`BASE=https://labmu-api.onrender.com`, apenas `security-surface.mjs` e `security-rbac.mjs`). Vale verificar no painel do Render se o serviço está suspenso ou falhando no build, e na Vercel se o projeto aponta para a pasta `Implementacao/frontend/perfil_adm` e se tem deploy de produção.
 
 ### 5.2 Resultados locais
 
-**`security.mjs` (24 checagens técnicas):**
+**`security-surface.mjs` (23 checagens técnicas):**
 
 | Verificação | Antes | Depois |
 |---|---|---|
@@ -119,7 +119,7 @@ Ou seja, não há versão do sistema online para testar neste momento. Os script
 | CORS não reflete origem estranha; preflight recusado | ✅ | ✅ |
 | SQL injection em filtro, path traversal, JSON malformado, 404 sem detalhe | ✅ | ✅ |
 
-**`security2.mjs` (autorização e sessão, com técnico de teste):**
+**`security-rbac.mjs` (autorização e sessão, com técnico de teste):**
 
 | Verificação | Resultado |
 |---|---|
@@ -152,8 +152,8 @@ Ou seja, não há versão do sistema online para testar neste momento. Os script
 | 6 | Lista de usuários carregava tudo na memória | Paginação feita em JavaScript | `COUNT(*)` e `LIMIT/OFFSET` no SQL; `limit` com teto de 200 | — |
 | 7 | "Encerrar Sessão" não revogava o token | O front só limpava o `localStorage` (o próprio teste Playwright registrava como falha esperada) | `api.logout()` antes de `clearSession()`. Teste passou a ser normal | Playwright: 27/27 sem falha esperada |
 | 8 | Admin bloqueado por tentativas de outros clientes | Sem `trust proxy`, todos os clientes aparecem com o IP do proxy do Render e compartilham o limite de 20 falhas/15 min | `TRUST_PROXY` (padrão **1 em produção**). Verificado com 25 falhas de contas diferentes: com `TRUST_PROXY=0` o admin recebe 429; com o padrão de produção, 200 | Comparação feita por script em duas execuções do servidor |
-| 9 | Cabeçalhos ausentes e versão exposta | Não havia configuração | `X-Powered-By` desativado; `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`; HSTS em produção | `security.mjs` 24/24 |
-| 10 | Payload grande virava 500 | `errorHandler` não respeitava o status de erros do Express | Erros 4xx do Express preservam o status (413 com código `PAYLOAD_TOO_LARGE`) | `security.mjs` I2 |
+| 9 | Cabeçalhos ausentes e versão exposta | Não havia configuração | `X-Powered-By` desativado; `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`; HSTS em produção | `security-surface.mjs` 23/23 |
+| 10 | Payload grande virava 500 | `errorHandler` não respeitava o status de erros do Express | Erros 4xx do Express preservam o status (413 com código `PAYLOAD_TOO_LARGE`) | `security-surface.mjs` I2 |
 | 11 | Vulnerabilidades no backend | `body-parser` (alta) e `qs` (moderada) | `npm audit fix` | `npm audit`: 0 vulnerabilidades |
 
 Ao corrigir o item 1, um detalhe da migração de respostas de segurança (que também usam hash) fez dois testes falharem; foi corrigido na mesma rodada, sem enfraquecer a verificação.
@@ -164,7 +164,7 @@ Ao corrigir o item 1, um detalhe da migração de respostas de segurança (que t
 
 - **Playwright (`Implementacao/e2e`):** 27/27 passam, incluindo interface, autorização, estoque (com cancelamento), empréstimo, manutenção, bloqueio por tentativas, recuperação de senha e logout.
 - **Smoke da API no build de produção (`smoke.mjs`):** 23/23. Percorre login do administrador, `auth/me`, criação de técnico, login do técnico, cadastro de máquina, entrada de estoque, produção com consumo (saldo 5 → 3,5 kg), cancelamento devolvendo o saldo, manutenção, retirada e segunda retirada recusada (409), devolução, os cinco relatórios, dashboard, lista paginada, permissão negada (403) e logout com revogação.
-- **Testes unitários e de integração:** backend 45/45, frontend 35/35; `tsc` e `npm run build` passam nos dois.
+- **Testes unitários e de integração:** backend 46/46, frontend 36/36; `tsc` e `npm run build` passam nos dois.
 
 ---
 
@@ -173,7 +173,7 @@ Ao corrigir o item 1, um detalhe da migração de respostas de segurança (que t
 1. **Deploy online fora do ar** (Render sem resposta, Vercel sem deploy). Segurança online e smoke online não foram executados. Ação necessária no painel dos dois serviços.
 2. **`react-router-dom` 7** para corrigir a vulnerabilidade moderada do frontend: exige migração de API. Não foi feita sem sua aprovação.
 3. **Decisão de produto:** técnico continua vendo e-mail, matrícula e telefone de todos os usuários (`GET /users`). O documento de requisitos deixa essa decisão em aberto (pergunta 10); a recomendação é restringir a listagem a administradores.
-4. **Lock file:** a atualização de segurança reescreveu `package-lock.json` e removeu entradas opcionais de binários `@typescript/*` (específicos de plataforma, não usados pelo `tsc`). É efeito da versão do npm deste ambiente; vale regenerar o lock com a versão do time.
+4. **Lock file:** o lock do `main` já estava inconsistente com o `package.json` (raiz do lock em `^7.0.2`, pacote em `^5.8.0`), e `npm ci` falhava. A regeneração deste PR alinhou os dois: `npm ci` passa com o lock do PR e falha com o do `main`. Os binários `@typescript/*` removidos pertenciam ao TypeScript 7, que o projeto não usa.
 5. **Escala:** o gargalo restante é a thread única do Node com SQLite síncrono. Para mais de ~500 req/s ou mais usuários simultâneos, a saída é separar leitura e escrita ou trocar de banco.
 6. **Persistência no Render:** o SQLite continua no disco efêmero do plano gratuito (ver relatório anterior).
 7. **Stress além de 800 usuários** não foi testado; o gerador de carga é limitado à máquina de teste.
@@ -184,6 +184,4 @@ Ao corrigir o item 1, um detalhe da migração de respostas de segurança (que t
 ## 9. Arquivos alterados nesta rodada
 
 - Backend: `src/app.ts`, `src/config/env.ts`, `src/database/connection.ts` (WAL), `src/database/schema.sql` (índices), `src/middlewares/errorHandler.ts`, `src/modules/auth/auth.controller.ts`, `src/modules/auth/auth.service.ts`, `src/modules/auth/passwords.ts` (novo), `src/modules/production/production.service.ts`, `src/modules/reports/reports.service.ts`, `src/modules/supplies/supplies.service.ts`, `src/modules/users/users.controller.ts`, `src/modules/users/users.service.ts`, `tests/api.test.ts`, `package.json` e `package-lock.json` (audit), `.gitignore` (arquivos `-wal` e `-shm`).
-- Frontend: `src/pages/profile/ProfilePage.tsx` (logout com revogação).
-- E2E: `tests/ui/auth.spec.ts` (teste de logout deixou de ser falha esperada).
 - Novos: `Implementacao/testes-nao-funcionais/` (scripts e README), este relatório.
