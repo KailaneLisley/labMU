@@ -23,6 +23,20 @@ function resolveJwtSecret(): string {
   return DEV_JWT_SECRET;
 }
 
+// Aceita número de proxies (0, 1, 2...), "true" (= 1) ou "false" (= 0). Valor inválido falha no boot,
+// em vez de desligar a proteção de IP em silêncio.
+function parseTrustProxy(raw: string | undefined, isProduction: boolean): number {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (value === "") return isProduction ? 1 : 0;
+  if (value === "true") return 1;
+  if (value === "false") return 0;
+  const hops = Number(value);
+  if (!Number.isInteger(hops) || hops < 0) {
+    throw new Error(`TRUST_PROXY inválido: "${raw}". Use um inteiro >= 0, "true" ou "false".`);
+  }
+  return hops;
+}
+
 export const env = {
   PORT: Number(process.env.PORT) || 3001,
   NODE_ENV: process.env.NODE_ENV || "development",
@@ -35,7 +49,7 @@ export const env = {
     .filter(Boolean),
   // Quantos proxies à frente da API (ex.: Render = 1). Sem isso, todos os clientes aparecem
   // com o IP do proxy e compartilham o limite de tentativas de login.
-  TRUST_PROXY: Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === "production" ? 1 : 0)),
+  TRUST_PROXY: parseTrustProxy(process.env.TRUST_PROXY, process.env.NODE_ENV === "production"),
   DATABASE_FILE: process.env.DATABASE_FILE || "./data/labmu.sqlite",
   DEFAULT_ADMIN_EMAIL: (process.env.DEFAULT_ADMIN_EMAIL || "admin.musarq@unicap.br").toLowerCase(),
   DEFAULT_ADMIN_PASSWORD: process.env.DEFAULT_ADMIN_PASSWORD || "Admin@123",

@@ -35,7 +35,7 @@ export class ReportsService {
       params.push(filters.technicianId);
     }
 
-    sql += ` ORDER BY p.created_at DESC`;
+    const orderBy = ` ORDER BY p.created_at DESC`;
 
     // Métricas agregadas no banco (não carregam todos os registros na memória)
     const agg = query.get<any>(
@@ -51,7 +51,7 @@ export class ReportsService {
     const avgDurationMinutes = totalJobs > 0 ? Math.round(totalMinutes / totalJobs) : 0;
 
     // Lista detalhada limitada aos registros mais recentes
-    const records = query.all(`${sql} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
@@ -169,7 +169,7 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    sql += ` ORDER BY l.checkout_date DESC`;
+    const orderBy = ` ORDER BY l.checkout_date DESC`;
 
     const agg = query.get<any>(
       `SELECT COUNT(*) AS totalLoans,
@@ -179,7 +179,7 @@ export class ReportsService {
        FROM (${sql})`,
       ...params
     );
-    const records = query.all(`${sql} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
@@ -217,7 +217,7 @@ export class ReportsService {
       params.push(upper.value);
     }
 
-    sql += ` ORDER BY m.date DESC`;
+    const orderBy = ` ORDER BY m.date DESC`;
 
     const agg = query.get<any>(
       `SELECT COUNT(*) AS totalMaintenances,
@@ -227,7 +227,7 @@ export class ReportsService {
        FROM (${sql})`,
       ...params
     );
-    const records = query.all(`${sql} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {

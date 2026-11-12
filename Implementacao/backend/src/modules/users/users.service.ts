@@ -42,7 +42,7 @@ export class UsersService {
     const total = totalCountRow?.total ?? 0;
 
     const page = Math.max(1, filters.page || 1);
-    const limit = Math.max(1, filters.limit || 50);
+    const limit = Math.min(200, Math.max(1, filters.limit || 50));
     const offset = (page - 1) * limit;
 
     const paginated = query.all(`${sql} LIMIT ? OFFSET ?`, ...params, limit, offset);

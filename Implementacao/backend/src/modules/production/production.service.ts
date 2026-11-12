@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
-
-// Máximo de registros devolvidos por listagem (evita respostas sem limite com o crescimento do banco)
-const LIST_LIMIT = 500;
 import { upperBoundClause } from "../../utils/dates.js";
 import { supplyStatusFor } from "../supplies/supplyStatus.js";
 import { assertAllowed } from "../../utils/validation.js";
+
+// Máximo de registros devolvidos por listagem (evita respostas sem limite com o crescimento do banco)
+const LIST_LIMIT = 500;
 
 const PRODUCTION_STATUSES = ["em_andamento", "concluida", "cancelada"] as const;
 

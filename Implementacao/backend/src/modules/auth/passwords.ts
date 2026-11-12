@@ -32,14 +32,23 @@ export async function verifyPassword(password: string, stored: string): Promise<
     return { ok, needsRehash: ok };
   }
 
+  // Hash malformado no banco não deve virar erro 500 no login: é tratado como senha incorreta
   const [scheme, n, r, p, saltB64, keyB64] = stored.split("$");
-  if (scheme !== "scrypt" || !saltB64 || !keyB64) return { ok: false, needsRehash: false };
+  const N = Number(n);
+  const R = Number(r);
+  const P = Number(p);
+  if (scheme !== "scrypt" || !saltB64 || !keyB64 || ![N, R, P].every((v) => Number.isInteger(v) && v > 0)) {
+    return { ok: false, needsRehash: false };
+  }
 
   const expected = Buffer.from(keyB64, "base64");
-  const actual = await derive(password, Buffer.from(saltB64, "base64"), expected.length, {
-    N: Number(n),
-    r: Number(r),
-    p: Number(p),
-  });
-  return { ok: crypto.timingSafeEqual(actual, expected), needsRehash: false };
+  if (expected.length === 0) return { ok: false, needsRehash: false };
+
+  let actual: Buffer;
+  try {
+    actual = await derive(password, Buffer.from(saltB64, "base64"), expected.length, { N, r: R, p: P });
+  } catch {
+    return { ok: false, needsRehash: false };
+  }
+  return { ok: actual.length === expected.length && crypto.timingSafeEqual(actual, expected), needsRehash: false };
 }
