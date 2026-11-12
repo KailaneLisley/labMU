@@ -1,5 +1,10 @@
 // Smoke do caminho crítico na API de produção (build dist). Uso: BASE=... ADMIN_EMAIL=... ADMIN_PASSWORD=... node smoke.mjs
-const B = process.env.BASE; let fails = 0;
+import { BASE as B, requireEnv, requireWrite } from "./common.mjs";
+
+// O smoke cria registros de teste (usuário, máquina, produção, empréstimo): exige WRITE=1
+requireWrite("smoke.mjs");
+requireEnv("ADMIN_EMAIL", "ADMIN_PASSWORD");
+let fails = 0;
 const log = (ok, name, extra = "") => { if (!ok) fails++; console.log(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`); };
 async function call(method, path, { token, body } = {}) {
   const h = {}; if (body !== undefined) h["Content-Type"] = "application/json"; if (token) h.Authorization = "Bearer " + token;

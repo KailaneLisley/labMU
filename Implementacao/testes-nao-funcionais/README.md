@@ -1,8 +1,32 @@
 # Testes não funcionais do labMU
 
-Scripts usados para carga, stress, segurança e smoke. Não dependem de nenhuma biblioteca externa (Node 22.13+).
+Scripts de carga, stress, segurança e smoke. Sem dependências externas (Node 22.13+).
 
-## Preparação (local)
+## Variáveis
+
+| Variável | Obrigatória | Uso |
+|---|---|---|
+| `BASE` | não (padrão `http://localhost:3055`) | URL da API |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | sim | administrador usado nos testes |
+| `WRITE=1` | só para scripts que criam dados | confirma que o banco é de teste |
+| `LOGIN_W` | não (padrão 5) | peso do login no mix de carga |
+
+Scripts sem os valores obrigatórios saem com código 2 e uma mensagem.
+
+## Scripts
+
+| Script | Cria dados? | Para que serve |
+|---|---|---|
+| `setup.mjs` | sim (`WRITE=1`) | cria máquinas, insumos e equipamentos de base. Gere com `node setup.mjs > setup.json` |
+| `load.mjs` | sim (`WRITE=1`) | carga com mix de endpoints: `node load.mjs <usuários> <segundos>` |
+| `stress.mjs` | sim (via `load.mjs`) | rampa até o ponto de quebra e mede a recuperação |
+| `security-surface.mjs` | não | cabeçalhos, CORS, tokens forjados, limite de login, enumeração, injeção, erros |
+| `security-rbac.mjs` | sim (`WRITE=1`) | autorização por perfil, logout, uso único do token de recuperação, cadastro público |
+| `smoke.mjs` | sim (`WRITE=1`) | caminho crítico completo: cadastros, estoque, produção, empréstimo, relatórios, logout |
+
+Os dados criados pelos scripts **não são removidos**: a API não tem rota de exclusão para usuários nem produções. Por isso os scripts que gravam só devem rodar em ambiente local ou de teste.
+
+## Execução local
 
 ```bash
 cd Implementacao/backend
@@ -15,31 +39,23 @@ NODE_ENV=production TRUST_PROXY=1 PORT=3055 JWT_SECRET=troque-por-um-segredo-lon
 Em outro terminal, dentro de `Implementacao/testes-nao-funcionais`:
 
 ```bash
-node setup.mjs > setup.json        # cria máquinas, insumos e equipamentos de base
-node load.mjs 50 30                # carga: 50 usuários simultâneos por 30 s
-node stress.mjs                    # stress em degraus até o ponto de quebra + recuperação
+export ADMIN_EMAIL=admin@labmu.test ADMIN_PASSWORD=Inicial123 WRITE=1
+node setup.mjs > setup.json
+node load.mjs 50 30
+node stress.mjs
+node security-surface.mjs
+node security-rbac.mjs
+node smoke.mjs
 ```
 
-Variáveis: `BASE` (padrão `http://localhost:3055`), `LOGIN_W` (peso do login no mix, padrão 5).
+## Execução online
 
-## Segurança
+Use a URL do ambiente em `BASE`. Antes de rodar:
 
-```bash
-BASE=http://localhost:3055 ADMIN_EMAIL=admin@labmu.test ADMIN_PASSWORD=Inicial123 node security.mjs
-BASE=http://localhost:3055 ADMIN_EMAIL=admin@labmu.test ADMIN_PASSWORD=Inicial123 node security2.mjs
-```
+- Combine com o time: os scripts de escrita criam técnicos e registros reais.
+- Rode `security-surface.mjs` **uma vez**. Ele faz 12 tentativas de login falhas no IP de origem, então o IP fica bloqueado por 15 minutos.
+- Não rode `stress.mjs` nem `load.mjs` no ambiente online: são testes locais.
 
-`security.mjs` faz verificações não destrutivas (cabeçalhos, CORS, tokens forjados, limite de login, injeção, payload grande).
-`security2.mjs` cria um técnico de teste e verifica a matriz de autorização, a revogação de sessão e erros sem detalhe interno.
+## Relação com a suíte Playwright
 
-Para o ambiente online, use a URL do Render no `BASE` e **só** `security.mjs` e `security2.mjs` (sem `stress.mjs`, que é só para local). Contas de teste não devem ser criadas no ambiente de produção sem combinar antes.
-
-## Smoke
-
-```bash
-BASE=http://localhost:3055 ADMIN_EMAIL=admin@labmu.test ADMIN_PASSWORD=Inicial123 node smoke.mjs
-```
-
-Percorre o caminho crítico (login, cadastros, estoque com cancelamento, produção, manutenção, empréstimo, relatórios, dashboard, permissões e logout). Sai com código 1 se algo falhar.
-
-A suíte Playwright (`Implementacao/e2e`, `npx playwright test`) complementa o smoke na interface.
+`Implementacao/e2e` (`npx playwright test`) cobre a interface e a API ponta a ponta, e complementa o `smoke.mjs`.

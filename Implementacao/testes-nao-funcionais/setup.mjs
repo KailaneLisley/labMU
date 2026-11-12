@@ -1,4 +1,7 @@
-import { call, adminToken } from "./common.mjs";
+import { call, adminToken, requireWrite } from "./common.mjs";
+
+// Cria máquinas, insumos e equipamentos de teste: exige WRITE=1
+requireWrite("setup.mjs");
 const tok = await adminToken();
 const machines = [];
 for (let i = 0; i < 6; i++) {

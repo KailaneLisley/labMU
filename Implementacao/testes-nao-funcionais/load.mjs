@@ -1,5 +1,8 @@
 // Gerador de carga: VUs em loop fechado com mix de endpoints. Uso: node load.mjs <vus> <segundos>
-import { call, adminToken, BASE } from "./common.mjs";
+import { call, adminToken, BASE, requireWrite } from "./common.mjs";
+
+// A carga cria produções de teste: exige WRITE=1
+requireWrite("load.mjs");
 import fs from "node:fs";
 const [vus, seconds] = [Number(process.argv[2] ?? 10), Number(process.argv[3] ?? 20)];
 const setup = JSON.parse(fs.readFileSync(new URL("./setup.json", import.meta.url)));
@@ -14,7 +17,7 @@ const scenarios = [
   { name: "GET /reports/production", w: 5, run: () => call("GET", `/api/reports/production?from=${today}`, { token: tok }) },
   { name: "GET /users (paginado)", w: 5, run: () => call("GET", "/api/users?limit=20", { token: tok }) },
   { name: "POST /productions", w: 10, run: () => call("POST", "/api/productions", { token: tok, body: { type: "impressao_3d", description: "carga", machineId: setup.machines[0], supplyId: setup.supplies[0], supplyConsumed: 0.01, durationMinutes: 5 } }) },
-  { name: "POST /auth/login", w: Number(process.env.LOGIN_W ?? 5), run: () => call("POST", "/api/auth/login", { body: { email: "admin@labmu.test", password: "Inicial123" } }) },
+  { name: "POST /auth/login", w: Number(process.env.LOGIN_W ?? 5), run: () => call("POST", "/api/auth/login", { body: { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD } }) },
 ];
 const total = scenarios.reduce((a, s) => a + s.w, 0);
 const pick = () => { let r = Math.random() * total; for (const s of scenarios) { if ((r -= s.w) < 0) return s; } return scenarios[0]; };
