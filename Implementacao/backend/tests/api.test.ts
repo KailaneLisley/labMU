@@ -877,7 +877,7 @@ test("S8: resposta de segurança é guardada com hash e continua válida após m
 
   const stored = query.get<any>("SELECT security_answer FROM users WHERE email = ?", email);
   assert.notEqual(stored.security_answer.toLowerCase(), "unicap");
-  assert.ok(stored.security_answer.startsWith("$2"), "resposta deve estar em hash bcrypt");
+  assert.ok(stored.security_answer.startsWith("scrypt$"), "resposta deve estar em hash scrypt");
 
   const ok = await makeRequest("/api/auth/forgot-password/verify-answer", {
     method: "POST",
@@ -900,7 +900,36 @@ test("S8: resposta de segurança é guardada com hash e continua válida após m
   });
   assert.equal(legacy.status, 200);
   const migrated = query.get<any>("SELECT security_answer FROM users WHERE email = ?", legacyEmail);
-  assert.ok(migrated.security_answer.startsWith("$2"), "resposta legada deve ser migrada para hash");
+  assert.ok(migrated.security_answer.startsWith("scrypt$"), "resposta legada deve ser migrada para hash");
+});
+
+test("S9: senha com hash bcrypt antigo continua válida e é regravada em scrypt no login", async () => {
+  const bcrypt = (await import("bcryptjs")).default;
+  const suffix = `${Date.now()}`;
+  const email = `hash.antigo.${suffix}@unicap.br`;
+  query.run(
+    `INSERT INTO users (id, name, email, role, registration, status, password_hash, initials, avatar_color)
+     VALUES (?, 'Técnico Antigo', ?, 'tecnico', ?, 'ativo', ?, 'TA', 'bg-orange-200')`,
+    `usr-old-${suffix}`,
+    email,
+    `REG-O-${suffix}`,
+    bcrypt.hashSync("SenhaAntiga@1", 10)
+  );
+
+  const login = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email, password: "SenhaAntiga@1" },
+  });
+  assert.equal(login.status, 200);
+
+  const stored = query.get<any>("SELECT password_hash FROM users WHERE email = ?", email);
+  assert.ok(stored.password_hash.startsWith("scrypt$"), "hash deve ser regravado em scrypt");
+
+  const again = await makeRequest("/api/auth/login", {
+    method: "POST",
+    body: { email, password: "SenhaAntiga@1" },
+  });
+  assert.equal(again.status, 200, "login continua funcionando com o novo hash");
 });
 
 test("R6: cancelamento de produção devolve o insumo ao estoque e não conta nos relatórios", async () => {

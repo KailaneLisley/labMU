@@ -33,6 +33,9 @@ export const env = {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  // Quantos proxies à frente da API (ex.: Render = 1). Sem isso, todos os clientes aparecem
+  // com o IP do proxy e compartilham o limite de tentativas de login.
+  TRUST_PROXY: Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === "production" ? 1 : 0)),
   DATABASE_FILE: process.env.DATABASE_FILE || "./data/labmu.sqlite",
   DEFAULT_ADMIN_EMAIL: (process.env.DEFAULT_ADMIN_EMAIL || "admin.musarq@unicap.br").toLowerCase(),
   DEFAULT_ADMIN_PASSWORD: process.env.DEFAULT_ADMIN_PASSWORD || "Admin@123",

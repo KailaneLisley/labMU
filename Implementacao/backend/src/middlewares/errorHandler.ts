@@ -57,6 +57,18 @@ export const errorHandler = (
     return;
   }
 
+  // Erros de cliente lançados pelo próprio Express (ex.: corpo acima do limite → 413)
+  if (typeof err?.status === "number" && err.status >= 400 && err.status < 500) {
+    const tooLarge = err.type === "entity.too.large";
+    res.status(err.status).json({
+      error: {
+        code: tooLarge ? "PAYLOAD_TOO_LARGE" : "BAD_REQUEST",
+        message: tooLarge ? "O corpo da requisição é grande demais." : "Requisição inválida.",
+      },
+    });
+    return;
+  }
+
   // SQLite constraints error
   if (err?.code === "SQLITE_CONSTRAINT" || String(err).includes("UNIQUE constraint failed")) {
     res.status(409).json({

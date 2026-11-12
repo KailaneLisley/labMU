@@ -3,19 +3,19 @@ import { AuthService } from "./auth.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class AuthController {
-  static login = (req: Request, res: Response, next: NextFunction): void => {
+  static login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, password, role } = req.body;
-      const result = AuthService.login(email, password, role, req.ip);
+      const result = await AuthService.login(email, password, role, req.ip);
       res.status(200).json(result);
     } catch (error) {
       next(error);
     }
   };
 
-  static register = (req: Request, res: Response, next: NextFunction): void => {
+  static register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = AuthService.register(req.body);
+      const result = await AuthService.register(req.body);
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -45,10 +45,10 @@ export class AuthController {
     }
   };
 
-  static verifyForgotAnswer = (req: Request, res: Response, next: NextFunction): void => {
+  static verifyForgotAnswer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, answer } = req.body;
-      const result = AuthService.verifyForgotAnswer(email, answer, req.ip);
+      const result = await AuthService.verifyForgotAnswer(email, answer, req.ip);
       res.status(200).json(result);
     } catch (error) {
       next(error);
@@ -65,10 +65,10 @@ export class AuthController {
     }
   };
 
-  static resetPassword = (req: Request, res: Response, next: NextFunction): void => {
+  static resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, resetToken, newPassword } = req.body;
-      const result = AuthService.resetPassword({ email, resetToken, newPassword });
+      const result = await AuthService.resetPassword({ email, resetToken, newPassword });
       res.status(200).json(result);
     } catch (error) {
       next(error);

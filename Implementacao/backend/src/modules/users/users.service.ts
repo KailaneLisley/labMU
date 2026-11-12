@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../auth/passwords.js";
 import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { assertAllowed } from "../../utils/validation.js";
@@ -96,7 +96,7 @@ export class UsersService {
     };
   }
 
-  static createUser(data: {
+  static async createUser(data: {
     name: string;
     email: string;
     role: "tecnico" | "aluno" | "professor" | "administrador";
@@ -136,10 +136,10 @@ export class UsersService {
 
     let passwordHash: string | null = null;
     if (data.password) {
-      passwordHash = bcrypt.hashSync(data.password, 10);
+      passwordHash = await hashPassword(data.password);
     } else if (data.role === "administrador" || data.role === "tecnico") {
       // Senha temporária padrão se não enviada
-      passwordHash = bcrypt.hashSync("Mudar@123", 10);
+      passwordHash = await hashPassword("Mudar@123");
     }
 
     const avatarColors = {
