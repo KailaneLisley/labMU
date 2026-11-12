@@ -3,6 +3,9 @@ import { query } from "../../database/connection.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { supplyStatusFor } from "./supplyStatus.js";
 
+// Máximo de movimentos devolvidos por consulta de histórico
+const LIST_LIMIT = 500;
+
 export class SuppliesService {
   static listSupplies(filters: { q?: string; status?: string; type?: string }) {
     let sql = `SELECT id, name, type, color, balance, minimum_balance, status, active, created_at, updated_at
@@ -254,9 +257,10 @@ export class SuppliesService {
       params.push(filters.to);
     }
 
-    sql += ` ORDER BY sm.created_at DESC`;
+    // Histórico limitado aos movimentos mais recentes
+    sql += ` ORDER BY sm.created_at DESC LIMIT ?`;
 
-    return query.all(sql, ...params);
+    return query.all(sql, ...params, LIST_LIMIT);
   }
 
   static updateSupply(

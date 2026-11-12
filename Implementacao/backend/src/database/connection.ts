@@ -21,6 +21,13 @@ const db = new DatabaseSync(dbPath);
 // Enable foreign keys
 db.exec("PRAGMA foreign_keys = ON;");
 
+// WAL + synchronous=NORMAL: a gravação deixa de fazer fsync a cada transação, que bloqueava
+// o event loop (o node:sqlite é síncrono). Em queda de energia, só as últimas transações
+// podem se perder; o banco não corrompe.
+db.exec("PRAGMA journal_mode = WAL;");
+db.exec("PRAGMA synchronous = NORMAL;");
+db.exec("PRAGMA busy_timeout = 5000;");
+
 // Initialize Schema
 const schemaPath = path.resolve(__dirname, "schema.sql");
 if (fs.existsSync(schemaPath)) {
