@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { upperBoundClause } from "../../utils/dates.js";
 import { supplyStatusFor } from "../supplies/supplyStatus.js";
@@ -11,7 +11,7 @@ const LIST_LIMIT = 500;
 const PRODUCTION_STATUSES = ["em_andamento", "concluida", "cancelada"] as const;
 
 export class ProductionService {
-  static listProductions(filters: {
+  static async listProductions(filters: {
     machineId?: string;
     technicianId?: string;
     type?: string;
@@ -61,11 +61,11 @@ export class ProductionService {
     // Lista limitada aos registros mais recentes; relatórios usam agregação no banco
     sql += ` ORDER BY p.created_at DESC LIMIT ?`;
 
-    return query.all(sql, ...params, LIST_LIMIT);
+    return await postgres.all(sql, ...params, LIST_LIMIT);
   }
 
-  static getProductionById(id: string) {
-    const p = query.get<any>(
+  static async getProductionById(id: string) {
+    const p = await postgres.get<any>(
       `
       SELECT p.id, p.type, p.description, p.machine_id, p.technician_id, p.client_id, p.client_name,
              p.supply_id, p.supply_consumed, p.duration_minutes, p.status, p.observations, p.created_at,
@@ -88,7 +88,7 @@ export class ProductionService {
     return p;
   }
 
-  static createProduction(
+  static async createProduction(
     data: {
       type: "impressao_3d" | "escaneamento";
       description: string;
@@ -123,7 +123,7 @@ export class ProductionService {
     }
     const technicianId = isAdmin ? data.technicianId || actor.id : actor.id;
 
-    const machine = query.get<any>("SELECT id, name, type, status FROM machines WHERE id = ?", data.machineId);
+    const machine = await postgres.get<any>("SELECT id, name, type, status FROM machines WHERE id = ?", data.machineId);
     if (!machine) {
       throw new AppError("Máquina selecionada não encontrada.", 404, "MACHINE_NOT_FOUND");
     }
@@ -147,7 +147,7 @@ export class ProductionService {
       );
     }
 
-    const technician = query.get<any>("SELECT id, name, role FROM users WHERE id = ?", technicianId);
+    const technician = await postgres.get<any>("SELECT id, name, role FROM users WHERE id = ?", technicianId);
     if (!technician) {
       throw new AppError("Técnico responsável não encontrado.", 404, "USER_NOT_FOUND");
     }
@@ -174,10 +174,10 @@ export class ProductionService {
 
     const id = `prod-${crypto.randomUUID()}`;
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       // Consumo de insumo debita do estoque
       if (consumed > 0) {
-        const supply = query.get<any>(
+        const supply = await postgres.get<any>(
           "SELECT id, name, balance, minimum_balance, active FROM supplies WHERE id = ?",
           data.supplyId
         );
@@ -200,15 +200,15 @@ export class ProductionService {
         const newBalance = Number((supply.balance - consumed).toFixed(3));
         const newStatus = supplyStatusFor(newBalance, supply.minimum_balance);
 
-        query.run(
-          `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+        await postgres.run(
+          `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
           newBalance,
           newStatus,
           data.supplyId
         );
 
         // Movimento de saída rastreável no estoque
-        query.run(
+        await postgres.run(
           `INSERT INTO stock_movements (id, supply_id, type, quantity, observations, reference_id, created_by)
            VALUES (?, ?, 'saida_producao', ?, ?, ?, ?)`,
           crypto.randomUUID(),
@@ -220,7 +220,7 @@ export class ProductionService {
         );
       }
 
-      query.run(
+      await postgres.run(
         `INSERT INTO productions (id, type, description, machine_id, technician_id, client_id, client_name, supply_id, supply_consumed, duration_minutes, status, observations)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
@@ -237,12 +237,12 @@ export class ProductionService {
         data.observations || ""
       );
 
-      return this.getProductionById(id);
+      return await this.getProductionById(id);
     });
   }
 
-  static cancelProduction(id: string, actor: { id: string; role: string }, reason?: string) {
-    const production = this.getProductionById(id);
+  static async cancelProduction(id: string, actor: { id: string; role: string }, reason?: string) {
+    const production = await this.getProductionById(id);
 
     if (actor.role !== "administrador" && production.technician_id !== actor.id) {
       throw new AppError(
@@ -259,21 +259,21 @@ export class ProductionService {
     return query.transaction(() => {
       // O insumo consumido volta ao estoque, com movimento de estorno rastreável
       if (production.supply_id && production.supply_consumed > 0) {
-        const supply = query.get<any>(
+        const supply = await postgres.get<any>(
           "SELECT id, name, balance, minimum_balance FROM supplies WHERE id = ?",
           production.supply_id
         );
 
         const newBalance = Number((supply.balance + production.supply_consumed).toFixed(3));
-        query.run(
-          `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+        await postgres.run(
+          `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
           newBalance,
           supplyStatusFor(newBalance, supply.minimum_balance),
           production.supply_id
         );
 
         const note = reason?.trim() ? ` — ${reason.trim()}` : "";
-        query.run(
+        await postgres.run(
           `INSERT INTO stock_movements (id, supply_id, type, quantity, observations, reference_id, created_by)
            VALUES (?, ?, 'estorno', ?, ?, ?, ?)`,
           crypto.randomUUID(),
@@ -285,12 +285,12 @@ export class ProductionService {
         );
       }
 
-      query.run(
-        `UPDATE productions SET status = 'cancelada', updated_at = datetime('now') WHERE id = ?`,
+      await postgres.run(
+        `UPDATE productions SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         id
       );
 
-      return this.getProductionById(id);
+      return await this.getProductionById(id);
     });
   }
 }
