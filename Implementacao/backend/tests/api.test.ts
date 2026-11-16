@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-let server: http.Server;
+let server: http.Server | undefined;
 let baseUrl: string;
 
 function makeRequest(
@@ -82,7 +82,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
   await postgres.close();
 });
 
