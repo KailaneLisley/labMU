@@ -129,7 +129,7 @@ export class LoansService {
 
       // Atualiza status do equipamento portátil
       await postgres.run(
-        `UPDATE portable_equipment SET status = 'em_campo', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE portable_equipment SET status = 'em_campo', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         data.equipmentId
       );
 
@@ -147,14 +147,14 @@ export class LoansService {
     return postgres.transaction(async () => {
       await postgres.run(
         `UPDATE loans
-         SET status = 'devolvido', return_date = CURRENT_TIMESTAMP, operator_id = COALESCE(?, operator_id), updated_at = CURRENT_TIMESTAMP
+         SET status = 'devolvido', return_date = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS'), operator_id = COALESCE(?, operator_id), updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
          WHERE id = ?`,
         operatorId || null,
         id
       );
 
       await postgres.run(
-        `UPDATE portable_equipment SET status = 'disponivel', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE portable_equipment SET status = 'disponivel', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         loan.equipment_id
       );
 
