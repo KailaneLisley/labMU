@@ -448,6 +448,10 @@ export async function seedDatabase(): Promise<void> {
 }
 
 if (process.argv[1]?.endsWith("seed.ts") || process.argv[1]?.endsWith("seed.js")) {
-  await seedDatabase();
+  try {
+    await seedDatabase();
+  } finally {
+    await postgres.close();
+  }
 }
 
