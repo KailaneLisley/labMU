@@ -208,7 +208,7 @@ export class UsersService {
 
     await postgres.run(
       `UPDATE users
-       SET name = ?, email = ?, phone = ?, role = ?, registration = ?, status = ?, avatar = ?, initials = ?, updated_at = CURRENT_TIMESTAMP
+       SET name = ?, email = ?, phone = ?, role = ?, registration = ?, status = ?, avatar = ?, initials = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       email,
@@ -229,7 +229,7 @@ export class UsersService {
       throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
     }
     this.getUserById(id);
-    await postgres.run(`UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, status, id);
+    await postgres.run(`UPDATE users SET status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, status, id);
     return this.getUserById(id);
   }
 }
