@@ -161,7 +161,7 @@ export class EquipmentService {
 
     await postgres.run(
       `UPDATE portable_equipment
-       SET name = ?, code = ?, category = ?, serial_number = ?, location = ?, condition = ?, accessories = ?, updated_at = CURRENT_TIMESTAMP
+       SET name = ?, code = ?, category = ?, serial_number = ?, location = ?, condition = ?, accessories = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       code,
@@ -197,7 +197,7 @@ export class EquipmentService {
       );
     }
 
-    await postgres.run(`UPDATE portable_equipment SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, status, id);
+    await postgres.run(`UPDATE portable_equipment SET status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, status, id);
     return await this.getEquipmentById(id);
   }
 }
