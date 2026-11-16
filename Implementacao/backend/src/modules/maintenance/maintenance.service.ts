@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isValidDateInput } from "../../utils/dates.js";
 import { assertAllowed } from "../../utils/validation.js";
@@ -8,7 +8,7 @@ const MAINTENANCE_TYPES = ["preventiva", "corretiva"];
 const MAINTENANCE_STATUSES = ["agendada", "em_andamento", "concluida", "cancelada"];
 
 export class MaintenanceService {
-  static list(filters: {
+  static async list(filters: {
     machineId?: string;
     type?: string;
     status?: string;
@@ -53,11 +53,11 @@ export class MaintenanceService {
 
     sql += ` ORDER BY m.date DESC, m.created_at DESC`;
 
-    return query.all(sql, ...params);
+    return await postgres.all(sql, ...params);
   }
 
-  static getById(id: string) {
-    const item = query.get<any>(
+  static async getById(id: string) {
+    const item = await postgres.get<any>(
       `
       SELECT m.id, m.machine_id, m.technician_id, m.type, m.status, m.date, m.description, m.parts, m.cost, m.observations, m.created_at,
              mach.name as machine_name, mach.tag as machine_tag,
@@ -77,7 +77,7 @@ export class MaintenanceService {
     return item;
   }
 
-  static create(data: {
+  static async create(data: {
     machineId: string;
     technicianId?: string;
     type: "preventiva" | "corretiva";
@@ -109,7 +109,7 @@ export class MaintenanceService {
       throw new AppError("O custo da manutenção deve ser um número maior ou igual a zero.", 400, "INVALID_COST");
     }
 
-    const machine = query.get<any>("SELECT id, status FROM machines WHERE id = ?", data.machineId);
+    const machine = await postgres.get<any>("SELECT id, status FROM machines WHERE id = ?", data.machineId);
     if (!machine) {
       throw new AppError("Máquina não encontrada.", 404, "MACHINE_NOT_FOUND");
     }
@@ -117,8 +117,8 @@ export class MaintenanceService {
     const id = `maint-${crypto.randomUUID()}`;
     const status = data.status || "concluida";
 
-    return query.transaction(() => {
-      query.run(
+    return postgres.transaction(async () => {
+      await postgres.run(
         `INSERT INTO maintenances (id, machine_id, technician_id, type, status, date, description, parts, cost, observations)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
@@ -135,25 +135,25 @@ export class MaintenanceService {
 
       // Se manutenção foi concluída ou em andamento, atualiza status da máquina
       if (status === "em_andamento") {
-        query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", data.machineId);
+        await postgres.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", data.machineId);
       } else if (status === "concluida") {
-        this.markMachineOperational(data.machineId, data.date);
+        await this.markMachineOperational(data.machineId, data.date);
       }
 
-      return this.getById(id);
+      return await this.getById(id);
     });
   }
 
   // Máquina volta à operação; a próxima preventiva é calculada 30 dias depois (preventiva mensal)
-  private static markMachineOperational(machineId: string, date: string) {
+  private static async markMachineOperational(machineId: string, date: string) {
     const raw = date.includes("T") ? date : `${date}T00:00:00Z`;
     const dateObj = new Date(raw);
     dateObj.setUTCDate(dateObj.getUTCDate() + 30);
     const nextDate = dateObj.toISOString().split("T")[0];
 
-    query.run(
+    await postgres.run(
       `UPDATE machines
-       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
+       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       date,
       nextDate,
@@ -161,14 +161,14 @@ export class MaintenanceService {
     );
   }
 
-  static update(id: string, data: {
+  static async update(id: string, data: {
     status?: "agendada" | "em_andamento" | "concluida" | "cancelada";
     description?: string;
     parts?: string;
     cost?: number;
     observations?: string;
   }) {
-    const existing = this.getById(id);
+    const existing = await this.getById(id);
 
     if (data.status !== undefined) assertAllowed(data.status, MAINTENANCE_STATUSES, "status");
     const status = data.status || existing.status;
@@ -177,9 +177,9 @@ export class MaintenanceService {
     const cost = data.cost !== undefined ? data.cost : existing.cost;
     const observations = data.observations !== undefined ? data.observations : existing.observations;
 
-    query.run(
+    await postgres.run(
       `UPDATE maintenances
-       SET status = ?, description = ?, parts = ?, cost = ?, observations = ?, updated_at = datetime('now')
+       SET status = ?, description = ?, parts = ?, cost = ?, observations = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       status,
       description,
@@ -190,12 +190,12 @@ export class MaintenanceService {
     );
 
     if (status === "concluida") {
-      this.markMachineOperational(existing.machine_id, existing.date);
+      await this.markMachineOperational(existing.machine_id, existing.date);
     } else if (status === "em_andamento") {
-      query.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", existing.machine_id);
+      await postgres.run("UPDATE machines SET status = 'manutencao' WHERE id = ?", existing.machine_id);
     }
 
-    return this.getById(id);
+    return await this.getById(id);
   }
 }
 
