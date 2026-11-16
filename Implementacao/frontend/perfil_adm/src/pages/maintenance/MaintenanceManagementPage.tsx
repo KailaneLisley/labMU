@@ -3,6 +3,8 @@ import { Download, Search } from "lucide-react";
 import { downloadCsv } from "../../lib/exportCsv";
 import { useApiData } from "../../hooks/useApiData";
 import { api } from "../../services/api";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../../components/Pagination";
 
 type MaintenanceType = "preventiva" | "corretiva";
 type MaintenanceStatus = "agendada" | "em_andamento" | "concluida" | "cancelada";
@@ -111,6 +113,9 @@ export const MaintenanceManagementPage = (): JSX.Element => {
     const active = group.filter((m) => m.status === "ativa").length;
     return { ...category, total: group.length, active, pct: percent(active, group.length) };
   });
+
+  // 10 registros por página; volta à página 1 ao trocar a aba ou buscar
+  const pagination = usePagination(filteredRecords, 10, [selectedTab, searchQuery]);
 
   const exportRecords = () => {
     downloadCsv("manutencoes-labmu.csv", [
@@ -294,7 +299,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.map((record) => (
+                {pagination.pageItems.map((record) => (
                   <tr key={record.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-[#1f1a1b]">{record.machine}</p>
@@ -327,8 +332,9 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           )}
 
           {/* Pagination */}
-          <div className="mt-6 flex items-center justify-between text-sm text-[#7a6e70]">
-            <p>Mostrando {filteredRecords.length} de {records.length} registros</p>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-[#7a6e70]">
+            <p>Mostrando {pagination.from}–{pagination.to} de {filteredRecords.length} registros</p>
+            <Pagination current={pagination.currentPage} total={pagination.pageCount} onPageChange={pagination.setCurrentPage} />
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Equipment, LoanStatus } from "../../data/loans";
 import { api } from "../../services/api";
 import { useApiData } from "../../hooks/useApiData";
+import { Pagination } from "../../components/Pagination";
 import { loadEquipment } from "../../services/mappers";
 
 const getStatusColor = (status: LoanStatus) => {
@@ -35,6 +36,8 @@ const getStatusLabel = (status: LoanStatus) => {
       return "Devolvido";
   }
 };
+
+const PAGE_SIZE = 10;
 
 export const LoanEquipmentPage = (): JSX.Element => {
   const navigate = useNavigate();
@@ -73,6 +76,19 @@ export const LoanEquipmentPage = (): JSX.Element => {
     disponivel: equipment.filter((e) => e.status === "disponivel").length,
     devolvido: equipment.filter((e) => e.status === "devolvido").length,
   };
+
+  // Paginação: 10 equipamentos por vez; volta à primeira página quando o filtro muda
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(filteredEquipment.length / PAGE_SIZE));
+  const pageEquipment = filteredEquipment.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
 
   const handleAction = (item: Equipment) => {
     if (item.status === "disponivel") {
@@ -244,7 +260,7 @@ export const LoanEquipmentPage = (): JSX.Element => {
               </tr>
             </thead>
             <tbody>
-              {filteredEquipment.map((item) => (
+              {pageEquipment.map((item) => (
                 <tr key={item.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                   <td className="px-6 py-4">
                     <p className="font-semibold text-[#1f1a1b]">{item.name}</p>
@@ -283,9 +299,13 @@ export const LoanEquipmentPage = (): JSX.Element => {
           </table>
         </div>
 
-        <p className="mt-6 text-sm text-[#7a6e70]">
-          Mostrando {filteredEquipment.length} de {equipment.length} equipamentos.
-        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-[#7a6e70]">
+            Mostrando {filteredEquipment.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filteredEquipment.length)} de {filteredEquipment.length} equipamentos.
+          </p>
+          <Pagination current={currentPage} total={pageCount} onPageChange={setCurrentPage} />
+        </div>
       </div>
     </div>
   );

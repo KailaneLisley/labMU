@@ -3,6 +3,7 @@ import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
 import { User, UserRole, UserStatus } from "../../data/users";
 import { api } from "../../services/api";
 import { useApiData } from "../../hooks/useApiData";
+import { Pagination } from "../../components/Pagination";
 
 const initialsOf = (name: string) =>
   (name || "")
@@ -74,7 +75,7 @@ export const UserManagementPage = (): JSX.Element => {
   const [editorError, setEditorError] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({ name: "", email: "", registration: "", phone: "", password: "" });
-  const pageSize = 5;
+  const pageSize = 10;
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -396,31 +397,7 @@ export const UserManagementPage = (): JSX.Element => {
           <p>
             Mostrando {pageUsers.length} de {filteredUsers.length} usuários
           </p>
-          <div className="flex items-center gap-2">
-            <button
-              aria-label="Página anterior"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              className="px-3 py-2 rounded hover:bg-[#f7f0f0] disabled:opacity-40"
-            >←</button>
-            {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-3 py-2 rounded font-semibold ${
-                  page === currentPage ? "bg-[#8B1329] text-white" : "hover:bg-[#f7f0f0]"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              aria-label="Próxima página"
-              disabled={currentPage === pageCount}
-              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
-              className="px-3 py-2 rounded hover:bg-[#f7f0f0] disabled:opacity-40"
-            >→</button>
-          </div>
+          <Pagination current={currentPage} total={pageCount} onPageChange={setCurrentPage} />
         </div>
         {selectedUser && (
           <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="user-detail-title">
