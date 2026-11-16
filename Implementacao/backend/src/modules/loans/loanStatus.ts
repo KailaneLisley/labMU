@@ -1,49 +1,29 @@
-// Regra de status efetivo dos empréstimos.
-//
-// O status gravado na tabela só reflete o momento da retirada. Por isso o status
-// exibido é calculado na consulta, com base na data atual e no prazo de devolução.
-//
-// Fuso do laboratório: Recife (UTC-3, sem horário de verão desde 2019).
+// Regra de status efetivo dos empréstimos, compatível com PostgreSQL.
+// due_date permanece TEXT para preservar os formatos já usados pelo sistema.
+// Fuso do laboratório: Recife (America/Recife).
 
-const LOCAL_SHIFT = "-3 hours";
-
-/**
- * Expressão SQL com o status efetivo de um empréstimo.
- *
- * - 'devolvido' permanece como está.
- * - 'atrasado' quando o prazo já passou.
- * - 'devolucao_hoje' quando o prazo cai hoje (dia em Recife).
- * - 'em_campo' nos demais casos.
- *
- * Formatos aceitos em due_date:
- * - 'AAAA-MM-DD': vence no fim desse dia em Recife.
- * - Com 'Z' ou offset (ex.: '2026-10-25T18:00:00Z'): vence no instante informado.
- * - Sem fuso (ex.: '2026-10-25T18:00:00'): considerado horário de Recife.
- */
 export function effectiveLoanStatusSql(alias = "l"): string {
   const due = `${alias}.due_date`;
   const isDateOnly = `length(${due}) = 10`;
-  const hasTimezone = `(${due} LIKE '%Z' OR substr(${due}, -6, 1) IN ('+', '-'))`;
+  const hasTimezone = `${due} ~ '(Z|[+-][0-9]{2}:[0-9]{2})$'`;
 
-  // Instante (UTC) em que o empréstimo vence
-  const dueAtUtc = `(CASE
-      WHEN ${isDateOnly} THEN datetime(${due}, '+1 day', '+3 hours')
-      WHEN ${hasTimezone} THEN datetime(${due})
-      ELSE datetime(${due}, '+3 hours')
-    END)`;
-
-  // Dia (em Recife) do vencimento
-  const dueDayLocal = `(CASE
-      WHEN ${isDateOnly} THEN date(${due})
-      ELSE date(${dueAtUtc}, '${LOCAL_SHIFT}')
-    END)`;
+  // Converte todos os formatos para timestamptz:
+  // - AAAA-MM-DD: vence no fim do dia local (Recife);
+  // - ISO com Z/offset: respeita o fuso informado;
+  // - ISO sem fuso: interpreta como horário local de Recife.
+  const dueAt = `(CASE
+    WHEN ${isDateOnly} THEN ((${due}::date + INTERVAL '1 day' + INTERVAL '3 hours') AT TIME ZONE 'UTC')
+    WHEN ${hasTimezone} THEN ${due}::timestamptz
+    ELSE ((${due}::timestamp + INTERVAL '3 hours') AT TIME ZONE 'UTC')
+  END)`;
+  const dueDayLocal = `((${dueAt} AT TIME ZONE 'America/Recife')::date)`;
 
   return `(CASE
-      WHEN ${alias}.status = 'devolvido' THEN 'devolvido'
-      WHEN datetime('now') >= ${dueAtUtc} THEN 'atrasado'
-      WHEN ${dueDayLocal} = date('now', '${LOCAL_SHIFT}') THEN 'devolucao_hoje'
-      ELSE 'em_campo'
-    END)`;
+    WHEN ${alias}.status = 'devolvido' THEN 'devolvido'
+    WHEN CURRENT_TIMESTAMP >= ${dueAt} THEN 'atrasado'
+    WHEN ${dueDayLocal} = (CURRENT_TIMESTAMP AT TIME ZONE 'America/Recife')::date THEN 'devolucao_hoje'
+    ELSE 'em_campo'
+  END)`;
 }
 
 /** Condição SQL para empréstimos ainda não devolvidos (ativos ou atrasados). */
