@@ -13,7 +13,8 @@
     "start": "node dist/localServer.js",
     "test": "tsx --test tests/**/*.test.ts",
     "seed": "tsx src/database/seed.ts",
-    "migrate:sqlite": "tsx src/database/migrateSqliteToPostgres.ts"
+    "migrate:sqlite": "tsx src/database/migrateSqliteToPostgres.ts",
+    "bootstrap:admin": "tsx src/database/bootstrapAdmin.ts"
   },
   "keywords": [
     "labmu",
