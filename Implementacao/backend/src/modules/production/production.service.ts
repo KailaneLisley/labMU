@@ -256,7 +256,7 @@ export class ProductionService {
       throw new AppError("Esta produção já está cancelada.", 400, "PRODUCTION_ALREADY_CANCELLED");
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       // O insumo consumido volta ao estoque, com movimento de estorno rastreável
       if (production.supply_id && production.supply_consumed > 0) {
         const supply = await postgres.get<any>(
