@@ -932,6 +932,35 @@ test("S9: senha com hash bcrypt antigo continua válida e é regravada em scrypt
   assert.equal(again.status, 200, "login continua funcionando com o novo hash");
 });
 
+test("U1: técnico criado pelo administrador precisa de senha inicial forte; cliente não precisa", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
+  const suffix = `${Date.now()}`;
+  const base = { name: "Técnico Senha", registration: `U1-${suffix}` };
+
+  const semSenha = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { ...base, email: `u1.semsenha.${suffix}@unicap.br`, role: "tecnico" },
+  });
+  assert.equal(semSenha.status, 400);
+  assert.equal(semSenha.data.error.code, "PASSWORD_REQUIRED");
+
+  const fraca = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { ...base, registration: `U1F-${suffix}`, email: `u1.fraca.${suffix}@unicap.br`, role: "tecnico", password: "abcdefgh" },
+  });
+  assert.equal(fraca.status, 400);
+  assert.equal(fraca.data.error.code, "WEAK_PASSWORD");
+
+  const cliente = await makeRequest("/api/users", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { name: "Cliente Sem Login", registration: `U1C-${suffix}`, email: `u1.cliente.${suffix}@unicap.br`, role: "aluno" },
+  });
+  assert.equal(cliente.status, 201);
+});
+
 test("R6: cancelamento de produção devolve o insumo ao estoque e não conta nos relatórios", async () => {
   const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
   const tech = await createTechnician();
