@@ -147,7 +147,7 @@ export class SuppliesService {
       else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
 
       await postgres.run(
-        `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         newBalance,
         newStatus,
         supplyId
@@ -206,7 +206,7 @@ export class SuppliesService {
       else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
 
       await postgres.run(
-        `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         newBalance,
         newStatus,
         data.supplyId
@@ -287,7 +287,7 @@ export class SuppliesService {
     const active = data.active === undefined ? current.active : data.active ? 1 : 0;
 
     await postgres.run(
-      `UPDATE supplies SET name = ?, type = ?, color = ?, minimum_balance = ?, active = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      `UPDATE supplies SET name = ?, type = ?, color = ?, minimum_balance = ?, active = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       type,
