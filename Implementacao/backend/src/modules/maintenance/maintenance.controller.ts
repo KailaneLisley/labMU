@@ -3,10 +3,10 @@ import { MaintenanceService } from "./maintenance.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class MaintenanceController {
-  static list = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static list = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { machineId, type, status, from, to } = req.query;
-      const records = MaintenanceService.list({
+      const records = await MaintenanceService.list({
         machineId: machineId as string,
         type: type as string,
         status: status as string,
@@ -19,18 +19,18 @@ export class MaintenanceController {
     }
   };
 
-  static getById = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const record = MaintenanceService.getById(String(req.params.id));
+      const record = await MaintenanceService.getById(String(req.params.id));
       res.status(200).json({ record });
     } catch (error) {
       next(error);
     }
   };
 
-  static create = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static create = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const record = MaintenanceService.create({
+      const record = await MaintenanceService.create({
         ...req.body,
         technicianId: req.body.technicianId || req.user?.id,
       });
@@ -40,9 +40,9 @@ export class MaintenanceController {
     }
   };
 
-  static update = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static update = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const record = MaintenanceService.update(String(req.params.id), req.body);
+      const record = await MaintenanceService.update(String(req.params.id), req.body);
       res.status(200).json({ record });
     } catch (error) {
       next(error);
