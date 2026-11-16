@@ -144,7 +144,7 @@ export class LoansService {
       throw new AppError("Este empréstimo já foi encerrado e devolvido anteriormente.", 400);
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       await postgres.run(
         `UPDATE loans
          SET status = 'devolvido', return_date = CURRENT_TIMESTAMP, operator_id = COALESCE(?, operator_id), updated_at = CURRENT_TIMESTAMP
