@@ -1,3 +1,4 @@
+import "../config/env.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 
