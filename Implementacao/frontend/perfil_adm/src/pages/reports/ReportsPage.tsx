@@ -155,7 +155,7 @@ export const ReportsPage = (): JSX.Element => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-2xl">🎨</span>
+              <span className="text-2xl"><img src="/maquinas.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Produções Realizadas</p>
             <p className="text-4xl font-bold text-[#1f1a1b]">142</p>
@@ -164,7 +164,7 @@ export const ReportsPage = (): JSX.Element => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-2xl">📦</span>
+              <span className="text-2xl"><img src="/estoque.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Consumo de Filamento</p>
             <p className="text-4xl font-bold text-[#1f1a1b]">28.4 <span className="text-lg">kg</span></p>
@@ -173,7 +173,7 @@ export const ReportsPage = (): JSX.Element => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-2xl">⏱️</span>
+              <span className="text-2xl"><img src="/relogio.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Horas Ativas</p>
             <p className="text-4xl font-bold text-[#1f1a1b]">680 <span className="text-lg">h</span></p>
@@ -182,7 +182,7 @@ export const ReportsPage = (): JSX.Element => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-2xl">👥</span>
+              <span className="text-2xl"><img src="/users.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Usuários Atendidos</p>
             <p className="text-4xl font-bold text-[#1f1a1b]">64</p>

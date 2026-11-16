@@ -132,7 +132,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm">
-              <span>📅 Semestre 2024.2 (Jul - Dez)</span>
+              <span><img src="/calendario.svg" alt="" className="w-5 h-5 object-contain" /> Semestre 2024.2 (Jul - Dez)</span>
             </div>
             <button onClick={exportRecords} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
               <Download className="w-4 h-4" />
@@ -150,7 +150,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">96.4%</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Uptime</p>
               </div>
-              <span className="text-3xl">⚙️</span>
+              <span className="text-3xl"> <img src="/chave_ing.svg" alt="" className="w-5 h-5 object-contain" /> </span>
             </div>
             <p className="text-xs text-[#7a6e70]">Meta semestral atingida (&gt;95%)</p>
           </div>
@@ -162,7 +162,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">14<span className="text-lg">/16</span></p>
                 <p className="text-xs text-[#7a6e70] mt-1">Máquinas</p>
               </div>
-              <span className="text-3xl">📋</span>
+              <span className="text-3xl"><img src="/preventivas.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">2 intervenções agendadas no mês</p>
           </div>
@@ -174,7 +174,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">03</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Ocorrências</p>
               </div>
-              <span className="text-3xl">🔧</span>
+              <span className="text-3xl"><img src="/corretivas.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">Tempo médio de reparo: 3.2h MTTR</p>
           </div>

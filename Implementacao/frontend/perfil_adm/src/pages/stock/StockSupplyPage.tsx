@@ -142,7 +142,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">{totalStock.toFixed(1)}</p>
                 <p className="text-xs text-[#7a6e70] mt-1">kg</p>
               </div>
-              <span className="text-2xl">📦</span>
+              <span className="text-2xl"><img src="/estoque.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">Soma de termoplásticos FDM e polímeros SLA ativos</p>
           </div>
@@ -154,7 +154,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">0{criticalItems}</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Item</p>
               </div>
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl"><img src="/perigo.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <div className="flex items-center gap-2">
               <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
@@ -171,7 +171,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">15.0</p>
                 <p className="text-xs text-[#7a6e70] mt-1">kg</p>
               </div>
-              <span className="text-2xl">📊</span>
+              <span className="text-2xl"><img src="/grafico.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">3 lotes recebidos, inspecionados e tombados no labMU</p>
           </div>
@@ -252,7 +252,7 @@ export const StockSupplyPage = (): JSX.Element => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-[#1f1a1b] flex items-center gap-2">
-                <span>📋</span>
+                <span><img src="/lista.svg" alt="" className="w-5 h-5 object-contain" /></span>
                 Histórico de Entradas & Aquisições Recentes
               </h2>
               <p className="text-sm text-[#7a6e70] mt-1">

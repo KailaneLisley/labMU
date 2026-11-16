@@ -231,9 +231,21 @@ export const MachinesPage = (): JSX.Element => {
     switch (type) {
       case "printer_3d_fdm":
       case "printer_3d_resin":
-        return "🔴";
+        return (
+          <img
+            src="/mdf.svg"
+            alt=""
+            className="w-5 h-5 object-contain"
+          />
+        );
       case "scanner":
-        return "🔵";
+        return (
+          <img
+            src="/resina.svg"
+            alt=""
+            className="w-5 h-5 object-contain"
+          />
+        );
     }
   };
 
@@ -262,11 +274,26 @@ export const MachinesPage = (): JSX.Element => {
   const getStatusLabel = (status: MachineStatus) => {
     switch (status) {
       case "ativa":
-        return "✅ Ativa";
+        return (
+          <span className="inline-flex items-center gap-1">
+            <img src="/ativa.svg" alt="" className="w-3.5 h-3.5 object-contain" />
+            Ativa
+          </span>
+        );
       case "manutencao":
-        return "🟠 Em Manutenção";
+        return (
+          <span className="inline-flex items-center gap-1">
+            <img src="/manutençao.svg" alt="" className="w-3.5 h-3.5 object-contain" />
+            Em Manutenção
+          </span>
+        );
       case "inativa":
-        return "❌ Inativa";
+        return (
+          <span className="inline-flex items-center gap-1">
+            <img src="/inativa.svg" alt="" className="w-3.5 h-3.5 object-contain" />
+            Inativa
+          </span>
+        );
     }
   };
 
