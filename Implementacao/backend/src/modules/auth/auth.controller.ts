@@ -35,7 +35,7 @@ export class AuthController {
     }
   };
 
-  static verifyForgotEmail = async (req: Request, res: Response, next: NextFunction): void => {
+  static verifyForgotEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email } = req.body;
       const result = await AuthService.verifyForgotEmail(email);
@@ -55,7 +55,7 @@ export class AuthController {
     }
   };
 
-  static requestAdminPasswordReset = async (req: Request, res: Response, next: NextFunction): void => {
+  static requestAdminPasswordReset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email } = req.body;
       const result = await AuthService.requestAdminPasswordReset(email);
@@ -75,7 +75,7 @@ export class AuthController {
     }
   };
 
-  static logout = async (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static logout = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (req.auth) {
         await AuthService.logout(req.auth);
