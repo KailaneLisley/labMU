@@ -4,6 +4,8 @@ import { Plus, Search, Download } from "lucide-react";
 import { Supply, SupplyEntry } from "../../data/supplies";
 import { downloadCsv } from "../../lib/exportCsv";
 import { useApiData } from "../../hooks/useApiData";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../../components/Pagination";
 import { loadSupplies, loadSupplyEntries } from "../../services/mappers";
 
 interface AcquisitionRecord {
@@ -113,6 +115,10 @@ export const StockSupplyPage = (): JSX.Element => {
       ...acquisitions.map((record) => [record.date, record.supplier, record.nf, record.material, record.quantity, record.value]),
     ]);
   };
+
+  // Paginação de 10 em 10: suprimentos (volta à página 1 ao buscar) e histórico de entradas
+  const inventory = usePagination(filteredSupplies, 10, [searchQuery]);
+  const history = usePagination(acquisitions, 10);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
@@ -224,7 +230,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {filteredSupplies.map((supply) => (
+                {inventory.pageItems.map((supply) => (
                   <tr key={supply.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-[#1f1a1b]">{supply.name}</p>
@@ -253,6 +259,10 @@ export const StockSupplyPage = (): JSX.Element => {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-[#7a6e70]">
+            <p>Mostrando {inventory.from}–{inventory.to} de {filteredSupplies.length} suprimentos</p>
+            <Pagination current={inventory.currentPage} total={inventory.pageCount} onPageChange={inventory.setCurrentPage} />
           </div>
         </div>
 
@@ -287,7 +297,7 @@ export const StockSupplyPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {acquisitions.map((record) => (
+                {history.pageItems.map((record) => (
                   <tr key={record.id} className="border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors">
                     <td className="px-6 py-4">
                       <p className="text-sm font-semibold text-[#1f1a1b]">{record.date}</p>
@@ -321,6 +331,10 @@ export const StockSupplyPage = (): JSX.Element => {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-[#7a6e70]">
+            <p>Mostrando {history.from}–{history.to} de {acquisitions.length} entradas</p>
+            <Pagination current={history.currentPage} total={history.pageCount} onPageChange={history.setCurrentPage} />
           </div>
         </div>
       </div>

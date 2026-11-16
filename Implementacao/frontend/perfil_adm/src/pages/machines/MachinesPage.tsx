@@ -2,6 +2,8 @@ import { FormEvent, useState, useMemo, useEffect } from "react";
 import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
 import { api } from "../../services/api";
 import { useApiData } from "../../hooks/useApiData";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../../components/Pagination";
 
 type MachineType = "printer_3d_fdm" | "printer_3d_resin" | "scanner";
 type MachineTypeFilter = MachineType | "3d" | "all";
@@ -111,6 +113,9 @@ export const MachinesPage = (): JSX.Element => {
     setEditorError("");
     setEditorOpen(true);
   };
+
+  // 10 máquinas por página; volta à página 1 ao trocar filtro ou buscar
+  const pagination = usePagination(filteredMachines, 10, [selectedType, selectedStatus, searchQuery]);
 
   const handleSaveMachine = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -439,7 +444,7 @@ export const MachinesPage = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {filteredMachines.map((machine, index) => (
+                {pagination.pageItems.map((machine, index) => (
                   <tr
                     key={machine.id}
                     className={`border-b border-[#efe6e6] hover:bg-[#fef3c7]/30 transition-colors ${
@@ -517,9 +522,9 @@ export const MachinesPage = (): JSX.Element => {
         </div>
 
         {/* Pagination */}
-        <div className="mt-6 flex items-center justify-between text-sm text-[#7a6e70]">
-          <p>Mostrando {filteredMachines.length} de {machines.length} máquinas cadastradas</p>
-          <p>Página 1 de 1</p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-[#7a6e70]">
+          <p>Mostrando {pagination.from}–{pagination.to} de {filteredMachines.length} máquinas cadastradas</p>
+          <Pagination current={pagination.currentPage} total={pagination.pageCount} onPageChange={pagination.setCurrentPage} />
         </div>
       </div>
     </div>
