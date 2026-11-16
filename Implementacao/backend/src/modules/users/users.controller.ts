@@ -19,7 +19,7 @@ export class UsersController {
     }
   };
 
-  static getById = async (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await UsersService.getUserById(String(req.params.id));
       res.status(200).json({ user });
@@ -37,7 +37,7 @@ export class UsersController {
     }
   };
 
-  static update = async (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static update = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await UsersService.updateUser(String(req.params.id), req.body);
       res.status(200).json({ user });
