@@ -23,12 +23,10 @@ Configure em **Project Settings → Environment Variables** (Production, Preview
 | `JWT_EXPIRES_IN` | `7d` (ou política aprovada pelo projeto) |
 | `CORS_ORIGINS` | domínio(s) HTTPS exatos do frontend, separados por vírgula |
 | `TRUST_PROXY` | `1` |
-| `INITIAL_ADMIN_EMAIL` | e-mail institucional do primeiro administrador |
-| `INITIAL_ADMIN_PASSWORD` | senha forte temporária para o primeiro administrador |
 
 Copie a URI do Supabase em **Connect → Transaction pooler**. Não use a senha literal do exemplo, não use a URI de conexão direta para as Functions e nunca exponha `DATABASE_URL`, senha do banco ou credenciais administrativas no frontend, em variáveis `VITE_*` ou no Git.
 
-O backend usa JWT próprio e conecta ao PostgreSQL diretamente pelo driver `pg`. Não é necessário configurar `SUPABASE_URL`, `anon key` ou `service_role key` para esse fluxo.
+O backend usa JWT próprio e conecta ao PostgreSQL diretamente pelo driver `pg`. Não é necessário configurar `SUPABASE_URL`, `anon key` ou `service_role key` para esse fluxo. As variáveis `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` são usadas somente no comando administrativo local descrito abaixo; não as mantenha na Vercel.
 
 ## Primeiro acesso
 
