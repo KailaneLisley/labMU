@@ -115,7 +115,7 @@ export class SuppliesService {
       throw new AppError("A quantidade de entrada deve ser um valor positivo em kg.", 400);
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       let supplyId = data.supplyId;
 
       // Se supplyId não foi informado, busca ou cria insumo com o nome/tipo/cor fornecidos
@@ -189,7 +189,7 @@ export class SuppliesService {
       throw new AppError("Informe o motivo do ajuste de estoque.", 400, "ADJUSTMENT_REASON_REQUIRED");
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       const supply = await this.getSupplyById(data.supplyId);
       const newBalance = Number((supply.balance + qty).toFixed(3));
 
