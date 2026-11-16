@@ -48,6 +48,8 @@ jobs:
           CONFIRM_TEST_DATABASE_RESET=true
           TEST_DATABASE_URL=postgresql://labmu_test:labmu_test@localhost:5432/labmu_test
           EOF
+      - name: Aplicar schema PostgreSQL de teste
+        run: psql "postgresql://labmu_test:labmu_test@localhost:5432/labmu_test" -v ON_ERROR_STOP=1 -f supabase/migrations/202611160001_initial_schema.sql
       - name: Verificar tipos
         run: npx tsc --noEmit
       - name: Testes
