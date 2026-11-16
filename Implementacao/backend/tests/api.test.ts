@@ -74,7 +74,7 @@ test.before(async () => {
   await seedDatabase();
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
-      const address = server.address() as any;
+      const address = server!.address() as any;
       baseUrl = `http://localhost:${address.port}`;
       resolve();
     });
