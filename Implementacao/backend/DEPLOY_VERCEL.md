@@ -46,3 +46,24 @@ O entrypoint serverless não executa seed nem cria contas por requisição. O bo
 - Confirmar build TypeScript e testar login, recuperação de senha, permissões, estoque, produção, empréstimos, manutenção e relatórios.
 - Configurar o domínio do frontend em `CORS_ORIGINS`.
 - Confirmar limites e termos do plano Vercel aplicável ao uso institucional do laboratório.
+
+## Importar os dados antigos do SQLite
+
+O schema Supabase está criado, mas a importação de registros é uma etapa separada. O script `src/database/migrateSqliteToPostgres.ts`:
+
+- lê o arquivo SQLite sem modificá-lo;
+- importa as 9 tabelas na ordem das chaves estrangeiras;
+- exige que todas as tabelas de destino estejam vazias;
+- executa a importação em uma única transação e confere as contagens;
+- cancela tudo se encontrar conflito de estrutura, chave estrangeira ou erro de inserção.
+
+Antes de executar, obtenha uma cópia consistente do arquivo SQLite legado (por exemplo, exportando/baixando o arquivo de dados do serviço antigo). Não presuma que o arquivo existe no GitHub ou que o disco do serviço antigo é persistente.
+
+No PowerShell, a partir desta pasta:
+
+```powershell
+$env:SQLITE_SOURCE_FILE = "D:\caminho\para\labmu.sqlite"
+npm run migrate:sqlite
+```
+
+A variável `DATABASE_URL` precisa apontar para o PostgreSQL do Supabase. Como a importação é transacional e exige tabelas vazias, execute-a uma única vez e confira o resumo de contagens antes de liberar o sistema.
