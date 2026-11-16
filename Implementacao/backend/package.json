@@ -12,7 +12,8 @@
     "build": "tsc && node -e \"require('fs').cpSync('src/database/schema.sql', 'dist/database/schema.sql')\"",
     "start": "node dist/localServer.js",
     "test": "tsx --test tests/**/*.test.ts",
-    "seed": "tsx src/database/seed.ts"
+    "seed": "tsx src/database/seed.ts",
+    "migrate:sqlite": "tsx src/database/migrateSqliteToPostgres.ts"
   },
   "keywords": [
     "labmu",
