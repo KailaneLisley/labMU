@@ -201,7 +201,7 @@ export class ProductionService {
         const newStatus = supplyStatusFor(newBalance, supply.minimum_balance);
 
         await postgres.run(
-          `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
           newBalance,
           newStatus,
           data.supplyId
@@ -266,7 +266,7 @@ export class ProductionService {
 
         const newBalance = Number((supply.balance + production.supply_consumed).toFixed(3));
         await postgres.run(
-          `UPDATE supplies SET balance = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
           newBalance,
           supplyStatusFor(newBalance, supply.minimum_balance),
           production.supply_id
@@ -286,7 +286,7 @@ export class ProductionService {
       }
 
       await postgres.run(
-        `UPDATE productions SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE productions SET status = 'cancelada', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         id
       );
 
