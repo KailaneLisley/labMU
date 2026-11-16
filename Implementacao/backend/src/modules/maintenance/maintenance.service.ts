@@ -153,7 +153,7 @@ export class MaintenanceService {
 
     await postgres.run(
       `UPDATE machines
-       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = CURRENT_TIMESTAMP
+       SET status = 'ativa', last_maintenance = ?, next_maintenance_date = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       date,
       nextDate,
@@ -179,7 +179,7 @@ export class MaintenanceService {
 
     await postgres.run(
       `UPDATE maintenances
-       SET status = ?, description = ?, parts = ?, cost = ?, observations = ?, updated_at = CURRENT_TIMESTAMP
+       SET status = ?, description = ?, parts = ?, cost = ?, observations = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       status,
       description,
