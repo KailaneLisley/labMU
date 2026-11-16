@@ -46,7 +46,7 @@ export class UsersController {
     }
   };
 
-  static updateStatus = async (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static updateStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { status } = req.body;
       const user = await UsersService.updateStatus(String(req.params.id), status);
@@ -56,14 +56,14 @@ export class UsersController {
     }
   };
 
-  static updateProfile = async (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static updateProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autorizado." } });
         return;
       }
       const { name, phone, avatar } = req.body;
-      const user = UsersService.updateUser(req.user.id, { name, phone, avatar });
+      const user = await UsersService.updateUser(req.user.id, { name, phone, avatar });
       res.status(200).json({ user });
     } catch (error) {
       next(error);
