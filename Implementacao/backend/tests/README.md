@@ -1,36 +1,37 @@
-#  Testes Automatizados da API — `backend/tests/`
+# Testes Automatizados da API — `backend/tests/`
 
-Este diretório contém a suíte de testes de integração e ponta a ponta (E2E) do backend do **labMU**, executada com o test runner nativo do Node.js (`node:test`) em conjunto com `tsx`.
+A suíte usa o test runner nativo do Node.js (`node:test`) com `tsx`. Após a migração, os testes de integração usam PostgreSQL; não utilizam mais o arquivo SQLite.
 
----
+## Pré-requisitos
 
-##  Arquivos de Teste
+1. Configure `DATABASE_URL` apontando para um **banco de teste descartável**, nunca para produção.
+2. Aplique nesse banco o schema de `supabase/migrations/202611160001_initial_schema.sql`.
+3. Garanta que o usuário da conexão possa criar, ler e alterar os registros das tabelas de teste.
 
-- **`api.test.ts`:** Bateria abrangente de testes validando os seguintes cenários:
-  1. **Health Check:** Garante resposta `200 OK` em `/api/health`.
-  2. **Autenticação:** Validação do login com o Administrador padrão (`admin.musarq@unicap.br`), emissão do token JWT e bloqueio de senhas inválidas com status `401`.
-  3. **Cadastro Público de Técnicos:** Criação de nova conta de Técnico com e-mail `@unicap.br`, Pergunta Secreta de Segurança e login imediato com as credenciais criadas.
-  4. **Fluxo de Recuperação de Senha:**
-     - Bloqueio de recuperação automática para Administradores (`403 ADMIN_RECOVERY_RESTRICTED`).
-     - Sucesso na recuperação para Técnicos em 3 etapas (identificação do e-mail -> resposta correta da pergunta de segurança -> definição da nova senha).
-     - Rejeição de respostas incorretas da pergunta secreta (`400 INCORRECT_ANSWER`).
-  5. **Regras de Empréstimo:** Validação do fluxo de retirada e devolução de portáteis, incluindo a rejeição com código `409` para tentativas de empréstimo duplo do mesmo item.
-  6. **Operações de Estoque & Dashboard:** Registro de entradas de lote e consulta do resumo consolidado.
+O hook de preparação executa o seed de desenvolvimento e os testes criam registros adicionais. Portanto, os dados desse banco podem ser alterados durante a execução.
 
----
+### PowerShell
 
-##  Como Executar os Testes
+```powershell
+$env:DATABASE_URL = "postgresql://..."
+$env:NODE_ENV = "test"
+npm test
+```
 
-A partir da pasta `Implementacao/backend`:
+### Bash
+
+```bash
+DATABASE_URL="postgresql://..." NODE_ENV=test npm test
+```
+
+## Execução
+
+A partir de `Implementacao/backend`:
 
 ```bash
 npm test
 ```
 
-O comando executará:
-```bash
-tsx --test tests/**/*.test.ts
-```
+Os testes cobrem health check, autenticação, cadastro, recuperação de senha, autorização por perfil, máquinas, equipamentos portáteis, empréstimos, estoque, produção, relatórios e regras de negócio.
 
-Os testes utilizam o banco de dados de desenvolvimento/teste, inicializam o *seed* automaticamente e validam o comportamento com asserções estritas do módulo `node:assert`.
-
+**Importante:** não execute a suíte apontando para o banco de produção. O seed e os cenários automatizados inserem e atualizam registros.
