@@ -229,7 +229,7 @@ export class UsersService {
       throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
     }
     this.getUserById(id);
-    await postgres.run(`UPDATE users SET status = ?, updated_at = datetime('now') WHERE id = ?`, status, id);
+    await postgres.run(`UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, status, id);
     return this.getUserById(id);
   }
 }
