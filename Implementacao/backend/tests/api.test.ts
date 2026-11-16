@@ -58,6 +58,9 @@ function makeRequest(
 }
 
 test.before(async () => {
+  if (process.env.CONFIRM_TEST_DATABASE_RESET !== "true") {
+    throw new Error("Defina CONFIRM_TEST_DATABASE_RESET=true em .env.test para autorizar a limpeza do banco descartável.");
+  }
   // Esta conexão só aceita TEST_DATABASE_URL quando NODE_ENV=test.
   // O banco é descartável e é limpo antes de cada execução da suíte.
   await postgres.run(`TRUNCATE TABLE
