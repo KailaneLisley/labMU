@@ -331,7 +331,7 @@ export class AuthService {
     }
 
     const passwordHash = await hashPassword(newPassword);
-    await postgres.run("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", passwordHash, user.id);
+    await postgres.run("UPDATE users SET password_hash = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?", passwordHash, user.id);
     await revokeToken(decoded.jti, decoded.exp);
 
     return {
