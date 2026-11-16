@@ -58,6 +58,19 @@ function makeRequest(
 }
 
 test.before(async () => {
+  // Esta conexão só aceita TEST_DATABASE_URL quando NODE_ENV=test.
+  // O banco é descartável e é limpo antes de cada execução da suíte.
+  await postgres.run(`TRUNCATE TABLE
+    public.revoked_tokens,
+    public.productions,
+    public.loans,
+    public.stock_movements,
+    public.maintenances,
+    public.portable_equipment,
+    public.supplies,
+    public.machines,
+    public.users
+    RESTART IDENTITY CASCADE`);
   await seedDatabase();
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
