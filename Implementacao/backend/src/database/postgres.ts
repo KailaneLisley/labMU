@@ -1,6 +1,6 @@
 import "../config/env.js";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type QueryResultRow } from "pg";
 
 type TransactionContext = {
   client: PoolClient;
@@ -11,6 +11,10 @@ type RunResult<T extends QueryResultRow = QueryResultRow> = {
   changes: number;
   rows: T[];
 };
+
+// node-postgres devolve BIGINT como string por padrão. Os campos BIGINT do labMU
+// (contagens e expiração JWT em segundos) permanecem dentro da faixa segura de Number.
+types.setTypeParser(20, (value) => Number(value));
 
 const databaseUrl = process.env.DATABASE_URL;
 
