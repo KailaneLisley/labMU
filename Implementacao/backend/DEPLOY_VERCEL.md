@@ -32,12 +32,23 @@ O backend usa JWT próprio e conecta ao PostgreSQL diretamente pelo driver `pg`.
 
 ## Primeiro acesso
 
-1. Faça o deploy com `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` configurados.
-2. Execute o primeiro acesso e confirme que o administrador consegue entrar.
-3. Remova `INITIAL_ADMIN_PASSWORD` das variáveis de ambiente após a criação da conta.
-4. Não habilite seed de demonstração em produção.
+O entrypoint serverless **não executa bootstrap nem cria contas durante as requisições**. Para criar o primeiro administrador, execute o comando administrativo uma única vez a partir de um ambiente local confiável com acesso ao Supabase:
 
-O entrypoint serverless não executa seed nem cria contas por requisição. O bootstrap local/administrativo fica separado.
+```powershell
+$env:NODE_ENV = "production"
+$env:DATABASE_URL = "postgresql://..."
+$env:INITIAL_ADMIN_EMAIL = "admin@unicap.br"
+$env:INITIAL_ADMIN_PASSWORD = "uma-senha-forte-e-temporaria"
+npm run bootstrap:admin
+Remove-Item Env:INITIAL_ADMIN_PASSWORD
+```
+
+O comando cria a conta somente se ainda não existir nenhum administrador. Depois:
+
+1. Faça o deploy do backend e confirme o login.
+2. Remova `INITIAL_ADMIN_PASSWORD` de qualquer ambiente Vercel em que tenha sido cadastrada.
+3. Não habilite seed de demonstração em produção.
+
 
 ## Antes de promover para produção
 
