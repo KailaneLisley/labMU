@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
-import { query } from "../database/connection.js";
+import { postgres } from "../database/postgres.js";
 import { isTokenRevoked } from "../modules/auth/tokenRevocation.js";
 
 interface AuthenticatedUser {
@@ -20,7 +20,7 @@ export interface AuthRequest extends Request {
 // Perfis que podem usar a API; os demais existem no cadastro, mas não autenticam
 const API_ROLES: AuthenticatedUser["role"][] = ["administrador", "tecnico"];
 
-export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
+export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
 
@@ -47,7 +47,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       throw new Error("Token sem identificador de sessão.");
     }
 
-    if (isTokenRevoked(payload.jti)) {
+    if (await isTokenRevoked(payload.jti)) {
       res.status(401).json({
         error: {
           code: "TOKEN_REVOKED",
@@ -57,7 +57,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       return;
     }
 
-    const user = query.get<any>(
+    const user = await postgres.get<any>(
       "SELECT id, name, email, role, registration, status FROM users WHERE id = ?",
       payload.sub
     );
