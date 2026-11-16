@@ -3,10 +3,10 @@ import { LoansService } from "./loans.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class LoansController {
-  static list = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static list = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { status, equipmentId, from, to } = req.query;
-      const loans = LoansService.listLoans({
+      const loans = await LoansService.listLoans({
         status: status as string,
         equipmentId: equipmentId as string,
         from: from as string,
@@ -18,18 +18,18 @@ export class LoansController {
     }
   };
 
-  static getById = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const loan = LoansService.getLoanById(String(req.params.id));
+      const loan = await LoansService.getLoanById(String(req.params.id));
       res.status(200).json({ loan });
     } catch (error) {
       next(error);
     }
   };
 
-  static checkout = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static checkout = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const loan = LoansService.checkoutLoan({
+      const loan = await LoansService.checkoutLoan({
         ...req.body,
         operatorId: req.user?.id,
       });
@@ -39,9 +39,9 @@ export class LoansController {
     }
   };
 
-  static return = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static return = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const loan = LoansService.returnLoan(String(req.params.id), req.user?.id);
+      const loan = await LoansService.returnLoan(String(req.params.id), req.user?.id);
       res.status(200).json({ loan });
     } catch (error) {
       next(error);
