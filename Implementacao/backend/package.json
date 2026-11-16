@@ -8,9 +8,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/localServer.ts",
     "build": "tsc && node -e \"require('fs').cpSync('src/database/schema.sql', 'dist/database/schema.sql')\"",
-    "start": "node dist/server.js",
+    "start": "node dist/localServer.js",
     "test": "rm -f data/test-labmu.sqlite* && DATABASE_FILE=./data/test-labmu.sqlite tsx --test tests/**/*.test.ts",
     "seed": "tsx src/database/seed.ts"
   },
