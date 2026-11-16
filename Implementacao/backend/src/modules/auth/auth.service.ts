@@ -1,7 +1,7 @@
 import { hashPassword, verifyPassword } from "./passwords.js";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isLoginBlocked, recordLoginFailure, resetAccountFailures } from "./loginAttempts.js";
@@ -38,14 +38,14 @@ async function matchesSecurityAnswer(userId: string, stored: string | null, answ
   if (stored.startsWith("$2") || stored.startsWith("scrypt$")) {
     const check = await verifyPassword(normalizeSecurityAnswer(answer), stored);
     if (check.ok && check.needsRehash) {
-      query.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
+      await postgres.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
     }
     return check.ok;
   }
 
   const matches = stored.trim().toLowerCase() === normalizeSecurityAnswer(answer);
   if (matches) {
-    query.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
+    await postgres.run("UPDATE users SET security_answer = ? WHERE id = ?", await hashSecurityAnswer(answer), userId);
   }
   return matches;
 }
@@ -66,7 +66,7 @@ export class AuthService {
       );
     }
 
-    const user = query.get<any>(
+    const user = await postgres.get<any>(
       `SELECT id, name, email, role, registration, phone, status, password_hash, avatar, initials, avatar_color
        FROM users WHERE email = ?`,
       normalizedEmail
@@ -100,7 +100,7 @@ export class AuthService {
 
     // Contas com hash antigo (bcrypt) passam a usar scrypt no primeiro login bem-sucedido
     if (check.needsRehash) {
-      query.run("UPDATE users SET password_hash = ? WHERE id = ?", await hashPassword(password), user.id);
+      await postgres.run("UPDATE users SET password_hash = ? WHERE id = ?", await hashPassword(password), user.id);
     }
 
     const token = signSession(user);
@@ -171,12 +171,12 @@ export class AuthService {
       throw new AppError("Informe a resposta para sua pergunta de segurança.", 400, "INVALID_SECURITY_ANSWER");
     }
 
-    const existingEmail = query.get("SELECT id FROM users WHERE email = ?", email);
+    const existingEmail = await postgres.get("SELECT id FROM users WHERE email = ?", email);
     if (existingEmail) {
       throw new AppError("Este e-mail já possui um cadastro ativo.", 409, "EMAIL_EXISTS");
     }
 
-    const existingReg = query.get("SELECT id FROM users WHERE registration = ?", registration);
+    const existingReg = await postgres.get("SELECT id FROM users WHERE registration = ?", registration);
     if (existingReg) {
       throw new AppError("Esta matrícula já está vinculada a outro usuário.", 409, "REGISTRATION_EXISTS");
     }
@@ -190,7 +190,7 @@ export class AuthService {
       .join("")
       .toUpperCase();
 
-    query.run(
+    await postgres.run(
       `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, security_question, security_answer, initials, avatar_color)
        VALUES (?, ?, ?, 'tecnico', ?, ?, 'ativo', ?, ?, ?, ?, 'bg-orange-200')`,
       userId,
@@ -223,13 +223,13 @@ export class AuthService {
     };
   }
 
-  static verifyForgotEmail(email: string) {
+  static async verifyForgotEmail(email: string) {
     const normalizedEmail = email?.trim().toLowerCase();
     if (!normalizedEmail) {
       throw new AppError("Informe seu e-mail institucional.", 400, "MISSING_EMAIL");
     }
 
-    const user = query.get<any>(
+    const user = await postgres.get<any>(
       `SELECT id, name, email, role, status, security_question FROM users WHERE email = ?`,
       normalizedEmail
     );
@@ -254,7 +254,7 @@ export class AuthService {
       throw new AppError("E-mail e resposta são obrigatórios.", 400, "MISSING_FIELDS");
     }
 
-    const user = query.get<any>(
+    const user = await postgres.get<any>(
       `SELECT id, email, role, security_answer FROM users WHERE email = ?`,
       normalizedEmail
     );
@@ -309,7 +309,7 @@ export class AuthService {
     }
 
     // Uso único: o token deixa de valer depois da primeira redefinição
-    if (!decoded.jti || isTokenRevoked(decoded.jti)) {
+    if (!decoded.jti || await isTokenRevoked(decoded.jti)) {
       throw new AppError("Este link de recuperação já foi utilizado. Inicie o processo novamente.", 401, "INVALID_TOKEN");
     }
 
@@ -321,7 +321,7 @@ export class AuthService {
       );
     }
 
-    const user = query.get<any>("SELECT id, role FROM users WHERE email = ?", normalizedEmail);
+    const user = await postgres.get<any>("SELECT id, role FROM users WHERE email = ?", normalizedEmail);
     if (!user) {
       throw new AppError("Usuário não encontrado.", 404, "USER_NOT_FOUND");
     }
@@ -331,21 +331,21 @@ export class AuthService {
     }
 
     const passwordHash = await hashPassword(newPassword);
-    query.run("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", passwordHash, user.id);
-    revokeToken(decoded.jti, decoded.exp);
+    await postgres.run("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", passwordHash, user.id);
+    await revokeToken(decoded.jti, decoded.exp);
 
     return {
       message: "Senha redefinida com sucesso! Você já pode entrar com sua nova senha.",
     };
   }
 
-  static requestAdminPasswordReset(email: string) {
+  static async requestAdminPasswordReset(email: string) {
     const normalizedEmail = email?.trim().toLowerCase();
     if (!normalizedEmail) {
       throw new AppError("Informe o e-mail institucional.", 400, "MISSING_EMAIL");
     }
 
-    const user = query.get<any>(
+    const user = await postgres.get<any>(
       `SELECT id, name, email, role, status FROM users WHERE email = ?`,
       normalizedEmail
     );
@@ -375,12 +375,12 @@ export class AuthService {
     };
   }
 
-  static logout(session: { jti: string; exp: number }) {
-    revokeToken(session.jti, session.exp);
+  static async logout(session: { jti: string; exp: number }) {
+    await revokeToken(session.jti, session.exp);
   }
 
-  static getMe(userId: string) {
-    const user = query.get<any>(
+  static async getMe(userId: string) {
+    const user = await postgres.get<any>(
       `SELECT id, name, email, role, registration, phone, status, avatar, initials, avatar_color, created_at, updated_at
        FROM users WHERE id = ?`,
       userId
