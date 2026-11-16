@@ -1,8 +1,39 @@
 import { FormEvent, useEffect, useState, useMemo } from "react";
 import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
-import { usePersistentState } from "../../hooks/usePersistentState";
-import { initialUsers, User, UserRole, UserStatus, USERS_STORAGE_KEY } from "../../data/users";
+import { User, UserRole, UserStatus } from "../../data/users";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
+
+const initialsOf = (name: string) =>
+  (name || "")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "U";
+
+const toUser = (u: any): User => ({
+  id: String(u.id),
+  name: u.name,
+  email: u.email,
+  registration: u.registration || "",
+  phone: u.phone || "",
+  role: u.role as UserRole,
+  status: u.status as UserStatus,
+  initials: u.initials || initialsOf(u.name),
+  avatarColor: "bg-[#fdeaea]",
+});
+
+// Busca todas as páginas da API (o servidor limita cada página a 200 registros)
+async function loadAllUsers(): Promise<User[]> {
+  const all: User[] = [];
+  for (let page = 1; ; page++) {
+    const res = await api.getUsers({ page, limit: 200 });
+    all.push(...res.data.map(toUser));
+    if (page >= res.totalPages || res.data.length === 0) break;
+  }
+  return all;
+}
 
 const getRoleBadgeColor = (role: UserRole) => {
   switch (role) {
@@ -31,44 +62,8 @@ const getRoleLabel = (role: UserRole) => {
 };
 
 export const UserManagementPage = (): JSX.Element => {
-  const [users, setUsers] = usePersistentState<User[]>(USERS_STORAGE_KEY, initialUsers);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .getUsers({ limit: 100 })
-      .then((res) => {
-        if (!active || !res || !Array.isArray(res.data)) return;
-        const apiUsers: User[] = res.data.map((u: any) => {
-          const initials = (u.name || "")
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((part: string) => part[0])
-            .join("")
-            .toUpperCase() || "U";
-          return {
-            id: String(u.id),
-            name: u.name,
-            email: u.email,
-            registration: u.registration || "",
-            phone: u.phone || "",
-            role: u.role as UserRole,
-            status: u.status === "inativo" ? "inativo" : "ativo",
-            initials,
-            avatarColor: "bg-[#fdeaea]",
-          };
-        });
-        if (apiUsers.length > 0) {
-          setUsers(apiUsers);
-        }
-      })
-      .catch(() => {
-        // Fallback gracioso com persistência local
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { data: users, loading, error: loadError, reload } = useApiData<User[]>(loadAllUsers, []);
+  const [actionError, setActionError] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<UserStatus | "all">("ativo");
@@ -78,7 +73,7 @@ export const UserManagementPage = (): JSX.Element => {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editorError, setEditorError] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", registration: "", phone: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", registration: "", phone: "", password: "" });
   const pageSize = 5;
 
   const filteredUsers = useMemo(() => {
@@ -115,8 +110,8 @@ export const UserManagementPage = (): JSX.Element => {
     setEditorError("");
     setFormData(
       user
-        ? { name: user.name, email: user.email, registration: user.registration, phone: user.phone }
-        : { name: "", email: "", registration: "", phone: "" },
+        ? { name: user.name, email: user.email, registration: user.registration, phone: user.phone, password: "" }
+        : { name: "", email: "", registration: "", phone: "", password: "" },
     );
     setMenuOpen(null);
   };
@@ -126,85 +121,47 @@ export const UserManagementPage = (): JSX.Element => {
     if (!editorRole) return;
     const name = formData.name.trim();
     const email = formData.email.trim().toLowerCase();
-    const duplicateEmail = users.some(
-      (user) => user.email.toLowerCase() === email && user.id !== editingUserId,
-    );
+    const registration = formData.registration.trim();
+    const duplicateEmail = users.some((user) => user.email.toLowerCase() === email && user.id !== editingUserId);
     if (duplicateEmail) {
       setEditorError("Já existe um usuário cadastrado com este e-mail.");
       return;
     }
-    const duplicateRegistration = users.some(
-      (user) =>
-        user.registration === formData.registration.trim() &&
-        user.id !== editingUserId,
-    );
+    const duplicateRegistration = users.some((user) => user.registration === registration && user.id !== editingUserId);
     if (duplicateRegistration) {
       setEditorError("Já existe um usuário cadastrado com esta matrícula.");
       return;
     }
-    const initials = name
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase();
 
-    const userPayload = {
-      name,
-      email,
-      registration: formData.registration.trim(),
-      phone: formData.phone.trim(),
-      role: editorRole,
-    };
-
+    const payload = { name, email, registration, phone: formData.phone.trim(), role: editorRole };
     try {
       if (editingUserId) {
-        await api.updateUser(editingUserId, userPayload).catch(() => null);
-        setUsers((current) =>
-          current.map((user) =>
-            user.id === editingUserId
-              ? { ...user, ...userPayload, initials }
-              : user,
-          ),
-        );
+        await api.updateUser(editingUserId, payload);
       } else {
-        let createdId = `${Date.now()}`;
-        try {
-          const res = await api.createUser({ ...userPayload, password: "TemporaryUser123!" });
-          if (res?.user?.id) createdId = String(res.user.id);
-        } catch {
-          // Fallback caso a API esteja temporariamente offline
-        }
-
-        setUsers((current) => [
-          ...current,
-          {
-            id: createdId,
-            ...userPayload,
-            status: "ativo",
-            initials,
-            avatarColor: "bg-[#fdeaea]",
-          },
-        ]);
+        // Técnico e administrador precisam de senha inicial; clientes não têm login
+        const needsPassword = editorRole === "tecnico" || editorRole === "administrador";
+        await api.createUser(needsPassword ? { ...payload, password: formData.password } : payload);
       }
       setEditorRole(null);
       setEditorError("");
+      reload();
     } catch (err: any) {
       setEditorError(err?.message || "Erro ao salvar usuário.");
     }
   };
 
-  const toggleUserStatus = (id: string) => {
+  const toggleUserStatus = async (id: string) => {
     const targetUser = users.find((u) => u.id === id);
-    const nextStatus = targetUser?.status === "ativo" ? "inativo" : "ativo";
-    api.updateUserStatus(id, nextStatus).catch(() => null);
-
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === id ? { ...user, status: nextStatus } : user,
-      ),
-    );
+    if (!targetUser) return;
+    const nextStatus = targetUser.status === "ativo" ? "inativo" : "ativo";
     setMenuOpen(null);
+    setActionError("");
+    try {
+      await api.updateUserStatus(id, nextStatus);
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || "Não foi possível alterar a situação do usuário.");
+    }
   };
 
   return (
@@ -252,6 +209,21 @@ export const UserManagementPage = (): JSX.Element => {
                 Telefone / Ramal
                 <input value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="mt-1 w-full rounded-lg border border-[#efe6e6] px-3 py-2" />
               </label>
+              {!editingUserId && (editorRole === "tecnico" || editorRole === "administrador") && (
+                <label className="block text-sm font-semibold">
+                  Senha inicial
+                  <input
+                    required
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    value={formData.password}
+                    onChange={(event) => setFormData({ ...formData, password: event.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#efe6e6] px-3 py-2"
+                  />
+                  <span className="text-xs font-normal text-[#7a6e70]">Mínimo de 8 caracteres, com letras e números.</span>
+                </label>
+              )}
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setEditorRole(null)} className="rounded-lg border border-[#efe6e6] px-4 py-2">Cancelar</button>
                 <button type="submit" className="rounded-lg bg-[#8B1329] px-4 py-2 font-semibold text-white">Salvar usuário</button>
@@ -259,6 +231,15 @@ export const UserManagementPage = (): JSX.Element => {
             </form>
           </div>
         )}
+
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando usuários...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
+        {actionError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
 
         {/* Tabs */}
         <div className="flex gap-6 mb-6 border-b border-[#efe6e6] overflow-x-auto">

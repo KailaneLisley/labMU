@@ -1,7 +1,7 @@
 import { FormEvent, useState, useMemo, useEffect } from "react";
 import { Plus, Edit2, MoreVertical, Search } from "lucide-react";
-import { usePersistentState } from "../../hooks/usePersistentState";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
 
 type MachineType = "printer_3d_fdm" | "printer_3d_resin" | "scanner";
 type MachineTypeFilter = MachineType | "3d" | "all";
@@ -24,122 +24,31 @@ interface Machine {
   updatedAt: Date;
 }
 
-const mockMachines: Machine[] = [
-  {
-    id: "1",
-    name: "Creality K1 Max",
-    tag: "TAG #N01",
-    type: "printer_3d_fdm",
-    dimensions: "380x380mm",
-    location: { bench: "Bancada 01", room: "Oficina Principal" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
+const toMachine = (m: any): Machine => ({
+  id: String(m.id),
+  name: m.name,
+  tag: m.tag,
+  type: m.type,
+  dimensions: m.dimensions,
+  location: {
+    bench: m.location?.bench || m.bench || "",
+    room: m.location?.room || m.room || "",
   },
-  {
-    id: "2",
-    name: "Bambu Lab X1-Carbon",
-    tag: "TAG #N02",
-    type: "printer_3d_fdm",
-    dimensions: "AMS 4-cores",
-    location: { bench: "Bancada 01", room: "Ala Precisão" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: "3",
-    name: "Creality Ender 3 S1",
-    tag: "TAG #N03",
-    type: "printer_3d_fdm",
-    dimensions: "220x220mm",
-    location: { bench: "Bancada 02", room: "Oficina Principal" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: "4",
-    name: "Elegoo Saturn 3 12K",
-    tag: "TAG #N04",
-    type: "printer_3d_resin",
-    dimensions: "Resina 405nm",
-    location: { bench: "Bancada Química", room: "Estação Isolada" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: "5",
-    name: "Creality Ender 3 v2",
-    tag: "TAG #N05",
-    type: "printer_3d_fdm",
-    dimensions: "Nivelamento manual",
-    location: { bench: "Bancada 02", room: "Mesa de Ajuste" },
-    status: "manutencao",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: "6",
-    name: "EinScan Pro HD",
-    tag: "TAG #S01",
-    type: "scanner",
-    dimensions: "Luz Estruturada",
-    location: { bench: "Sala de Captura", room: "Mesa Giratória" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: "7",
-    name: "Creality CR-Scan Ferret",
-    tag: "TAG #S02",
-    type: "scanner",
-    dimensions: "Portátil: b.jff",
-    location: { bench: "Sala de Captura", room: "Uso Externo/Móvel" },
-    status: "ativa",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+  status: m.status,
+  lastMaintenance: m.lastMaintenance ? new Date(m.lastMaintenance) : undefined,
+  nextMaintenanceDate: m.nextMaintenanceDate ? new Date(m.nextMaintenanceDate) : undefined,
+  createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+  updatedAt: m.updatedAt ? new Date(m.updatedAt) : new Date(),
+});
+
+async function loadMachines(): Promise<Machine[]> {
+  const res = await api.getMachines();
+  return (res.machines ?? []).map(toMachine);
+}
 
 export const MachinesPage = (): JSX.Element => {
-  const [machines, setMachines] = usePersistentState<Machine[]>("labmu:machines", mockMachines);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .getMachines()
-      .then((res) => {
-        if (!active || !res || !Array.isArray(res.machines)) return;
-        const apiMachines: Machine[] = res.machines.map((m: any) => ({
-          id: String(m.id),
-          name: m.name,
-          tag: m.tag,
-          type: m.type,
-          dimensions: m.dimensions,
-          location: {
-            bench: m.location?.bench || m.bench || "",
-            room: m.location?.room || m.room || "",
-          },
-          status: m.status,
-          lastMaintenance: m.lastMaintenance ? new Date(m.lastMaintenance) : undefined,
-          nextMaintenanceDate: m.nextMaintenanceDate ? new Date(m.nextMaintenanceDate) : undefined,
-          createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-          updatedAt: m.updatedAt ? new Date(m.updatedAt) : new Date(),
-        }));
-        if (apiMachines.length > 0) {
-          setMachines(apiMachines);
-        }
-      })
-      .catch(() => {
-        // Fallback gracioso mantendo os dados persistidos localmente
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { data: machines, loading, error: loadError, reload } = useApiData<Machine[]>(loadMachines, []);
+  const [actionError, setActionError] = useState("");
   const [selectedType, setSelectedType] = useState<MachineTypeFilter>("all");
   const [selectedStatus, setSelectedStatus] = useState<MachineStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -214,7 +123,6 @@ export const MachinesPage = (): JSX.Element => {
       setEditorError("Já existe uma máquina cadastrada com esta TAG.");
       return;
     }
-    const now = new Date();
     const payload = {
       name: formData.name.trim(),
       tag: formData.tag.trim().toUpperCase(),
@@ -226,50 +134,27 @@ export const MachinesPage = (): JSX.Element => {
 
     try {
       if (editingMachineId) {
-        await api.updateMachine(editingMachineId, payload).catch(() => null);
-        setMachines((current) =>
-          current.map((machine) =>
-            machine.id === editingMachineId
-              ? {
-                  ...machine,
-                  ...payload,
-                  updatedAt: now,
-                }
-              : machine,
-          ),
-        );
+        await api.updateMachine(editingMachineId, payload);
       } else {
-        let createdId = `${Date.now()}`;
-        try {
-          const res = await api.createMachine(payload);
-          if (res?.machine?.id) createdId = String(res.machine.id);
-        } catch {
-          // Fallback caso a API esteja temporariamente offline
-        }
-
-        setMachines((current) => [
-          ...current,
-          {
-            id: createdId,
-            ...payload,
-            createdAt: now,
-            updatedAt: now,
-          },
-        ]);
+        await api.createMachine(payload);
       }
       setEditorOpen(false);
       setEditorError("");
+      reload();
     } catch (err: any) {
       setEditorError(err?.message || "Erro ao salvar máquina.");
     }
   };
 
-  const setMachineStatus = (id: string, status: MachineStatus) => {
-    api.updateMachine(id, { status }).catch(() => null);
-    setMachines((current) =>
-      current.map((machine) => (machine.id === id ? { ...machine, status, updatedAt: new Date() } : machine)),
-    );
+  const setMachineStatus = async (id: string, status: MachineStatus) => {
     setMenuOpen(null);
+    setActionError("");
+    try {
+      await api.updateMachine(id, { status });
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || "Não foi possível alterar a situação da máquina.");
+    }
   };
 
   const deleteMachine = (machine: Machine) => {
@@ -277,12 +162,17 @@ export const MachinesPage = (): JSX.Element => {
     setMenuOpen(null);
   };
 
-  const confirmDeleteMachine = () => {
+  const confirmDeleteMachine = async () => {
     if (!machineToDelete) return;
     const id = machineToDelete.id;
-    api.deleteMachine(id).catch(() => null);
-    setMachines((current) => current.filter((item) => item.id !== id));
     setMachineToDelete(null);
+    setActionError("");
+    try {
+      await api.deleteMachine(id);
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || "Não foi possível remover a máquina.");
+    }
   };
 
   const getTypeIcon = (type: MachineType) => {
@@ -403,6 +293,15 @@ export const MachinesPage = (): JSX.Element => {
             </form>
           </div>
         )}
+
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando máquinas...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
+        {actionError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

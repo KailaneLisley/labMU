@@ -134,13 +134,16 @@ export class UsersService {
     const id = `usr-${data.role}-${crypto.randomUUID()}`;
     const initials = name.split(/\s+/).slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
-    let passwordHash: string | null = null;
-    if (data.password) {
-      passwordHash = await hashPassword(data.password);
-    } else if (data.role === "administrador" || data.role === "tecnico") {
-      // Senha temporária padrão se não enviada
-      passwordHash = await hashPassword("Mudar@123");
+    // Técnico e administrador entram no sistema, então precisam de senha inicial própria.
+    // Não há senha padrão: uma senha conhecida em todos os cadastros seria uma brecha.
+    const needsLogin = data.role === "administrador" || data.role === "tecnico";
+    if (needsLogin && !data.password) {
+      throw new AppError("Informe uma senha inicial para o técnico ou administrador.", 400, "PASSWORD_REQUIRED");
     }
+    if (data.password && (data.password.length < 8 || !/[A-Za-z]/.test(data.password) || !/\d/.test(data.password))) {
+      throw new AppError("A senha deve conter ao menos 8 caracteres, com letras e números.", 400, "WEAK_PASSWORD");
+    }
+    const passwordHash = data.password ? await hashPassword(data.password) : null;
 
     const avatarColors = {
       tecnico: "bg-orange-200",
