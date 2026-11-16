@@ -10,6 +10,17 @@ Ao importar o repositório na Vercel:
 - Não configure um comando `app.listen()` para produção. A Vercel usa `src/server.ts`, que exporta o Express app como default.
 - Para desenvolvimento local, use `npm run dev`; ele inicia `src/localServer.ts` e executa o bootstrap uma única vez na inicialização.
 
+
+## Configuração do frontend
+
+Se o frontend for publicado em um projeto Vercel separado, configure no projeto do frontend:
+
+- **Root Directory:** `Implementacao/frontend/perfil_adm`
+- **Environment Variable:** `VITE_API_URL=https://<dominio-do-backend>/api`
+- Faça um novo deploy do frontend após salvar a variável.
+
+No projeto do backend, `CORS_ORIGINS` deve conter a origem exata do frontend (por exemplo, `https://labmu.vercel.app`), sem caminho `/api`. O frontend já falha explicitamente em produção se `VITE_API_URL` não estiver configurada.
+
 ## Variáveis de ambiente
 
 Configure em **Project Settings → Environment Variables** (Production, Preview e Development conforme necessário):
