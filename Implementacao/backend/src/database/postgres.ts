@@ -16,10 +16,13 @@ type RunResult<T extends QueryResultRow = QueryResultRow> = {
 // (contagens e expiração JWT em segundos) permanecem dentro da faixa segura de Number.
 types.setTypeParser(20, (value) => Number(value));
 
-const databaseUrl = process.env.DATABASE_URL;
+const isTestEnvironment = process.env.NODE_ENV === "test";
+const databaseUrl = isTestEnvironment ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL precisa ser definida para usar o PostgreSQL.");
+  throw new Error(isTestEnvironment
+    ? "TEST_DATABASE_URL precisa apontar para um banco PostgreSQL isolado para executar os testes."
+    : "DATABASE_URL precisa ser definida para usar o PostgreSQL.");
 }
 
 // Em serverless, mantenha o pool pequeno para não esgotar as conexões do Supabase.
