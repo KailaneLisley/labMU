@@ -167,7 +167,7 @@ export class MachinesService {
 
     await postgres.run(
       `UPDATE machines
-       SET name = ?, tag = ?, type = ?, dimensions = ?, bench = ?, room = ?, status = ?, last_maintenance = ?, next_maintenance_date = ?, updated_at = CURRENT_TIMESTAMP
+       SET name = ?, tag = ?, type = ?, dimensions = ?, bench = ?, room = ?, status = ?, last_maintenance = ?, next_maintenance_date = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       tag,
@@ -193,7 +193,7 @@ export class MachinesService {
 
     if (hasMaintenance || hasProduction) {
       // Arquivamento / Inativação segura para não quebrar histórico auditável
-      await postgres.run(`UPDATE machines SET status = 'inativa', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id);
+      await postgres.run(`UPDATE machines SET status = 'inativa', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, id);
       return { message: "Máquina possui histórico e foi marcada como inativa." };
     }
 
