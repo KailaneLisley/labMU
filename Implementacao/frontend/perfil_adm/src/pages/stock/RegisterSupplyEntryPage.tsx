@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, ArrowLeft } from "lucide-react";
-import { usePersistentState } from "../../hooks/usePersistentState";
-import { initialSupplies, Supply, SupplyEntry, SUPPLIES_STORAGE_KEY } from "../../data/supplies";
+import { Supply, SupplyEntry } from "../../data/supplies";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
+import { loadSupplies, loadSupplyEntries } from "../../services/mappers";
 
 const guidelines = [
   "Pesar cada carretel individualmente antes de registrar para descontar a tara plástica (aprox. 200g por carretel padrão).",
@@ -13,8 +14,8 @@ const guidelines = [
 
 export const RegisterSupplyEntryPage = (): JSX.Element => {
   const navigate = useNavigate();
-  const [supplies, setSupplies] = usePersistentState<Supply[]>(SUPPLIES_STORAGE_KEY, initialSupplies);
-  const [recentEntries, setRecentEntries] = usePersistentState<SupplyEntry[]>("labmu:supply-entries", []);
+  const { data: supplies, loading, error: loadError, reload } = useApiData<Supply[]>(loadSupplies, []);
+  const { data: recentEntries } = useApiData<SupplyEntry[]>(loadSupplyEntries, []);
   const [selectedSupplyId, setSelectedSupplyId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [units, setUnits] = useState<string>("");
@@ -37,26 +38,27 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
     setQuantity((current + amount).toFixed(1));
   };
 
-  const handleCreateSupply = () => {
+  const handleCreateSupply = async () => {
     if (!newSupplyName.trim() || !newSupplyType.trim()) {
       setFormError("Informe o nome e o tipo do insumo.");
       return;
     }
     setFormError("");
-    const newSupply: Supply = {
-      id: `${Date.now()}`,
-      name: newSupplyName.trim(),
-      type: newSupplyType.trim(),
-      color: newSupplyColor.trim() || "Não informado",
-      balance: 0,
-      status: "critico",
-    };
-    setSupplies((current) => [...current, newSupply]);
-    setSelectedSupplyId(newSupply.id);
-    setNewSupplyName("");
-    setNewSupplyType("");
-    setNewSupplyColor("");
-    setShowNewSupply(false);
+    try {
+      const res = await api.createSupply({
+        name: newSupplyName.trim(),
+        type: newSupplyType.trim(),
+        color: newSupplyColor.trim() || "Não informado",
+      });
+      setSelectedSupplyId(String(res.supply.id));
+      setNewSupplyName("");
+      setNewSupplyType("");
+      setNewSupplyColor("");
+      setShowNewSupply(false);
+      reload();
+    } catch (err: any) {
+      setFormError(err?.message || "Não foi possível cadastrar o insumo.");
+    }
   };
 
   const handleConfirm = async () => {
@@ -65,37 +67,18 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
       return;
     }
     setFormError("");
-
-    await api.registerSupplyEntry({
-      supplyId: selectedSupply.id,
-      quantity: quantityNum,
-      lot: lot.trim(),
-      observations: observations.trim(),
-    }).catch(() => null);
-
-    setSupplies((current) =>
-      current.map((supply) =>
-        supply.id === selectedSupply.id
-          ? {
-              ...supply,
-              balance: newBalance,
-              status: newBalance < 0.5 ? "critico" : newBalance < 2 ? "abaixo" : "regular",
-            }
-          : supply,
-      ),
-    );
-    setRecentEntries((current) => [
-      {
-        id: `${Date.now()}`,
-        name: selectedSupply.name,
+    try {
+      await api.registerSupplyEntry({
+        supplyId: selectedSupply.id,
         quantity: quantityNum,
-        date: new Date().toLocaleDateString("pt-BR"),
-        units: units.trim(),
         lot: lot.trim(),
         observations: observations.trim(),
-      },
-      ...current,
-    ]);
+      });
+    } catch (err: any) {
+      // Só navega depois que o servidor confirmou a entrada
+      setFormError(err?.message || "Não foi possível registrar a entrada.");
+      return;
+    }
     navigate("/estoque");
   };
 
@@ -120,6 +103,13 @@ export const RegisterSupplyEntryPage = (): JSX.Element => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando insumos...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
         {/* Header */}
         <div className="mb-8">
           <div className="inline-block bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded mb-4">

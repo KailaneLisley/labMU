@@ -55,7 +55,6 @@ src/
 │   └── exportCsv.ts               # Função utilitária para converter arrays em download de CSV
 │
 ├── hooks/                         # React Custom Hooks
-│   └── usePersistentState.ts      # Hook que sincroniza estado React com localStorage
 │
 └── data/                          # Dados estáticos para demonstração offline
     ├── users.ts                   # Lista inicial de usuários padrão e seed

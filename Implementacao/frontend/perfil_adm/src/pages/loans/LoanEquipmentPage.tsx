@@ -1,9 +1,10 @@
 import { FormEvent, useState, useMemo, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { usePersistentState } from "../../hooks/usePersistentState";
-import { Equipment, initialEquipment, LoanStatus, LOANS_STORAGE_KEY } from "../../data/loans";
+import { Equipment, LoanStatus } from "../../data/loans";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
+import { loadEquipment } from "../../services/mappers";
 
 const getStatusColor = (status: LoanStatus) => {
   switch (status) {
@@ -37,32 +38,8 @@ const getStatusLabel = (status: LoanStatus) => {
 
 export const LoanEquipmentPage = (): JSX.Element => {
   const navigate = useNavigate();
-  const [equipment, setEquipment] = usePersistentState<Equipment[]>(LOANS_STORAGE_KEY, initialEquipment);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .getEquipment()
-      .then((res) => {
-        if (!active || !res || !Array.isArray(res.equipment)) return;
-        const apiEquipment: Equipment[] = res.equipment.map((e: any) => ({
-          id: String(e.id),
-          name: e.name,
-          code: e.code || e.tag || "EQ-000",
-          responsible: e.responsible || "—",
-          dueDate: e.due_date || (e.status === "disponivel" ? "Disponível" : "Devolvido"),
-          status: e.status || "disponivel",
-        }));
-        if (apiEquipment.length > 0) {
-          setEquipment(apiEquipment);
-        }
-      })
-      .catch(() => null);
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { data: equipment, loading, error: loadError, reload } = useApiData<Equipment[]>(loadEquipment, []);
+  const [actionError, setActionError] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<LoanStatus | "todos" | "ativos">("todos");
   const [searchQuery, setSearchQuery] = useState("");
   const activeCount = equipment.filter((item) => !["disponivel", "devolvido"].includes(item.status)).length;
@@ -113,45 +90,46 @@ export const LoanEquipmentPage = (): JSX.Element => {
   const handleBorrow = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!loanTarget) return;
-
-    await api.checkoutLoan({
-      equipmentId: loanTarget.id,
-      borrowerName: borrower.trim(),
-      expectedReturnDate: dueDate,
-    }).catch(() => null);
-
-    setEquipment((current) =>
-      current.map((item) =>
-        item.id === loanTarget.id
-          ? {
-              ...item,
-              responsible: borrower.trim(),
-              dueDate: new Date(`${dueDate}T12:00:00`).toLocaleDateString("pt-BR"),
-              status: "em_campo",
-            }
-          : item,
-      ),
-    );
-    setLoanTarget(null);
+    setActionError("");
+    try {
+      // Os nomes dos campos são os que a API espera (responsibleName, dueDate)
+      await api.checkoutLoan({
+        equipmentId: loanTarget.id,
+        responsibleName: borrower.trim(),
+        dueDate,
+      });
+      setLoanTarget(null);
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || "Não foi possível registrar a retirada.");
+    }
   };
 
   const confirmReturn = async () => {
     if (!returnTarget) return;
-
-    await api.returnLoan(returnTarget.id).catch(() => null);
-
-    setEquipment((current) =>
-      current.map((item) =>
-        item.id === returnTarget.id
-          ? { ...item, responsible: "—", dueDate: "Devolvido", status: "devolvido" }
-          : item,
-      ),
-    );
-    setReturnTarget(null);
+    setActionError("");
+    if (!returnTarget.currentLoanId) {
+      setActionError("Este equipamento não tem empréstimo aberto para devolver.");
+      return;
+    }
+    try {
+      await api.returnLoan(returnTarget.currentLoanId);
+      setReturnTarget(null);
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || "Não foi possível registrar a devolução.");
+    }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
+      {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando equipamentos...</p>}
+      {loadError && (
+        <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {loadError}{" "}
+          <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+        </p>
+      )}
+      {actionError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {/* Page Header */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">

@@ -122,7 +122,7 @@ export const api = {
     if (params.status) query.set("status", params.status);
     if (params.page) query.set("page", String(params.page));
     if (params.limit) query.set("limit", String(params.limit));
-    return request<{ data: any[]; total: number; page: number; limit: number }>(`/users?${query}`);
+    return request<{ data: any[]; total: number; page: number; limit: number; totalPages: number }>(`/users?${query}`);
   },
 
   createUser: (userData: any) =>
@@ -200,6 +200,12 @@ export const api = {
     if (params.type) query.set("type", params.type);
     return request<{ supplies: any[] }>(`/supplies?${query}`);
   },
+
+  createSupply: (supplyData: { name: string; type: string; color: string; balance?: number; minimumBalance?: number }) =>
+    request<{ supply: any }>("/supplies", {
+      method: "POST",
+      body: JSON.stringify(supplyData),
+    }),
 
   registerSupplyEntry: (entryData: any) =>
     request<{ supply: any; movementId: string }>("/supplies/entries", {

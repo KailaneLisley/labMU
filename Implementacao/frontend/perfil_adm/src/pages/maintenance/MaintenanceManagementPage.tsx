@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import { downloadCsv } from "../../lib/exportCsv";
+import { useApiData } from "../../hooks/useApiData";
+import { api } from "../../services/api";
 
 type MaintenanceType = "preventiva" | "corretiva";
-type MaintenanceStatus = "concluida" | "liberada" | "agendada";
+type MaintenanceStatus = "agendada" | "em_andamento" | "concluida" | "cancelada";
 
 interface MaintenanceRecord {
   id: string;
@@ -16,66 +18,73 @@ interface MaintenanceRecord {
   parts: boolean;
 }
 
-const mockRecords: MaintenanceRecord[] = [
-  {
-    id: "1",
-    machine: "Ender 3 v2 #05",
-    tag: "FAB-3D-005",
-    date: "24 Out 2024",
-    type: "corretiva",
-    technician: "Matheus Silva",
-    status: "liberada",
-    parts: true,
-  },
-  {
-    id: "2",
-    machine: "Creality K1 Max #01",
-    tag: "FAB-3D-001",
-    date: "22 Out 2024",
-    type: "preventiva",
-    technician: "Carla Albuquerque",
-    status: "concluida",
-    parts: false,
-  },
-  {
-    id: "3",
-    machine: "EinScan Pro HD #01",
-    tag: "SCN-OPT-001",
-    date: "18 Out 2024",
-    type: "preventiva",
-    technician: "Matheus Silva",
-    status: "concluida",
-    parts: true,
-  },
-  {
-    id: "4",
-    machine: "Anycubic Photon #02",
-    tag: "RES-SLA-002",
-    date: "11 Out 2024",
-    type: "corretiva",
-    technician: "Juliana Ramos",
-    status: "liberada",
-    parts: true,
-  },
-  {
-    id: "5",
-    machine: "FlashForge Creator #06",
-    tag: "FAB-3D-006",
-    date: "05 Out 2024",
-    type: "preventiva",
-    technician: "Carla Albuquerque",
-    status: "concluida",
-    parts: false,
-  },
-];
+interface MachineSummary {
+  type: "printer_3d_fdm" | "printer_3d_resin" | "scanner";
+  status: "ativa" | "manutencao" | "inativa";
+  nextMaintenanceDate: string | null;
+}
+
+interface MaintenanceData {
+  records: MaintenanceRecord[];
+  machines: MachineSummary[];
+  metrics: { totalMaintenances: number; preventiveCount: number; correctiveCount: number };
+}
+
+const formatIsoDate = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : value;
+
+const statusLabels: Record<MaintenanceStatus, string> = {
+  agendada: "Agendada",
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  cancelada: "Cancelada",
+};
+
+const percent = (part: number, total: number) => (total ? Math.round((part / total) * 1000) / 10 : 0);
+
+// Carrega manutenções, máquinas e totais do relatório, tudo do servidor
+async function loadMaintenanceData(): Promise<MaintenanceData> {
+  const [recordsRes, machinesRes, reportRes] = await Promise.all([
+    api.getMaintenances(),
+    api.getMachines(),
+    api.getReports("maintenances"),
+  ]);
+  return {
+    records: (recordsRes.records ?? []).map((r: any) => ({
+      id: String(r.id),
+      machine: r.machine_name || "Máquina removida",
+      tag: r.machine_tag || "",
+      date: formatIsoDate(r.date),
+      type: r.type,
+      technician: r.technician_name || "—",
+      status: r.status,
+      parts: Boolean(r.parts && String(r.parts).trim()),
+    })),
+    machines: (machinesRes.machines ?? []).map((m: any) => ({
+      type: m.type,
+      status: m.status,
+      nextMaintenanceDate: m.nextMaintenanceDate ?? null,
+    })),
+    metrics: reportRes.metrics ?? { totalMaintenances: 0, preventiveCount: 0, correctiveCount: 0 },
+  };
+}
+
+const EMPTY: MaintenanceData = {
+  records: [],
+  machines: [],
+  metrics: { totalMaintenances: 0, preventiveCount: 0, correctiveCount: 0 },
+};
 
 export const MaintenanceManagementPage = (): JSX.Element => {
+  const { data, loading, error: loadError, reload } = useApiData<MaintenanceData>(loadMaintenanceData, EMPTY);
   const [selectedTab, setSelectedTab] = useState<"todos" | "preventivas" | "corretivas" | "pecas">("todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
+
+  const records = data.records;
   const filteredRecords = useMemo(
     () =>
-      mockRecords.filter((record) => {
+      records.filter((record) => {
         const typeMatch =
           selectedTab === "todos" ||
           (selectedTab === "preventivas" && record.type === "preventiva") ||
@@ -84,8 +93,24 @@ export const MaintenanceManagementPage = (): JSX.Element => {
         const query = searchQuery.trim().toLowerCase();
         return typeMatch && `${record.machine} ${record.tag} ${record.technician}`.toLowerCase().includes(query);
       }),
-    [selectedTab, searchQuery],
+    [records, selectedTab, searchQuery],
   );
+
+  // Indicadores calculados a partir dos dados da API
+  const machines = data.machines;
+  const activeMachines = machines.filter((m) => m.status === "ativa").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const preventiveOnTime = machines.filter((m) => m.nextMaintenanceDate && m.nextMaintenanceDate >= today).length;
+
+  const categories = [
+    { label: "Impressão 3D FDM", types: ["printer_3d_fdm"], color: "bg-[#8B1329]" },
+    { label: "Impressão Resina SLA/LCD", types: ["printer_3d_resin"], color: "bg-yellow-600" },
+    { label: "Scanners 3D", types: ["scanner"], color: "bg-[#8B1329]" },
+  ].map((category) => {
+    const group = machines.filter((m) => category.types.includes(m.type));
+    const active = group.filter((m) => m.status === "ativa").length;
+    return { ...category, total: group.length, active, pct: percent(active, group.length) };
+  });
 
   const exportRecords = () => {
     downloadCsv("manutencoes-labmu.csv", [
@@ -96,7 +121,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
         record.date,
         record.type,
         record.technician,
-        record.status,
+        statusLabels[record.status],
         record.parts ? "Sim" : "Não",
       ]),
     ]);
@@ -132,7 +157,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm">
-              <span>📅 Semestre 2024.2 (Jul - Dez)</span>
+              <span>📅 Histórico completo</span>
             </div>
             <button onClick={exportRecords} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
               <Download className="w-4 h-4" />
@@ -141,42 +166,50 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           </div>
         </div>
 
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando manutenções...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Disponibilidade Geral</p>
-                <p className="text-4xl font-bold text-[#1f1a1b]">96.4%</p>
-                <p className="text-xs text-[#7a6e70] mt-1">Uptime</p>
+                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Máquinas Disponíveis</p>
+                <p className="text-4xl font-bold text-[#1f1a1b]">{percent(activeMachines, machines.length)}%</p>
+                <p className="text-xs text-[#7a6e70] mt-1">Status "ativa" sobre o total</p>
               </div>
               <span className="text-3xl">⚙️</span>
             </div>
-            <p className="text-xs text-[#7a6e70]">Meta semestral atingida (&gt;95%)</p>
+            <p className="text-xs text-[#7a6e70]">{activeMachines} de {machines.length} máquinas ativas</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Preventivas em Dia</p>
-                <p className="text-4xl font-bold text-[#1f1a1b]">14<span className="text-lg">/16</span></p>
+                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Preventivas no Prazo</p>
+                <p className="text-4xl font-bold text-[#1f1a1b]">{preventiveOnTime}<span className="text-lg">/{machines.length}</span></p>
                 <p className="text-xs text-[#7a6e70] mt-1">Máquinas</p>
               </div>
               <span className="text-3xl">📋</span>
             </div>
-            <p className="text-xs text-[#7a6e70]">2 intervenções agendadas no mês</p>
+            <p className="text-xs text-[#7a6e70]">Próxima preventiva ainda não vencida</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Corretivas no Semestre</p>
-                <p className="text-4xl font-bold text-[#1f1a1b]">03</p>
+                <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Corretivas Registradas</p>
+                <p className="text-4xl font-bold text-[#1f1a1b]">{String(data.metrics.correctiveCount).padStart(2, "0")}</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Ocorrências</p>
               </div>
               <span className="text-3xl">🔧</span>
             </div>
-            <p className="text-xs text-[#7a6e70]">Tempo médio de reparo: 3.2h MTTR</p>
+            <p className="text-xs text-[#7a6e70]">{data.metrics.totalMaintenances} manutenções no total</p>
           </div>
         </div>
 
@@ -187,53 +220,21 @@ export const MaintenanceManagementPage = (): JSX.Element => {
               <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-1">Saúde Operacional</p>
               <h2 className="text-2xl font-bold text-[#1f1a1b]">Disponibilidade por Categoria</h2>
             </div>
-            <span className="text-sm text-[#7a6e70]">16 Máquinas Totais</span>
+            <span className="text-sm text-[#7a6e70]">{machines.length} máquinas cadastradas</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* FDM Printers */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-[#1f1a1b]">Impressão 3D FDM (8 un)</p>
-                <p className="font-bold text-[#8B1329]">97.8%</p>
+            {categories.map((category) => (
+              <div key={category.label}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-[#1f1a1b]">{category.label} ({category.total} un)</p>
+                  <p className="font-bold text-[#8B1329]">{category.pct}%</p>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className={`${category.color} h-2 rounded-full`} style={{ width: `${category.pct}%` }}></div>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-[#8B1329] h-2 rounded-full" style={{ width: "97.8%" }}></div>
-              </div>
-            </div>
-
-            {/* Resin Printers */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-[#1f1a1b]">Impressão Resina SLA/LCD (4 un)</p>
-                <p className="font-bold text-yellow-700">93.2%</p>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-yellow-600 h-2 rounded-full" style={{ width: "93.2%" }}></div>
-              </div>
-            </div>
-
-            {/* Scanners */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-[#1f1a1b]">Scanners 3D Ópticos (2 un)</p>
-                <p className="font-bold text-[#8B1329]">100.0%</p>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-[#8B1329] h-2 rounded-full" style={{ width: "100%" }}></div>
-              </div>
-            </div>
-
-            {/* Post-Cure Benches */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-[#1f1a1b]">Bancadas de Pós-Cura (2 un)</p>
-                <p className="font-bold text-[#8B1329]">95.0%</p>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-[#8B1329] h-2 rounded-full" style={{ width: "95%" }}></div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -242,7 +243,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           <div className="mb-6">
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-1">Auditoria Técnica</p>
             <h2 className="text-2xl font-bold text-[#1f1a1b] mb-4">Livro Oficial de Ordens & Ocorrências</h2>
-            <p className="text-sm text-[#7a6e70]">18 Registros no semestre</p>
+            <p className="text-sm text-[#7a6e70]">{records.length} registros</p>
           </div>
 
           {/* Tabs */}
@@ -311,7 +312,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                       <p className="text-sm text-[#1f1a1b]">{record.technician}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-semibold text-[#1f1a1b] capitalize">{record.status}</p>
+                      <p className="text-sm font-semibold text-[#1f1a1b]">{statusLabels[record.status]}</p>
                     </td>
                     <td className="px-6 py-4">
                       <button onClick={() => setSelectedRecord(record)} className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">Ver Ficha</button>
@@ -321,13 +322,13 @@ export const MaintenanceManagementPage = (): JSX.Element => {
               </tbody>
             </table>
           </div>
-          {filteredRecords.length === 0 && (
+          {!loading && filteredRecords.length === 0 && (
             <p className="py-8 text-center text-sm text-[#7a6e70]">Nenhuma manutenção encontrada.</p>
           )}
 
           {/* Pagination */}
           <div className="mt-6 flex items-center justify-between text-sm text-[#7a6e70]">
-            <p>Mostrando {filteredRecords.length} de {mockRecords.length} registros</p>
+            <p>Mostrando {filteredRecords.length} de {records.length} registros</p>
           </div>
         </div>
       </div>
@@ -340,7 +341,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
             <p><strong>Data:</strong> {selectedRecord.date}</p>
             <p><strong>Tipo:</strong> {getTypeLabel(selectedRecord.type)}</p>
             <p><strong>Técnico:</strong> {selectedRecord.technician}</p>
-            <p><strong>Status:</strong> {selectedRecord.status}</p>
+            <p><strong>Status:</strong> {statusLabels[selectedRecord.status]}</p>
             <p><strong>Peças utilizadas:</strong> {selectedRecord.parts ? "Sim" : "Não"}</p>
             <button onClick={() => setSelectedRecord(null)} className="mt-2 rounded-lg bg-[#8B1329] px-4 py-2 font-semibold text-white">Fechar</button>
           </div>

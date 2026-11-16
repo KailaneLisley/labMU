@@ -1,15 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import { usePersistentState } from "../../hooks/usePersistentState";
-import { Equipment, initialEquipment, LOANS_STORAGE_KEY } from "../../data/loans";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
+import { loadEquipment } from "../../services/mappers";
 
 type ConservationState = "novo" | "excelente" | "calibracao";
 
+const conservationLabels: Record<ConservationState, string> = {
+  novo: "Novo",
+  excelente: "Excelente",
+  calibracao: "Calibrado",
+};
+
 export const RegisterEquipmentPage = (): JSX.Element => {
   const navigate = useNavigate();
-  const [equipment, setEquipment] = usePersistentState<Equipment[]>(LOANS_STORAGE_KEY, initialEquipment);
+  const { data: equipment } = useApiData(loadEquipment, []);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -41,33 +47,22 @@ export const RegisterEquipmentPage = (): JSX.Element => {
     }
     setSubmitError("");
 
-    let createdId = `${Date.now()}`;
     try {
-      const res = await api.createEquipment({
+      // A API guarda a conservação no campo "condition", com o texto de exibição
+      await api.createEquipment({
         name: formData.name.trim(),
         code: formData.tag.trim(),
         category: formData.category,
         location: formData.location.trim(),
         serialNumber: formData.serialNumber.trim(),
-        conservation: formData.conservation,
+        condition: conservationLabels[formData.conservation],
         accessories: formData.accessories.trim(),
       });
-      if (res?.item?.id) createdId = String(res.item.id);
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      // Só sai da tela depois que o servidor confirmou o cadastro
+      setSubmitError(err?.message || "Não foi possível cadastrar o equipamento.");
+      return;
     }
-
-    setEquipment((current) => [
-      ...current,
-      {
-        id: createdId,
-        name: formData.name.trim(),
-        code: formData.tag.trim(),
-        responsible: "—",
-        dueDate: "Disponível",
-        status: "disponivel",
-      },
-    ]);
     navigate("/emprestimo");
   };
 

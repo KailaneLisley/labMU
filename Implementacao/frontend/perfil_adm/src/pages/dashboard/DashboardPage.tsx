@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock, AlertCircle, AlertTriangle, Clock3 } from "lucide-react";
 import { api } from "../../services/api";
+import { useApiData } from "../../hooks/useApiData";
 
 interface QuickAction {
   id: string;
@@ -38,101 +38,109 @@ const quickActions: QuickAction[] = [
   { id: "5", label: "Exportar Relatório", icon: "📥", path: "/relatorios" },
 ];
 
-const kpis = [
-  {
-    title: "USUÁRIOS CADASTRADOS",
-    value: "48",
-    unit: "ativos",
-    details: ["12 Técnicos", "36 Clientes"],
-    icon: "👥",
-  },
-  {
-    title: "MÁQUINAS OPERANTES",
-    value: "6/8",
-    unit: "ativas",
-    details: ["2 em manutenção preventiva"],
-    icon: "⚙️",
-  },
-  {
-    title: "EMPRÉSTIMOS ATIVOS",
-    value: "9",
-    unit: "equipamentos em campo",
-    details: ["1 devolução prevista para hoje"],
-    icon: "📦",
-  },
-  {
-    title: "FILAMENTO DISPONÍVEL",
-    value: "14.5",
-    unit: "kg",
-    details: ["Estoque total de insumos labMU"],
-    icon: "📊",
-  },
-];
+interface Kpi {
+  title: string;
+  value: string;
+  unit: string;
+  details: string[];
+  icon: string;
+}
 
-const productions: Production[] = [
-  {
-    id: "1",
-    name: "Maquete Topográfica Bloco G",
-    technicians: ["Rafael Mendes"],
-    requesters: ["Profa. Clarice Leão"],
-    status: "em_impressao",
-    time: "Hoje, 14:20",
-  },
-  {
-    id: "2",
-    name: "Painel Acrílico Perfurado 3mm",
-    technicians: ["Mariana Fontes"],
-    requesters: ["Lucas Siqueira (Arq 8º)"],
-    status: "concluido",
-    time: "Hoje, 11:45",
-  },
-  {
-    id: "3",
-    name: "Estrutura Treliçada Bambu/MDF",
-    technicians: ["Mariana Fontes"],
-    requesters: ["Lab. Conforto Ambiental"],
-    status: "fila_laser",
-    time: "Ontem, 16:30",
-  },
-  {
-    id: "4",
-    name: "Protótipo de Junção Hidráulica 1:1",
-    technicians: ["Lucas Barreira"],
-    requesters: ["Núcleo MUSARQ"],
-    status: "concluido",
-    time: "Ontem, 09:15",
-  },
-];
+interface DashboardView {
+  kpis: Kpi[];
+  productions: Production[];
+  alerts: Alert[];
+}
 
-const alerts: Alert[] = [
-  {
-    id: "1",
-    type: "warning",
-    title: "Manutenção Preventiva",
-    description: "Impressora 3D Creality K1 (M02)",
-    action: "Gerada há máquina",
-    actionLabel: "Agendada",
-    path: "/manutencao",
-  },
-  {
-    id: "2",
-    type: "critical",
-    title: "Estoque Baixo de Insumo",
-    description: "Filamento PLA Cinza 1.75mm (1kg)",
-    action: "Apenas 1 carretel lacrado restante. Demanda alta para projetos do Ateli 4.",
-    actionLabel: "Emitir requisição",
-    path: "/estoque",
-  },
-  {
-    id: "3",
-    type: "info",
-    title: "Empréstimo em Devolução",
-    description: "Scanner 3D Portátil EinScan Pro",
-    action: "Sob responsabilidade de Beatriz Alencar (TCC Arquitetura e Urbanismo).",
-    actionLabel: "Notificar devolução",
-    path: "/emprestimo",
-  },
-];
+const EMPTY_VIEW: DashboardView = { kpis: [], productions: [], alerts: [] };
+
+// Tudo que aparece no painel vem do resumo do servidor. Sem valores de exemplo.
+async function loadDashboard(): Promise<DashboardView> {
+  const data: any = await api.getDashboardSummary();
+  const kpis: Kpi[] = [
+    {
+      title: "USUÁRIOS CADASTRADOS",
+      value: String(data.users?.total ?? 0),
+      unit: "cadastrados",
+      details: [
+        `${data.users?.technicians ?? 0} Técnicos`,
+        `${data.users?.admins ?? 0} Administradores`,
+        `${data.users?.clients ?? 0} Clientes/Alunos`,
+      ],
+      icon: "👥",
+    },
+    {
+      title: "MÁQUINAS OPERANTES",
+      value: `${data.machines?.active ?? 0}/${data.machines?.total ?? 0}`,
+      unit: "ativas",
+      details: [
+        data.machines?.maintenance ? `${data.machines.maintenance} em manutenção` : "Nenhuma em manutenção",
+      ],
+      icon: "⚙️",
+    },
+    {
+      title: "EMPRÉSTIMOS ATIVOS",
+      value: String(data.loans?.active ?? 0),
+      unit: "equipamentos em campo",
+      details: [data.loans?.overdue ? `${data.loans.overdue} devolução(ões) em atraso` : "Nenhum atraso registrado"],
+      icon: "📦",
+    },
+    {
+      title: "FILAMENTO DISPONÍVEL",
+      value: Number(data.supplies?.totalBalanceKg ?? 0).toFixed(1),
+      unit: "kg",
+      details: [
+        data.supplies?.lowStockItems ? `${data.supplies.lowStockItems} insumo(s) em nível baixo ou crítico` : "Estoque balanceado",
+      ],
+      icon: "📊",
+    },
+  ];
+
+  const productions: Production[] = (data.recentProductions ?? []).map((p: any) => ({
+    id: String(p.id),
+    name: p.description || p.type || "Produção",
+    technicians: p.technician_name ? [p.technician_name] : [],
+    requesters: p.client_name ? [p.client_name] : [],
+    status: "concluido",
+    time: p.created_at
+      ? new Date(p.created_at.replace(" ", "T") + "Z").toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+      : "",
+  }));
+
+  const alerts: Alert[] = [];
+  if (data.loans?.overdue > 0) {
+    alerts.push({
+      id: "loans-overdue",
+      type: "critical",
+      title: "Empréstimos em Atraso",
+      description: `${data.loans.overdue} equipamento(s) fora do prazo de devolução`,
+      actionLabel: "Ver empréstimos",
+      path: "/emprestimo",
+    });
+  }
+  if (data.supplies?.lowStockItems > 0) {
+    alerts.push({
+      id: "supplies-low",
+      type: "critical",
+      title: "Estoque Baixo de Insumo",
+      description: `${data.supplies.lowStockItems} insumo(s) abaixo do mínimo`,
+      actionLabel: "Ver estoque",
+      path: "/estoque",
+    });
+  }
+  for (const m of data.upcomingMaintenances ?? []) {
+    alerts.push({
+      id: `m-${m.id}`,
+      type: "warning",
+      title: "Manutenção Agendada",
+      description: `${m.name} (${m.tag})`,
+      actionLabel: "Ver no parque",
+      path: "/maquinas",
+    });
+  }
+
+  return { kpis, productions, alerts };
+}
 
 const getStatusColor = (status: Production["status"]) => {
   switch (status) {
@@ -169,98 +177,11 @@ const getAlertIcon = (type: Alert["type"]) => {
 
 export const DashboardPage = (): JSX.Element => {
   const navigate = useNavigate();
-  const [dashboardKpis, setDashboardKpis] = useState(kpis);
-  const [dashboardProductions, setDashboardProductions] = useState<Production[]>(productions);
-  const [dashboardAlerts, setDashboardAlerts] = useState<Alert[]>(alerts);
+  const { data: view, loading, error: loadError, reload } = useApiData<DashboardView>(loadDashboard, EMPTY_VIEW);
+  const dashboardKpis = view.kpis;
+  const dashboardProductions = view.productions;
+  const dashboardAlerts = view.alerts;
 
-  useEffect(() => {
-    let mounted = true;
-    api
-      .getDashboardSummary()
-      .then((data: any) => {
-        if (!mounted || !data) return;
-
-        // Montar KPIs dinâmicos a partir do backend
-        const dynamicKpis = [
-          {
-            title: "USUÁRIOS CADASTRADOS",
-            value: String(data.users?.total ?? 48),
-            unit: "cadastrados",
-            details: [
-              `${data.users?.technicians ?? 0} Técnicos`,
-              `${data.users?.admins ?? 0} Administradores`,
-              `${data.users?.clients ?? 0} Clientes/Alunos`,
-            ],
-            icon: "👥",
-          },
-          {
-            title: "MÁQUINAS OPERANTES",
-            value: `${data.machines?.active ?? 0}/${data.machines?.total ?? 0}`,
-            unit: "ativas",
-            details: [
-              data.machines?.maintenance
-                ? `${data.machines.maintenance} em manutenção`
-                : "Parque 100% operacional",
-            ],
-            icon: "⚙️",
-          },
-          {
-            title: "EMPRÉSTIMOS ATIVOS",
-            value: String(data.loans?.active ?? 0),
-            unit: "equipamentos em campo",
-            details: [
-              data.loans?.overdue ? `${data.loans.overdue} devolução(ões) em atraso` : "Nenhum atraso registrado",
-            ],
-            icon: "📦",
-          },
-          {
-            title: "FILAMENTO DISPONÍVEL",
-            value: typeof data.supplies?.total_kg === "number" ? data.supplies.total_kg.toFixed(1) : "14.5",
-            unit: "kg",
-            details: [
-              data.supplies?.low_stock
-                ? `${data.supplies.low_stock} insumo(s) em nível crítico`
-                : "Estoque balanceado",
-            ],
-            icon: "📊",
-          },
-        ];
-        setDashboardKpis(dynamicKpis);
-
-        // Se houver produções reais vindas do backend
-        if (Array.isArray(data.recentProductions) && data.recentProductions.length > 0) {
-          const prods: Production[] = data.recentProductions.map((p: any) => ({
-            id: String(p.id),
-            name: p.description || p.type || "Produção",
-            technicians: p.technician_name ? [p.technician_name] : ["Técnico labMU"],
-            requesters: p.client_name ? [p.client_name] : ["Solicitante"],
-            status: "concluido",
-            time: p.created_at ? new Date(p.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "Hoje",
-          }));
-          setDashboardProductions(prods);
-        }
-
-        // Se houver manutenções agendadas, enriquecer os alertas
-        if (Array.isArray(data.upcomingMaintenances) && data.upcomingMaintenances.length > 0) {
-          const mAlerts: Alert[] = data.upcomingMaintenances.map((m: any) => ({
-            id: `m-${m.id}`,
-            type: "warning",
-            title: "Manutenção Agendada",
-            description: `${m.name} (${m.tag})`,
-            actionLabel: "Ver no parque",
-            path: "/maquinas",
-          }));
-          setDashboardAlerts(mAlerts);
-        }
-      })
-      .catch(() => {
-        // Fallback gracioso mantendo os valores padrão se a API estiver inacessível
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff9f6] via-white to-[#fff9f6]">
       {/* Page Header */}
@@ -269,6 +190,16 @@ export const DashboardPage = (): JSX.Element => {
         <p className="text-sm text-[#7a6e70]">
           Visão geral das operações, equipamentos e usuários do labMU
         </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6">
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando painel...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
       </div>
 
       {/* Quick Actions */}

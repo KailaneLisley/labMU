@@ -1,76 +1,138 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { downloadCsv } from "../../lib/exportCsv";
+import { useApiData } from "../../hooks/useApiData";
+import { api } from "../../services/api";
 
-type PeriodType = "semestre" | "mes" | "dias90";
+type PeriodType = "mes" | "dias90" | "todos";
 type ModuleType = "todos" | "impressao3d" | "escaneamento" | "emprestimo";
 
-interface Module {
+interface ModuleRow {
   id: string;
   name: string;
-  orders: number;
+  count: number;
   consumption: string;
-  occupancy: number;
-  status: string;
+  detail: string;
   color: string;
 }
 
-const mockModules: Module[] = [
+interface ReportsView {
+  production: { totalJobs: number; totalHours: number; totalMaterialKg: number };
+  technicians: number;
+  printCount: number;
+  scanCount: number;
+  loans: { totalLoans: number; activeLoans: number; overdueLoans: number; returnedLoans: number };
+  maintenances: { totalMaintenances: number; preventiveCount: number; correctiveCount: number; totalCost: number };
+}
+
+const EMPTY_VIEW: ReportsView = {
+  production: { totalJobs: 0, totalHours: 0, totalMaterialKg: 0 },
+  technicians: 0,
+  printCount: 0,
+  scanCount: 0,
+  loans: { totalLoans: 0, activeLoans: 0, overdueLoans: 0, returnedLoans: 0 },
+  maintenances: { totalMaintenances: 0, preventiveCount: 0, correctiveCount: 0, totalCost: 0 },
+};
+
+const periodLabels: Record<PeriodType, string> = {
+  mes: "Este mês",
+  dias90: "Últimos 90 dias",
+  todos: "Todo o histórico",
+};
+
+const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+
+// Intervalo de datas do período escolhido (o servidor aplica o "até" até o fim do dia)
+function periodRange(period: PeriodType): { from?: string; to?: string } {
+  const today = new Date();
+  if (period === "mes") {
+    return { from: isoDay(new Date(today.getFullYear(), today.getMonth(), 1)), to: isoDay(today) };
+  }
+  if (period === "dias90") {
+    return { from: isoDay(new Date(Date.now() - 89 * 86400000)), to: isoDay(today) };
+  }
+  return {};
+}
+
+// Busca os cinco relatórios em paralelo e reduz a um resumo para a tela
+async function loadReports(period: PeriodType): Promise<ReportsView> {
+  const range = periodRange(period);
+  const [production, byTechnician, , loans, maintenances] = await Promise.all([
+    api.getReports("production", range),
+    api.getReports("production-by-technician", range),
+    api.getReports("stock-consumption", range),
+    api.getReports("loans", range),
+    api.getReports("maintenances", range),
+  ]);
+  const technicianRows: any[] = byTechnician.report ?? [];
+  return {
+    production: {
+      totalJobs: production.metrics?.totalJobs ?? 0,
+      totalHours: production.metrics?.totalHours ?? 0,
+      totalMaterialKg: production.metrics?.totalMaterialKg ?? 0,
+    },
+    technicians: technicianRows.length,
+    printCount: technicianRows.reduce((sum, r) => sum + (r.printCount ?? 0), 0),
+    scanCount: technicianRows.reduce((sum, r) => sum + (r.scanCount ?? 0), 0),
+    loans: loans.metrics ?? EMPTY_VIEW.loans,
+    maintenances: maintenances.metrics ?? EMPTY_VIEW.maintenances,
+  };
+}
+
+const buildModules = (view: ReportsView): ModuleRow[] => [
   {
-    id: "1",
-    name: "Impressão 3D (FDM & SLA)",
-    orders: 84,
-    consumption: "24.2 kg",
-    occupancy: 88,
-    status: "em_uso",
+    id: "impressao3d",
+    name: "Impressão 3D",
+    count: view.printCount,
+    consumption: `${view.production.totalMaterialKg.toFixed(2)} kg`,
+    detail: `${view.printCount} impressões, ${view.production.totalHours.toFixed(1)} h de produção`,
     color: "bg-[#8B1329]",
   },
   {
-    id: "2",
+    id: "escaneamento",
     name: "Escaneamento 3D",
-    orders: 26,
+    count: view.scanCount,
     consumption: "—",
-    occupancy: 45,
-    status: "em_uso",
+    detail: `${view.scanCount} escaneamentos`,
     color: "bg-yellow-600",
   },
   {
-    id: "3",
+    id: "emprestimo",
     name: "Empréstimo de Equipamentos",
-    orders: 32,
-    consumption: "9 ativos",
-    occupancy: 70,
-    status: "em_uso",
+    count: view.loans.totalLoans,
+    consumption: `${view.loans.activeLoans} ativos`,
+    detail: `${view.loans.activeLoans} em campo, ${view.loans.overdueLoans} em atraso, ${view.loans.returnedLoans} devolvidos`,
     color: "bg-yellow-700",
   },
   {
-    id: "4",
-    name: "Manutenções Preventivas",
-    orders: 8,
-    consumption: "4 peças",
-    occupancy: 100,
-    status: "concluido",
+    id: "manutencao",
+    name: "Manutenções",
+    count: view.maintenances.totalMaintenances,
+    consumption: `R$ ${view.maintenances.totalCost.toFixed(2)}`,
+    detail: `${view.maintenances.preventiveCount} preventivas, ${view.maintenances.correctiveCount} corretivas`,
     color: "bg-gray-400",
   },
 ];
 
 export const ReportsPage = (): JSX.Element => {
-  const [period, setPeriod] = useState<PeriodType>("semestre");
+  const [period, setPeriod] = useState<PeriodType>("mes");
   const [module, setModule] = useState<ModuleType>("todos");
-  const [selectedModule, setSelectedModule] = useState<Module | null>(null);
-  const filteredModules = mockModules.filter((item) => {
-    if (module === "todos") return true;
-    if (module === "impressao3d") return item.id === "1";
-    if (module === "escaneamento") return item.id === "2";
-    return item.id === "3";
-  });
+  const [selectedModule, setSelectedModule] = useState<ModuleRow | null>(null);
+  const { data: view, loading, error: loadError, reload } = useApiData<ReportsView>(
+    () => loadReports(period),
+    EMPTY_VIEW,
+    [period],
+  );
+
+  const modules = buildModules(view);
+  const filteredModules = modules.filter((item) => module === "todos" || item.id === module);
 
   const exportReport = () => {
     downloadCsv("relatorio-labmu.csv", [
-      ["Período", period],
+      ["Período", periodLabels[period]],
       [],
-      ["Módulo", "Ordens", "Consumo", "Ocupação", "Status"],
-      ...filteredModules.map((item) => [item.name, item.orders, item.consumption, `${item.occupancy}%`, item.status]),
+      ["Módulo", "Quantidade", "Consumo", "Detalhe"],
+      ...filteredModules.map((item) => [item.name, item.count, item.consumption, item.detail]),
     ]);
   };
 
@@ -93,63 +155,52 @@ export const ReportsPage = (): JSX.Element => {
           </div>
           <button onClick={exportReport} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
             <Download className="w-4 h-4" />
-            Exportar Relatório (PDF / CSV)
+            Exportar Relatório (CSV)
           </button>
         </div>
 
         {/* Selectors */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Period */}
-            <div>
-              <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-3">Período:</p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: "semestre", label: "Semestre 2024.2" },
-                  { value: "mes", label: "Este Mês" },
-                  { value: "dias90", label: "Últimos 90 dias" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setPeriod(opt.value as PeriodType)}
-                    className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                      period === opt.value
-                        ? "bg-[#8B1329] text-white"
-                        : "bg-[#f7f0f0] text-[#1f1a1b] hover:bg-[#efe6e6]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Module */}
-            <div>
-              <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-3">Módulo:</p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: "todos", label: "Todos" },
-                  { value: "impressao3d", label: "Impressão 3D" },
-                  { value: "escaneamento", label: "Escaneamento" },
-                  { value: "emprestimo", label: "Empréstimos" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setModule(opt.value as ModuleType)}
-                    className={`px-3 py-2 rounded font-semibold text-sm transition-colors ${
-                      module === opt.value
-                        ? "bg-[#8B1329] text-white"
-                        : "bg-[#f7f0f0] text-[#1f1a1b] hover:bg-[#efe6e6]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="flex flex-wrap gap-4 mb-8">
+          <div className="flex gap-2">
+            {(Object.keys(periodLabels) as PeriodType[]).map((value) => (
+              <button
+                key={value}
+                onClick={() => setPeriod(value)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  period === value ? "bg-[#8B1329] text-white" : "bg-white text-[#7a6e70] shadow hover:text-[#1f1a1b]"
+                }`}
+              >
+                {periodLabels[value]}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {([
+              { value: "todos", label: "Todos" },
+              { value: "impressao3d", label: "Impressão 3D" },
+              { value: "escaneamento", label: "Escaneamento" },
+              { value: "emprestimo", label: "Empréstimos" },
+            ] as { value: ModuleType; label: string }[]).map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setModule(opt.value)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  module === opt.value ? "bg-[#1f1a1b] text-white" : "bg-white text-[#7a6e70] shadow hover:text-[#1f1a1b]"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
+
+        {loading && <p className="mb-4 text-sm text-[#7a6e70]">Carregando relatórios...</p>}
+        {loadError && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {loadError}{" "}
+            <button onClick={reload} className="font-semibold underline">Tentar novamente</button>
+          </p>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -158,8 +209,8 @@ export const ReportsPage = (): JSX.Element => {
               <span className="text-2xl">🎨</span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Produções Realizadas</p>
-            <p className="text-4xl font-bold text-[#1f1a1b]">142</p>
-            <p className="text-xs text-green-600 font-semibold mt-2">+18% em relação ao mês anterior</p>
+            <p className="text-4xl font-bold text-[#1f1a1b]">{view.production.totalJobs}</p>
+            <p className="text-xs text-[#7a6e70] mt-2">{periodLabels[period]}</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
@@ -167,26 +218,26 @@ export const ReportsPage = (): JSX.Element => {
               <span className="text-2xl">📦</span>
             </div>
             <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Consumo de Filamento</p>
-            <p className="text-4xl font-bold text-[#1f1a1b]">28.4 <span className="text-lg">kg</span></p>
-            <p className="text-xs text-[#7a6e70] mt-2">PLA, PETG e Resina</p>
+            <p className="text-4xl font-bold text-[#1f1a1b]">{view.production.totalMaterialKg.toFixed(2)} <span className="text-lg">kg</span></p>
+            <p className="text-xs text-[#7a6e70] mt-2">Soma dos consumos registrados</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="text-2xl">⏱️</span>
             </div>
-            <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Horas Ativas</p>
-            <p className="text-4xl font-bold text-[#1f1a1b]">680 <span className="text-lg">h</span></p>
-            <p className="text-xs text-[#7a6e70] mt-2">Média de 8.5h por dia útil</p>
+            <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Horas de Produção</p>
+            <p className="text-4xl font-bold text-[#1f1a1b]">{view.production.totalHours.toFixed(1)} <span className="text-lg">h</span></p>
+            <p className="text-xs text-[#7a6e70] mt-2">Soma da duração das produções</p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="text-2xl">👥</span>
             </div>
-            <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Usuários Atendidos</p>
-            <p className="text-4xl font-bold text-[#1f1a1b]">64</p>
-            <p className="text-xs text-[#7a6e70] mt-2">Alunos e pesquisadores ativos</p>
+            <p className="text-xs font-semibold text-[#7a6e70] uppercase mb-2">Técnicos com Produção</p>
+            <p className="text-4xl font-bold text-[#1f1a1b]">{view.technicians}</p>
+            <p className="text-xs text-[#7a6e70] mt-2">No período selecionado</p>
           </div>
         </div>
 
@@ -195,11 +246,9 @@ export const ReportsPage = (): JSX.Element => {
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-[#1f1a1b] mb-1">Consolidação por Módulo Operacional</h2>
-              <p className="text-sm text-[#7a6e70]">
-                Visão sintetizada de alocação de máquinas e materiais em curso.
-              </p>
+              <p className="text-sm text-[#7a6e70]">Totais calculados pelo servidor a partir dos registros válidos.</p>
             </div>
-            <p className="text-xs text-[#7a6e70]">Atualizado hoje às 17:30</p>
+            <p className="text-xs text-[#7a6e70]">Período: {periodLabels[period]}</p>
           </div>
 
           <div className="overflow-x-auto">
@@ -207,9 +256,8 @@ export const ReportsPage = (): JSX.Element => {
               <thead>
                 <tr className="bg-[#f3f4f6] border-b border-[#efe6e6]">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Módulo</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Qtd. Ordens</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Consumo</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Taxa de Ocupação</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Quantidade</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Consumo / Situação</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#7a6e70] uppercase">Ação</th>
                 </tr>
               </thead>
@@ -223,21 +271,10 @@ export const ReportsPage = (): JSX.Element => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-[#1f1a1b]">{mod.orders} ordens</p>
+                      <p className="text-sm text-[#1f1a1b]">{mod.count}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-[#1f1a1b]">{mod.consumption}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${mod.color}`}
-                            style={{ width: `${mod.occupancy}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-sm font-semibold text-[#1f1a1b] w-12">{mod.occupancy}%</p>
-                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <button onClick={() => setSelectedModule(mod)} className="text-sm font-semibold text-[#8B1329] hover:text-[#6b0f1f]">
@@ -254,9 +291,10 @@ export const ReportsPage = (): JSX.Element => {
           <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="report-module-title">
             <div className="w-full max-w-md space-y-3 rounded-xl bg-white p-6 shadow-xl">
               <h2 id="report-module-title" className="text-xl font-bold text-[#8B1329]">{selectedModule.name}</h2>
-              <p><strong>Ordens:</strong> {selectedModule.orders}</p>
-              <p><strong>Consumo:</strong> {selectedModule.consumption}</p>
-              <p><strong>Taxa de ocupação:</strong> {selectedModule.occupancy}%</p>
+              <p><strong>Quantidade:</strong> {selectedModule.count}</p>
+              <p><strong>Consumo / situação:</strong> {selectedModule.consumption}</p>
+              <p><strong>Detalhe:</strong> {selectedModule.detail}</p>
+              <p className="text-xs text-[#7a6e70]">Período: {periodLabels[period]}</p>
               <button onClick={() => setSelectedModule(null)} className="mt-2 rounded-lg bg-[#8B1329] px-4 py-2 font-semibold text-white">Fechar</button>
             </div>
           </div>
