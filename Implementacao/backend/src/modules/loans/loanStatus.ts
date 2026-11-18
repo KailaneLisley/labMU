@@ -16,7 +16,12 @@ export function effectiveLoanStatusSql(alias = "l"): string {
     WHEN ${hasTimezone} THEN ${due}::timestamptz
     ELSE ((${due}::timestamp + INTERVAL '3 hours') AT TIME ZONE 'UTC')
   END)`;
-  const dueDayLocal = `((${dueAt} AT TIME ZONE 'America/Recife')::date)`;
+  // Dia do vencimento no fuso de Recife. Para AAAA-MM-DD, o dia é a própria data
+  // (dueAt já aponta para o fim desse dia, então converter dueAt deslocaria um dia a mais).
+  const dueDayLocal = `(CASE
+    WHEN ${isDateOnly} THEN ${due}::date
+    ELSE ((${dueAt}) AT TIME ZONE 'America/Recife')::date
+  END)`;
 
   return `(CASE
     WHEN ${alias}.status = 'devolvido' THEN 'devolvido'

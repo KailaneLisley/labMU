@@ -179,7 +179,7 @@ export class UsersService {
     status?: "ativo" | "inativo" | "pendente";
     avatar?: string;
   }) {
-    const existing = this.getUserById(id);
+    const existing = await this.getUserById(id);
 
     if (data.email && data.email.toLowerCase() !== existing.email.toLowerCase()) {
       const emailConflict = await postgres.get("SELECT id FROM users WHERE email = ? AND id != ?", data.email.toLowerCase(), id);
@@ -228,7 +228,7 @@ export class UsersService {
     if (!USER_STATUSES.includes(status)) {
       throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
     }
-    this.getUserById(id);
+    await this.getUserById(id);
     await postgres.run(`UPDATE users SET status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, status, id);
     return this.getUserById(id);
   }

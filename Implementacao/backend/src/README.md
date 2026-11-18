@@ -9,15 +9,18 @@ Este diretório contém o código-fonte TypeScript da API RESTful do **labMU**, 
 ```
 src/
 ├── app.ts                         # Configuração da aplicação Express, middlewares globais e rotas
-├── server.ts                      # Bootstrap do servidor HTTP e execução automática do seed
+├── server.ts                      # Entrypoint serverless (Vercel): exporta o app Express, sem listen nem seed
+├── localServer.ts                 # Execução local: inicializa dados (seed em dev) e abre a porta
 │
 ├── config/                        # Configurações e variáveis de ambiente
 │   └── env.ts                     # Parser centralizado de variáveis (.env) com fallbacks seguros
 │
 ├── database/                      # Camada de persistência relacional
-│   ├── connection.ts              # Conexão nativa SQLite (node:sqlite) e helper de transações ACID
-│   ├── schema.sql                 # DDL de criação das tabelas e índices relacionais
-│   └── seed.ts                    # Carga inicial com Administrador e Técnico padrão
+│   ├── postgres.ts                # Pool PostgreSQL (pg), placeholders ? → $n e transações com savepoints
+│   ├── schema.sql                 # DDL do SQLite legado (somente referência; o schema ativo está em supabase/migrations/)
+│   ├── seed.ts                    # Carga inicial com Administrador e Técnico padrão (desenvolvimento)
+│   ├── bootstrapAdmin.ts          # Cria o primeiro administrador em produção (npm run bootstrap:admin)
+│   └── migrateSqliteToPostgres.ts # Importa o SQLite legado para o PostgreSQL (npm run migrate:sqlite)
 │
 ├── middlewares/                   # Interceptadores HTTP
 │   ├── auth.ts                    # Autenticação JWT e autorização por papéis (requireRole)
@@ -62,7 +65,7 @@ Requisição HTTP
        │
        ▼
 ┌──────────────────┐
-│  database/       │ ➔ Execução no banco SQLite com suporte a transações atômicas
+│  database/       │ ➔ Execução no PostgreSQL (assíncrono) com suporte a transações atômicas
 └──────────────────┘
 ```
 
@@ -70,10 +73,10 @@ Requisição HTTP
 
 ## 💾 Camada de Banco de Dados (`database/`)
 
-O projeto utiliza o suporte experimental nativo do Node.js 22: **`node:sqlite` (`DatabaseSync`)**, dispensando dependências de compilação nativa C++ (como node-gyp).
+O acesso ao banco usa **PostgreSQL** via `pg` (driver puro JavaScript), com um pool em `postgres.ts`. Todas as consultas são assíncronas (`await postgres.get/all/run`). As consultas são escritas com placeholders `?`, que `postgres.ts` converte para `$1, $2...` antes de enviar ao servidor.
 
 ### Transações ACID
-O utilitário `query.transaction(fn)` em `connection.ts` implementa transações completas com suporte a *Savepoints* aninhados (`SAVEPOINT` / `RELEASE` / `ROLLBACK`). Isso é fundamental para garantir a integridade em operações críticas:
+O utilitário `postgres.transaction(async () => ...)` em `postgres.ts` implementa transações completas com suporte a *Savepoints* aninhados (`SAVEPOINT` / `RELEASE` / `ROLLBACK`), usando `AsyncLocalStorage` para que as consultas dentro do callback usem o mesmo cliente. Isso é fundamental para garantir a integridade em operações críticas:
 - No registro de produção, o cadastro da ordem e o débito fracionado do estoque ocorrem na mesma transação atômica.
 - No empréstimo de portáteis, a verificação de disponibilidade e a criação da retirada ocorrem sob bloqueio transacional imediato (`BEGIN IMMEDIATE;`).
 

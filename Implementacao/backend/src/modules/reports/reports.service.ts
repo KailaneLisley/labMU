@@ -39,9 +39,9 @@ export class ReportsService {
 
     // Métricas agregadas no banco (não carregam todos os registros na memória)
     const agg = await postgres.get<any>(
-      `SELECT COUNT(*) AS totalJobs,
-              COALESCE(SUM(duration_minutes), 0) AS totalMinutes,
-              COALESCE(SUM(supply_consumed), 0) AS totalMaterialKg
+      `SELECT COUNT(*) AS "totalJobs",
+              COALESCE(SUM(duration_minutes), 0) AS "totalMinutes",
+              COALESCE(SUM(supply_consumed), 0) AS "totalMaterialKg"
        FROM (${sql})`,
       ...params
     );
@@ -172,10 +172,10 @@ export class ReportsService {
     const orderBy = ` ORDER BY l.checkout_date DESC`;
 
     const agg = await postgres.get<any>(
-      `SELECT COUNT(*) AS totalLoans,
-              COALESCE(SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END), 0) AS activeLoans,
-              COALESCE(SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END), 0) AS overdueLoans,
-              COALESCE(SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END), 0) AS returnedLoans
+      `SELECT COUNT(*) AS "totalLoans",
+              COALESCE(SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END), 0) AS "activeLoans",
+              COALESCE(SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END), 0) AS "overdueLoans",
+              COALESCE(SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END), 0) AS "returnedLoans"
        FROM (${sql})`,
       ...params
     );
@@ -220,10 +220,10 @@ export class ReportsService {
     const orderBy = ` ORDER BY m.date DESC`;
 
     const agg = await postgres.get<any>(
-      `SELECT COUNT(*) AS totalMaintenances,
-              COALESCE(SUM(CASE WHEN type = 'preventiva' THEN 1 ELSE 0 END), 0) AS preventiveCount,
-              COALESCE(SUM(CASE WHEN type = 'corretiva' THEN 1 ELSE 0 END), 0) AS correctiveCount,
-              COALESCE(SUM(cost), 0) AS totalCost
+      `SELECT COUNT(*) AS "totalMaintenances",
+              COALESCE(SUM(CASE WHEN type = 'preventiva' THEN 1 ELSE 0 END), 0) AS "preventiveCount",
+              COALESCE(SUM(CASE WHEN type = 'corretiva' THEN 1 ELSE 0 END), 0) AS "correctiveCount",
+              COALESCE(SUM(cost), 0) AS "totalCost"
        FROM (${sql})`,
       ...params
     );
