@@ -1,36 +1,38 @@
-#  Testes Automatizados da API — `backend/tests/`
+# Testes Automatizados da API — `backend/tests/`
 
-Este diretório contém a suíte de testes de integração e ponta a ponta (E2E) do backend do **labMU**, executada com o test runner nativo do Node.js (`node:test`) em conjunto com `tsx`.
+A suíte usa o test runner nativo do Node.js (`node:test`) com `tsx`. Os testes de integração usam exclusivamente `TEST_DATABASE_URL`, nunca a conexão normal de desenvolvimento/produção.
 
----
+## Preparação obrigatória
 
-##  Arquivos de Teste
+1. Crie um projeto Supabase separado para testes ou use um PostgreSQL descartável. **Não use o banco de produção.**
+2. Aplique nesse banco o schema de `supabase/migrations/202611160001_initial_schema.sql`.
+3. Copie `.env.test.example` para `.env.test` e configure `TEST_DATABASE_URL` com a conexão privada desse banco.
+4. Mantenha `CONFIRM_TEST_DATABASE_RESET=true` em `.env.test`: o hook inicial limpa as nove tabelas antes de semear os dados. A conexão recusa executar testes sem `TEST_DATABASE_URL` quando `NODE_ENV=test`.
 
-- **`api.test.ts`:** Bateria abrangente de testes validando os seguintes cenários:
-  1. **Health Check:** Garante resposta `200 OK` em `/api/health`.
-  2. **Autenticação:** Validação do login com o Administrador padrão (`admin.musarq@unicap.br`), emissão do token JWT e bloqueio de senhas inválidas com status `401`.
-  3. **Cadastro Público de Técnicos:** Criação de nova conta de Técnico com e-mail `@unicap.br`, Pergunta Secreta de Segurança e login imediato com as credenciais criadas.
-  4. **Fluxo de Recuperação de Senha:**
-     - Bloqueio de recuperação automática para Administradores (`403 ADMIN_RECOVERY_RESTRICTED`).
-     - Sucesso na recuperação para Técnicos em 3 etapas (identificação do e-mail -> resposta correta da pergunta de segurança -> definição da nova senha).
-     - Rejeição de respostas incorretas da pergunta secreta (`400 INCORRECT_ANSWER`).
-  5. **Regras de Empréstimo:** Validação do fluxo de retirada e devolução de portáteis, incluindo a rejeição com código `409` para tentativas de empréstimo duplo do mesmo item.
-  6. **Operações de Estoque & Dashboard:** Registro de entradas de lote e consulta do resumo consolidado.
+### PowerShell
 
----
+```powershell
+Copy-Item .env.test.example .env.test
+# Edite .env.test e informe TEST_DATABASE_URL
+npm test
+```
 
-##  Como Executar os Testes
+### Bash
 
-A partir da pasta `Implementacao/backend`:
+```bash
+cp .env.test.example .env.test
+# Edite .env.test e informe TEST_DATABASE_URL
+npm test
+```
+
+## Execução
+
+A partir de `Implementacao/backend`:
 
 ```bash
 npm test
 ```
 
-O comando executará:
-```bash
-tsx --test tests/**/*.test.ts
-```
+A suíte cobre health check, autenticação, cadastro, recuperação de senha, autorização por perfil, máquinas, equipamentos portáteis, empréstimos, estoque, produção e relatórios.
 
-Os testes utilizam o banco de dados de desenvolvimento/teste, inicializam o *seed* automaticamente e validam o comportamento com asserções estritas do módulo `node:assert`.
-
+**Atenção:** o banco configurado em `.env.test` será apagado e repovoado a cada execução. Nunca aponte `TEST_DATABASE_URL` para um banco com dados que precisam ser preservados.

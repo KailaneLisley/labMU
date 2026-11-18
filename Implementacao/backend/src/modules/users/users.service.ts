@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { hashPassword } from "../auth/passwords.js";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { assertAllowed } from "../../utils/validation.js";
 
@@ -8,7 +8,7 @@ const USER_ROLES = ["administrador", "tecnico", "aluno", "professor", "cliente"]
 const USER_STATUSES = ["ativo", "inativo", "pendente"];
 
 export class UsersService {
-  static listUsers(filters: {
+  static async listUsers(filters: {
     q?: string;
     role?: string;
     status?: string;
@@ -38,14 +38,14 @@ export class UsersService {
     sql += ` ORDER BY created_at DESC`;
 
     const countSql = `SELECT COUNT(*) as total FROM users WHERE 1=1` + sql.slice(sql.indexOf(" WHERE 1=1") + " WHERE 1=1".length, sql.indexOf(" ORDER BY"));
-    const totalCountRow = query.get<{ total: number }>(countSql, ...params);
+    const totalCountRow = await postgres.get<{ total: number }>(countSql, ...params);
     const total = totalCountRow?.total ?? 0;
 
     const page = Math.max(1, filters.page || 1);
     const limit = Math.min(200, Math.max(1, filters.limit || 50));
     const offset = (page - 1) * limit;
 
-    const paginated = query.all(`${sql} LIMIT ? OFFSET ?`, ...params, limit, offset);
+    const paginated = await postgres.all(`${sql} LIMIT ? OFFSET ?`, ...params, limit, offset);
 
     return {
       data: paginated.map((u) => ({
@@ -69,8 +69,8 @@ export class UsersService {
     };
   }
 
-  static getUserById(id: string) {
-    const u = query.get<any>(
+  static async getUserById(id: string) {
+    const u = await postgres.get<any>(
       `SELECT id, name, email, role, registration, phone, status, avatar, initials, avatar_color, created_at, updated_at
        FROM users WHERE id = ?`,
       id
@@ -121,12 +121,12 @@ export class UsersService {
       throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
     }
 
-    const existingEmail = query.get("SELECT id FROM users WHERE email = ?", email);
+    const existingEmail = await postgres.get("SELECT id FROM users WHERE email = ?", email);
     if (existingEmail) {
       throw new AppError("Já existe um usuário cadastrado com este e-mail.", 409, "EMAIL_EXISTS");
     }
 
-    const existingReg = query.get("SELECT id FROM users WHERE registration = ?", registration);
+    const existingReg = await postgres.get("SELECT id FROM users WHERE registration = ?", registration);
     if (existingReg) {
       throw new AppError("Esta matrícula já está vinculada a outro usuário.", 409, "REGISTRATION_EXISTS");
     }
@@ -152,7 +152,7 @@ export class UsersService {
       aluno: "bg-purple-200",
     };
 
-    query.run(
+    await postgres.run(
       `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, initials, avatar_color)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
@@ -167,10 +167,10 @@ export class UsersService {
       avatarColors[data.role] || "bg-gray-200"
     );
 
-    return this.getUserById(id);
+    return await this.getUserById(id);
   }
 
-  static updateUser(id: string, data: {
+  static async updateUser(id: string, data: {
     name?: string;
     email?: string;
     phone?: string;
@@ -179,17 +179,17 @@ export class UsersService {
     status?: "ativo" | "inativo" | "pendente";
     avatar?: string;
   }) {
-    const existing = this.getUserById(id);
+    const existing = await this.getUserById(id);
 
     if (data.email && data.email.toLowerCase() !== existing.email.toLowerCase()) {
-      const emailConflict = query.get("SELECT id FROM users WHERE email = ? AND id != ?", data.email.toLowerCase(), id);
+      const emailConflict = await postgres.get("SELECT id FROM users WHERE email = ? AND id != ?", data.email.toLowerCase(), id);
       if (emailConflict) {
         throw new AppError("Já existe outro usuário cadastrado com este e-mail.", 409, "EMAIL_EXISTS");
       }
     }
 
     if (data.registration && data.registration !== existing.registration) {
-      const regConflict = query.get("SELECT id FROM users WHERE registration = ? AND id != ?", data.registration, id);
+      const regConflict = await postgres.get("SELECT id FROM users WHERE registration = ? AND id != ?", data.registration, id);
       if (regConflict) {
         throw new AppError("Esta matrícula já está em uso por outro usuário.", 409, "REGISTRATION_EXISTS");
       }
@@ -206,9 +206,9 @@ export class UsersService {
     const avatar = data.avatar !== undefined ? data.avatar : existing.avatar;
     const initials = name.split(/\s+/).slice(0, 2).map((n: string) => n[0]).join("").toUpperCase();
 
-    query.run(
+    await postgres.run(
       `UPDATE users
-       SET name = ?, email = ?, phone = ?, role = ?, registration = ?, status = ?, avatar = ?, initials = ?, updated_at = datetime('now')
+       SET name = ?, email = ?, phone = ?, role = ?, registration = ?, status = ?, avatar = ?, initials = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       email,
@@ -224,12 +224,12 @@ export class UsersService {
     return this.getUserById(id);
   }
 
-  static updateStatus(id: string, status: "ativo" | "inativo" | "pendente") {
+  static async updateStatus(id: string, status: "ativo" | "inativo" | "pendente") {
     if (!USER_STATUSES.includes(status)) {
       throw new AppError("Situação de usuário inválida.", 400, "INVALID_STATUS");
     }
-    this.getUserById(id);
-    query.run(`UPDATE users SET status = ?, updated_at = datetime('now') WHERE id = ?`, status, id);
+    await this.getUserById(id);
+    await postgres.run(`UPDATE users SET status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, status, id);
     return this.getUserById(id);
   }
 }

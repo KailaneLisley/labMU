@@ -1,16 +1,16 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import { query } from "./connection.js";
+import { postgres } from "./postgres.js";
 import { env } from "../config/env.js";
 
-export function seedDatabase() {
+export async function seedDatabase(): Promise<void> {
   console.log("Iniciando seed do banco de dados...");
 
   // 1. Usuários Padrão (Administrador e Técnico)
-  const existingAdmin = query.get("SELECT id FROM users WHERE email = ?", env.DEFAULT_ADMIN_EMAIL);
+  const existingAdmin = await postgres.get("SELECT id FROM users WHERE email = ?", env.DEFAULT_ADMIN_EMAIL);
   if (!existingAdmin) {
     const adminPasswordHash = bcrypt.hashSync(env.DEFAULT_ADMIN_PASSWORD, 10);
-    query.run(
+    await postgres.run(
       `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, initials, avatar_color)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       "usr-admin-musarq",
@@ -27,10 +27,10 @@ export function seedDatabase() {
     console.log(`[Seed] Administrador padrão criado: ${env.DEFAULT_ADMIN_EMAIL}`);
   }
 
-  const existingTech = query.get<any>("SELECT id, security_question FROM users WHERE email = ?", env.DEFAULT_TECH_EMAIL);
+  const existingTech = await postgres.get<any>("SELECT id, security_question FROM users WHERE email = ?", env.DEFAULT_TECH_EMAIL);
   if (!existingTech) {
     const techPasswordHash = bcrypt.hashSync(env.DEFAULT_TECH_PASSWORD, 10);
-    query.run(
+    await postgres.run(
       `INSERT INTO users (id, name, email, role, registration, phone, status, password_hash, security_question, security_answer, initials, avatar_color)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       "usr-tech-musarq",
@@ -48,7 +48,7 @@ export function seedDatabase() {
     );
     console.log(`[Seed] Técnico padrão criado: ${env.DEFAULT_TECH_EMAIL}`);
   } else if (!existingTech.security_question) {
-    query.run(
+    await postgres.run(
       `UPDATE users SET security_question = ?, security_answer = ? WHERE id = ?`,
       "Qual o nome do seu primeiro animal de estimação?",
       "Rex",
@@ -91,9 +91,9 @@ export function seedDatabase() {
   ];
 
   for (const client of mockClients) {
-    const exists = query.get("SELECT id FROM users WHERE email = ?", client.email);
+    const exists = await postgres.get("SELECT id FROM users WHERE email = ?", client.email);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO users (id, name, email, role, registration, phone, status, initials, avatar_color)
          VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?, ?)`,
         client.id,
@@ -173,9 +173,9 @@ export function seedDatabase() {
   ];
 
   for (const m of mockMachines) {
-    const exists = query.get("SELECT id FROM machines WHERE tag = ?", m.tag);
+    const exists = await postgres.get("SELECT id FROM machines WHERE tag = ?", m.tag);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO machines (id, name, tag, type, dimensions, bench, room, status, last_maintenance, next_maintenance_date)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         m.id,
@@ -202,9 +202,9 @@ export function seedDatabase() {
   ];
 
   for (const s of mockSupplies) {
-    const exists = query.get("SELECT id FROM supplies WHERE id = ?", s.id);
+    const exists = await postgres.get("SELECT id FROM supplies WHERE id = ?", s.id);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO supplies (id, name, type, color, balance, status)
          VALUES (?, ?, ?, ?, ?, ?)`,
         s.id,
@@ -216,7 +216,7 @@ export function seedDatabase() {
       );
 
       // Movimento de entrada inicial para rastreabilidade
-      query.run(
+      await postgres.run(
         `INSERT INTO stock_movements (id, supply_id, type, quantity, lot, observations, created_by)
          VALUES (?, ?, 'entrada', ?, 'LOTE-INICIAL-2026', 'Carga inicial do estoque do laboratório', 'usr-admin-musarq')`,
         crypto.randomUUID(),
@@ -286,9 +286,9 @@ export function seedDatabase() {
   ];
 
   for (const eq of mockEquipment) {
-    const exists = query.get("SELECT id FROM portable_equipment WHERE code = ?", eq.code);
+    const exists = await postgres.get("SELECT id FROM portable_equipment WHERE code = ?", eq.code);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO portable_equipment (id, name, code, category, serial_number, location, condition, accessories, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         eq.id,
@@ -333,9 +333,9 @@ export function seedDatabase() {
   ];
 
   for (const l of mockLoans) {
-    const exists = query.get("SELECT id FROM loans WHERE id = ?", l.id);
+    const exists = await postgres.get("SELECT id FROM loans WHERE id = ?", l.id);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO loans (id, equipment_id, responsible_name, due_date, status, notes, operator_id)
          VALUES (?, ?, ?, ?, ?, ?, 'usr-tech-musarq')`,
         l.id,
@@ -375,9 +375,9 @@ export function seedDatabase() {
   ];
 
   for (const m of mockMaintenances) {
-    const exists = query.get("SELECT id FROM maintenances WHERE id = ?", m.id);
+    const exists = await postgres.get("SELECT id FROM maintenances WHERE id = ?", m.id);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO maintenances (id, machine_id, technician_id, type, status, date, description, parts, cost, observations)
          VALUES (?, ?, 'usr-tech-musarq', ?, ?, ?, ?, ?, ?, ?)`,
         m.id,
@@ -424,9 +424,9 @@ export function seedDatabase() {
   ];
 
   for (const p of mockProductions) {
-    const exists = query.get("SELECT id FROM productions WHERE id = ?", p.id);
+    const exists = await postgres.get("SELECT id FROM productions WHERE id = ?", p.id);
     if (!exists) {
-      query.run(
+      await postgres.run(
         `INSERT INTO productions (id, type, description, machine_id, technician_id, client_name, supply_id, supply_consumed, duration_minutes, status, observations)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         p.id,
@@ -448,6 +448,10 @@ export function seedDatabase() {
 }
 
 if (process.argv[1]?.endsWith("seed.ts") || process.argv[1]?.endsWith("seed.js")) {
-  seedDatabase();
+  try {
+    await seedDatabase();
+  } finally {
+    await postgres.close();
+  }
 }
 

@@ -3,9 +3,9 @@ import { DashboardService } from "./dashboard.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class DashboardController {
-  static summary = (_req: AuthRequest, res: Response, next: NextFunction): void => {
+  static summary = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const summary = DashboardService.getSummary();
+      const summary = await DashboardService.getSummary();
       res.status(200).json(summary);
     } catch (error) {
       next(error);

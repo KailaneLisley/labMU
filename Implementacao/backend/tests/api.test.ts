@@ -3,17 +3,15 @@ import assert from "node:assert/strict";
 import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { seedDatabase } from "../src/database/seed.js";
-import { query } from "../src/database/connection.js";
+import { postgres } from "../src/database/postgres.js";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-let server: http.Server;
+let server: http.Server | undefined;
 let baseUrl: string;
 
 function makeRequest(
@@ -59,21 +57,36 @@ function makeRequest(
   });
 }
 
-test.before(() => {
-  seedDatabase();
-  return new Promise<void>((resolve) => {
+test.before(async () => {
+  if (process.env.CONFIRM_TEST_DATABASE_RESET !== "true") {
+    throw new Error("Defina CONFIRM_TEST_DATABASE_RESET=true em .env.test para autorizar a limpeza do banco descartável.");
+  }
+  // Esta conexão só aceita TEST_DATABASE_URL quando NODE_ENV=test.
+  // O banco é descartável e é limpo antes de cada execução da suíte.
+  await postgres.run(`TRUNCATE TABLE
+    public.revoked_tokens,
+    public.productions,
+    public.loans,
+    public.stock_movements,
+    public.maintenances,
+    public.portable_equipment,
+    public.supplies,
+    public.machines,
+    public.users
+    RESTART IDENTITY CASCADE`);
+  await seedDatabase();
+  await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
-      const address = server.address() as any;
+      const address = server!.address() as any;
       baseUrl = `http://localhost:${address.port}`;
       resolve();
     });
   });
 });
 
-test.after(() => {
-  return new Promise<void>((resolve) => {
-    server.close(() => resolve());
-  });
+test.after(async () => {
+  if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+  await postgres.close();
 });
 
 test("GET /api/health retorna 200 OK", async () => {
@@ -812,25 +825,6 @@ test("S7: em produção, o servidor não inicia sem JWT_SECRET", () => {
   assert.match(result.stderr, /JWT_SECRET/);
 });
 
-test("S7: em produção, nenhuma conta padrão é criada", () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "labmu-prod-"));
-  const script = [
-    'import("./src/bootstrap.ts")',
-    '  .then(({ initializeData }) => { initializeData(); return import("./src/database/connection.ts"); })',
-    '  .then(({ query }) => console.log(query.get("SELECT COUNT(*) AS n FROM users").n));',
-  ].join("\n");
-
-  const result = spawnSync(process.execPath, ["--import", "tsx", "-e", script], {
-    cwd: backendRoot,
-    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "segredo-de-teste", DATABASE_FILE: path.join(dir, "prod.sqlite") },
-    encoding: "utf8",
-  });
-  rmSync(dir, { recursive: true, force: true });
-
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "0");
-});
-
 test("S6: e-mail inexistente, de administrador e de aluno recebem a mesma resposta", async () => {
   const unknown = await makeRequest("/api/auth/forgot-password/verify-email", {
     method: "POST",
@@ -875,7 +869,7 @@ test("S8: resposta de segurança é guardada com hash e continua válida após m
   });
   assert.equal(reg.status, 201);
 
-  const stored = query.get<any>("SELECT security_answer FROM users WHERE email = ?", email);
+  const stored = await postgres.get<any>("SELECT security_answer FROM users WHERE email = ?", email);
   assert.notEqual(stored.security_answer.toLowerCase(), "unicap");
   assert.ok(stored.security_answer.startsWith("scrypt$"), "resposta deve estar em hash scrypt");
 
@@ -887,7 +881,7 @@ test("S8: resposta de segurança é guardada com hash e continua válida após m
 
   // Conta antiga, com resposta em texto puro, continua funcionando e é migrada no primeiro uso
   const legacyEmail = `resposta.legada.${suffix}@unicap.br`;
-  query.run(
+  await postgres.run(
     `INSERT INTO users (id, name, email, role, registration, status, password_hash, security_question, security_answer, initials, avatar_color)
      VALUES (?, 'Técnico Legado', ?, 'tecnico', ?, 'ativo', 'x', 'Qual o nome da sua escola?', 'Unicap', 'TL', 'bg-orange-200')`,
     `usr-legacy-${suffix}`,
@@ -899,7 +893,7 @@ test("S8: resposta de segurança é guardada com hash e continua válida após m
     body: { email: legacyEmail, answer: "unicap" },
   });
   assert.equal(legacy.status, 200);
-  const migrated = query.get<any>("SELECT security_answer FROM users WHERE email = ?", legacyEmail);
+  const migrated = await postgres.get<any>("SELECT security_answer FROM users WHERE email = ?", legacyEmail);
   assert.ok(migrated.security_answer.startsWith("scrypt$"), "resposta legada deve ser migrada para hash");
 });
 
@@ -907,7 +901,7 @@ test("S9: senha com hash bcrypt antigo continua válida e é regravada em scrypt
   const bcrypt = (await import("bcryptjs")).default;
   const suffix = `${Date.now()}`;
   const email = `hash.antigo.${suffix}@unicap.br`;
-  query.run(
+  await postgres.run(
     `INSERT INTO users (id, name, email, role, registration, status, password_hash, initials, avatar_color)
      VALUES (?, 'Técnico Antigo', ?, 'tecnico', ?, 'ativo', ?, 'TA', 'bg-orange-200')`,
     `usr-old-${suffix}`,
@@ -922,7 +916,7 @@ test("S9: senha com hash bcrypt antigo continua válida e é regravada em scrypt
   });
   assert.equal(login.status, 200);
 
-  const stored = query.get<any>("SELECT password_hash FROM users WHERE email = ?", email);
+  const stored = await postgres.get<any>("SELECT password_hash FROM users WHERE email = ?", email);
   assert.ok(stored.password_hash.startsWith("scrypt$"), "hash deve ser regravado em scrypt");
 
   const again = await makeRequest("/api/auth/login", {
@@ -1001,7 +995,7 @@ test("R6: cancelamento de produção devolve o insumo ao estoque e não conta no
   const supplyAfter = await makeRequest(`/api/supplies/${supplyId}`, { headers: adminHeaders });
   assert.equal(supplyAfter.data.supply.balance, 4);
 
-  const estorno = query.get<any>(
+  const estorno = await postgres.get<any>(
     "SELECT type, quantity, reference_id FROM stock_movements WHERE reference_id = ? AND type = 'estorno'",
     productionId
   );

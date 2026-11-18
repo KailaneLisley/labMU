@@ -3,10 +3,10 @@ import { EquipmentService } from "./equipment.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class EquipmentController {
-  static list = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static list = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { q, status, category } = req.query;
-      const equipment = EquipmentService.listEquipment({
+      const equipment = await EquipmentService.listEquipment({
         q: q as string,
         status: status as string,
         category: category as string,
@@ -17,36 +17,36 @@ export class EquipmentController {
     }
   };
 
-  static getById = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const item = EquipmentService.getEquipmentById(String(req.params.id));
+      const item = await EquipmentService.getEquipmentById(String(req.params.id));
       res.status(200).json({ item });
     } catch (error) {
       next(error);
     }
   };
 
-  static create = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static create = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const item = EquipmentService.createEquipment(req.body);
+      const item = await EquipmentService.createEquipment(req.body);
       res.status(201).json({ item });
     } catch (error) {
       next(error);
     }
   };
 
-  static update = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static update = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const item = EquipmentService.updateEquipment(String(req.params.id), req.body);
+      const item = await EquipmentService.updateEquipment(String(req.params.id), req.body);
       res.status(200).json({ item });
     } catch (error) {
       next(error);
     }
   };
 
-  static setStatus = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static setStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const item = EquipmentService.setEquipmentStatus(String(req.params.id), req.body?.status);
+      const item = await EquipmentService.setEquipmentStatus(String(req.params.id), req.body?.status);
       res.status(200).json({ item });
     } catch (error) {
       next(error);

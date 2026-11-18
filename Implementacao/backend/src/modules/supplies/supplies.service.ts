@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { supplyStatusFor } from "./supplyStatus.js";
 
@@ -7,7 +7,7 @@ import { supplyStatusFor } from "./supplyStatus.js";
 const LIST_LIMIT = 500;
 
 export class SuppliesService {
-  static listSupplies(filters: { q?: string; status?: string; type?: string }) {
+  static async listSupplies(filters: { q?: string; status?: string; type?: string }) {
     let sql = `SELECT id, name, type, color, balance, minimum_balance, status, active, created_at, updated_at
                FROM supplies WHERE 1=1`;
     const params: any[] = [];
@@ -30,11 +30,11 @@ export class SuppliesService {
 
     sql += ` ORDER BY name ASC, color ASC`;
 
-    return query.all(sql, ...params);
+    return await postgres.all(sql, ...params);
   }
 
-  static getSupplyById(id: string) {
-    const item = query.get<any>(
+  static async getSupplyById(id: string) {
+    const item = await postgres.get<any>(
       `SELECT id, name, type, color, balance, minimum_balance, status, active, created_at, updated_at
        FROM supplies WHERE id = ?`,
       id
@@ -47,7 +47,7 @@ export class SuppliesService {
     return item;
   }
 
-  static createSupply(data: {
+  static async createSupply(data: {
     name: string;
     type: string;
     color: string;
@@ -73,8 +73,8 @@ export class SuppliesService {
     if (initialBalance <= minBalance * 0.5) status = "critico";
     else if (initialBalance <= minBalance) status = "abaixo";
 
-    return query.transaction(() => {
-      query.run(
+    return postgres.transaction(async () => {
+      await postgres.run(
         `INSERT INTO supplies (id, name, type, color, balance, minimum_balance, status)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         id,
@@ -87,7 +87,7 @@ export class SuppliesService {
       );
 
       if (initialBalance > 0) {
-        query.run(
+        await postgres.run(
           `INSERT INTO stock_movements (id, supply_id, type, quantity, lot, observations)
            VALUES (?, ?, 'entrada', ?, 'CARGA-INICIAL', 'Saldo inicial de cadastro')`,
           crypto.randomUUID(),
@@ -96,11 +96,11 @@ export class SuppliesService {
         );
       }
 
-      return this.getSupplyById(id);
+      return await this.getSupplyById(id);
     });
   }
 
-  static registerEntry(data: {
+  static async registerEntry(data: {
     supplyId?: string;
     name?: string;
     type?: string;
@@ -115,13 +115,13 @@ export class SuppliesService {
       throw new AppError("A quantidade de entrada deve ser um valor positivo em kg.", 400);
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       let supplyId = data.supplyId;
 
       // Se supplyId não foi informado, busca ou cria insumo com o nome/tipo/cor fornecidos
       if (!supplyId) {
         if (!data.name) throw new AppError("Selecione um insumo ou informe o nome.", 400);
-        const existing = query.get<any>(
+        const existing = await postgres.get<any>(
           "SELECT id FROM supplies WHERE LOWER(name) = ? AND LOWER(color) = ?",
           data.name.trim().toLowerCase(),
           (data.color || "").trim().toLowerCase()
@@ -129,7 +129,7 @@ export class SuppliesService {
         if (existing) {
           supplyId = existing.id;
         } else {
-          const created = this.createSupply({
+          const created = await this.createSupply({
             name: data.name,
             type: data.type || "Termoplástico",
             color: data.color || "Padrão",
@@ -139,22 +139,22 @@ export class SuppliesService {
         }
       }
 
-      const supply = this.getSupplyById(supplyId!);
+      const supply = await this.getSupplyById(supplyId!);
       const newBalance = Number((supply.balance + qty).toFixed(3));
 
       let newStatus = "regular";
       if (newBalance <= supply.minimum_balance * 0.5) newStatus = "critico";
       else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
 
-      query.run(
-        `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+      await postgres.run(
+        `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         newBalance,
         newStatus,
         supplyId
       );
 
       const movementId = crypto.randomUUID();
-      query.run(
+      await postgres.run(
         `INSERT INTO stock_movements (id, supply_id, type, quantity, lot, observations, created_by)
          VALUES (?, ?, 'entrada', ?, ?, ?, ?)`,
         movementId,
@@ -166,14 +166,14 @@ export class SuppliesService {
       );
 
       return {
-        supply: this.getSupplyById(supplyId!),
+        supply: await this.getSupplyById(supplyId!),
         movementId,
       };
     });
   }
 
   // Ajuste manual de saldo (inventário ou correção de perdas). quantity é um delta em kg: positivo soma, negativo subtrai.
-  static adjustStock(data: {
+  static async adjustStock(data: {
     supplyId: string;
     quantity: number;
     reason: string;
@@ -189,8 +189,8 @@ export class SuppliesService {
       throw new AppError("Informe o motivo do ajuste de estoque.", 400, "ADJUSTMENT_REASON_REQUIRED");
     }
 
-    return query.transaction(() => {
-      const supply = this.getSupplyById(data.supplyId);
+    return postgres.transaction(async () => {
+      const supply = await this.getSupplyById(data.supplyId);
       const newBalance = Number((supply.balance + qty).toFixed(3));
 
       if (newBalance < 0) {
@@ -205,15 +205,15 @@ export class SuppliesService {
       if (newBalance <= supply.minimum_balance * 0.5) newStatus = "critico";
       else if (newBalance <= supply.minimum_balance) newStatus = "abaixo";
 
-      query.run(
-        `UPDATE supplies SET balance = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+      await postgres.run(
+        `UPDATE supplies SET balance = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         newBalance,
         newStatus,
         data.supplyId
       );
 
       const movementId = crypto.randomUUID();
-      query.run(
+      await postgres.run(
         `INSERT INTO stock_movements (id, supply_id, type, quantity, observations, created_by)
          VALUES (?, ?, 'ajuste', ?, ?, ?)`,
         movementId,
@@ -224,13 +224,13 @@ export class SuppliesService {
       );
 
       return {
-        supply: this.getSupplyById(data.supplyId),
+        supply: await this.getSupplyById(data.supplyId),
         movementId,
       };
     });
   }
 
-  static listMovements(filters: { supplyId?: string; from?: string; to?: string }) {
+  static async listMovements(filters: { supplyId?: string; from?: string; to?: string }) {
     let sql = `
       SELECT sm.id, sm.supply_id, sm.type, sm.quantity, sm.unit, sm.lot, sm.observations, sm.reference_id, sm.created_at,
              s.name as supply_name, s.color as supply_color, s.type as supply_type,
@@ -260,14 +260,14 @@ export class SuppliesService {
     // Histórico limitado aos movimentos mais recentes
     sql += ` ORDER BY sm.created_at DESC LIMIT ?`;
 
-    return query.all(sql, ...params, LIST_LIMIT);
+    return await postgres.all(sql, ...params, LIST_LIMIT);
   }
 
-  static updateSupply(
+  static async updateSupply(
     id: string,
     data: { name?: string; type?: string; color?: string; minimumBalance?: number; active?: boolean }
   ) {
-    const current = this.getSupplyById(id);
+    const current = await this.getSupplyById(id);
 
     const name = data.name !== undefined ? String(data.name).trim() : current.name;
     const type = data.type !== undefined ? String(data.type).trim() : current.type;
@@ -286,8 +286,8 @@ export class SuppliesService {
     }
     const active = data.active === undefined ? current.active : data.active ? 1 : 0;
 
-    query.run(
-      `UPDATE supplies SET name = ?, type = ?, color = ?, minimum_balance = ?, active = ?, status = ?, updated_at = datetime('now')
+    await postgres.run(
+      `UPDATE supplies SET name = ?, type = ?, color = ?, minimum_balance = ?, active = ?, status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       type,
@@ -298,7 +298,7 @@ export class SuppliesService {
       id
     );
 
-    return this.getSupplyById(id);
+    return await this.getSupplyById(id);
   }
 }
 

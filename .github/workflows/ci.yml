@@ -16,19 +16,42 @@ jobs:
   backend:
     name: Backend (tipos, testes e build)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: labmu_test
+          POSTGRES_PASSWORD: labmu_test
+          POSTGRES_DB: labmu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U labmu_test -d labmu_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: Implementacao/backend
     steps:
       - uses: actions/checkout@v4
-      # node:sqlite exige Node 22.13+ sem flag
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: Implementacao/backend/package-lock.json
       - run: npm ci
-      - name: Tipos
+      - name: Configurar banco descartável de testes
+        run: |
+          cat > .env.test <<'EOF'
+          NODE_ENV=test
+          CONFIRM_TEST_DATABASE_RESET=true
+          PGSSL=disable
+          TEST_DATABASE_URL=postgresql://labmu_test:labmu_test@localhost:5432/labmu_test
+          EOF
+      - name: Aplicar schema PostgreSQL de teste
+        run: psql "postgresql://labmu_test:labmu_test@localhost:5432/labmu_test" -v ON_ERROR_STOP=1 -f supabase/migrations/202611160001_initial_schema.sql
+      - name: Verificar tipos
         run: npx tsc --noEmit
       - name: Testes
         run: npm test
@@ -60,11 +83,29 @@ jobs:
     name: Ponta a ponta (Playwright)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: labmu_e2e
+          POSTGRES_PASSWORD: labmu_e2e
+          POSTGRES_DB: labmu_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U labmu_e2e -d labmu_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      E2E_DATABASE_URL: postgresql://labmu_e2e:labmu_e2e@localhost:5432/labmu_e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Aplicar schema PostgreSQL do e2e
+        run: psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -f Implementacao/backend/supabase/migrations/202611160001_initial_schema.sql
       - name: Dependências do backend
         working-directory: Implementacao/backend
         run: npm ci

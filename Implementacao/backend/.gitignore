@@ -7,3 +7,4 @@ data/*.sqlite-shm
 *.log
 .env
 
+.env.test

@@ -8,11 +8,13 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/localServer.ts",
     "build": "tsc && node -e \"require('fs').cpSync('src/database/schema.sql', 'dist/database/schema.sql')\"",
-    "start": "node dist/server.js",
-    "test": "rm -f data/test-labmu.sqlite* && DATABASE_FILE=./data/test-labmu.sqlite tsx --test tests/**/*.test.ts",
-    "seed": "tsx src/database/seed.ts"
+    "start": "node dist/localServer.js",
+    "test": "node --import tsx --env-file=.env.test --test tests/**/*.test.ts",
+    "seed": "tsx src/database/seed.ts",
+    "migrate:sqlite": "tsx src/database/migrateSqliteToPostgres.ts",
+    "bootstrap:admin": "tsx src/database/bootstrapAdmin.ts"
   },
   "keywords": [
     "labmu",
@@ -28,7 +30,8 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -37,6 +40,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@types/pg": "^8.15.5"
   }
 }

@@ -22,23 +22,23 @@ export class AuthController {
     }
   };
 
-  static getMe = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getMe = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autorizado." } });
         return;
       }
-      const user = AuthService.getMe(req.user.id);
+      const user = await AuthService.getMe(req.user.id);
       res.status(200).json({ user });
     } catch (error) {
       next(error);
     }
   };
 
-  static verifyForgotEmail = (req: Request, res: Response, next: NextFunction): void => {
+  static verifyForgotEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email } = req.body;
-      const result = AuthService.verifyForgotEmail(email);
+      const result = await AuthService.verifyForgotEmail(email);
       res.status(200).json(result);
     } catch (error) {
       next(error);
@@ -55,10 +55,10 @@ export class AuthController {
     }
   };
 
-  static requestAdminPasswordReset = (req: Request, res: Response, next: NextFunction): void => {
+  static requestAdminPasswordReset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email } = req.body;
-      const result = AuthService.requestAdminPasswordReset(email);
+      const result = await AuthService.requestAdminPasswordReset(email);
       res.status(200).json(result);
     } catch (error) {
       next(error);
@@ -75,10 +75,10 @@ export class AuthController {
     }
   };
 
-  static logout = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static logout = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (req.auth) {
-        AuthService.logout(req.auth);
+        await AuthService.logout(req.auth);
       }
       res.status(200).json({ message: "Logout realizado com sucesso." });
     } catch (error) {
