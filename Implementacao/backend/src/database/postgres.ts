@@ -52,6 +52,8 @@ const pool = new Pool({
       },
 });
 
+const transactionContext = new AsyncLocalStorage<TransactionContext>();
+
 /**
  * Converte os placeholders SQLite (?) para placeholders PostgreSQL ($1, $2...).
  * Ignora interrogações dentro de strings e comentários SQL.
