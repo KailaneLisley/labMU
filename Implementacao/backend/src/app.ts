@@ -71,3 +71,5 @@ app.use((_req, res) => {
 // Tratamento centralizado de erros
 app.use(errorHandler);
 
+// A Vercel detecta src/app.ts como entrypoint Express; exporte o app como default.
+export default app;
