@@ -29,9 +29,14 @@ if (!databaseUrl) {
 
 const sslCaPath = process.env.PGSSL_CA_PATH;
 
-const sslCa = sslCaPath
+const sslCaFromFile = sslCaPath
   ? readFileSync(resolve(process.cwd(), sslCaPath), "utf8")
   : undefined;
+
+const sslCa = sslCaFromFile ??
+  (process.env.PGSSL_CA_BASE64
+    ? Buffer.from(process.env.PGSSL_CA_BASE64, "base64").toString("utf8")
+    : undefined);
 
 // Em serverless, mantenha o pool pequeno para não esgotar as conexões do Supabase.
 const pool = new Pool({
@@ -40,14 +45,12 @@ const pool = new Pool({
   idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 5_000,
   ssl: process.env.PGSSL === "disable"
-  ? false
-  : {
-      ...(sslCa ? { ca: sslCa } : {}),
-      rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false",
-    },
+    ? false
+    : {
+        ...(sslCa ? { ca: sslCa } : {}),
+        rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false",
+      },
 });
-
-const transactionContext = new AsyncLocalStorage<TransactionContext>();
 
 /**
  * Converte os placeholders SQLite (?) para placeholders PostgreSQL ($1, $2...).
