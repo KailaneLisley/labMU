@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import "../config/env.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Pool, types, type PoolClient, type QueryResultRow } from "pg";
@@ -25,6 +27,12 @@ if (!databaseUrl) {
     : "DATABASE_URL precisa ser definida para usar o PostgreSQL.");
 }
 
+const sslCaPath = process.env.PGSSL_CA_PATH;
+
+const sslCa = sslCaPath
+  ? readFileSync(resolve(process.cwd(), sslCaPath), "utf8")
+  : undefined;
+
 // Em serverless, mantenha o pool pequeno para não esgotar as conexões do Supabase.
 const pool = new Pool({
   connectionString: databaseUrl,
@@ -32,8 +40,11 @@ const pool = new Pool({
   idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 5_000,
   ssl: process.env.PGSSL === "disable"
-    ? false
-    : { rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false" },
+  ? false
+  : {
+      ...(sslCa ? { ca: sslCa } : {}),
+      rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false",
+    },
 });
 
 const transactionContext = new AsyncLocalStorage<TransactionContext>();
