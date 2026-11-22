@@ -33,7 +33,14 @@ const pool = new Pool({
   connectionTimeoutMillis: 5_000,
   ssl: process.env.PGSSL === "disable"
     ? false
-    : { rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false" },
+    : {
+        // Certificado raiz público do Supabase, fornecido em Base64 nas variáveis da Vercel.
+        ...(process.env.PGSSL_CA_BASE64
+          ? { ca: Buffer.from(process.env.PGSSL_CA_BASE64, "base64").toString("utf8") }
+          : {}),
+        // A validação TLS permanece habilitada por padrão.
+        rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false",
+      },
 });
 
 const transactionContext = new AsyncLocalStorage<TransactionContext>();
