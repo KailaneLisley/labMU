@@ -29,22 +29,33 @@ A versão publicada do labMU pode ser acessada pelo link:
 
 O endpoint de saúde deve retornar um JSON com `"status": "ok"` quando a API estiver disponível.
 
+### Credenciais de demonstração
+
+As contas abaixo são disponibilizadas para testar a versão publicada na Vercel:
+
+| Perfil | E-mail | Senha |
+| :--- | :--- | :--- |
+| **Administrador** | `admin.musarq@unicap.br` | `Admin@123` |
+| **Técnico** | `tecnico.musarq@unicap.br` | `Tecnico@123` |
+
+**Atenção:** utilize essas credenciais somente no ambiente de demonstração do labMU. Não as reutilize em outros serviços. Caso a equipe altere ou desative as contas, esta seção deverá ser atualizada.
+
 ### Como testar
 
 1. Acesse o [labMU — versão de demonstração](https://lab-mu-gamma.vercel.app).
-2. Entre com as credenciais de demonstração fornecidas pela equipe responsável. Por segurança, usuários e senhas de produção não são publicados neste repositório.
-3. Após o login, confira o Dashboard e navegue pelos módulos liberados para o perfil utilizado.
-4. Verifique, preferencialmente, as telas de consulta: Usuários, Máquinas, Manutenção, Estoque, Empréstimos, Produções e Relatórios. A disponibilidade de cada módulo depende das permissões do perfil.
-5. Para validar uma funcionalidade de escrita, combine previamente com a equipe responsável e utilize apenas registros de teste autorizados.
+2. Na tela de login, utilize uma das contas da tabela acima.
+3. Para conhecer a visão administrativa, entre com o perfil **Administrador**. Para testar o fluxo operacional, entre com o perfil **Técnico**.
+4. Após o login, confira o Dashboard (quando disponível para o perfil) e navegue pelos módulos liberados.
+5. Verifique as telas de consulta: Usuários, Máquinas, Manutenção, Estoque, Empréstimos, Produções e Relatórios. A disponibilidade depende das permissões do perfil.
 6. Ao terminar, encerre a sessão pelo sistema.
 
 ### Cuidados durante a demonstração
 
-- Utilize somente a conta de demonstração disponibilizada pela equipe. Não compartilhe credenciais em issues, commits ou mensagens públicas.
-- Prefira consultas e navegação. Não exclua, inative ou edite registros reais.
-- Não registre empréstimos, devoluções, manutenções, produções ou movimentações de estoque sem autorização: essas operações alteram os dados compartilhados da demonstração.
+- As contas podem acessar dados compartilhados da demonstração. Prefira consultas e navegação.
+- Não exclua, inative ou edite registros existentes.
+- Não registre empréstimos, devoluções, manutenções, produções ou movimentações de estoque sem autorização da equipe: essas operações alteram os dados compartilhados.
 - Não insira dados pessoais, informações institucionais sigilosas ou senhas reais.
-- Se encontrar um problema, registre a tela/módulo, o passo realizado e a mensagem de erro, sem incluir senhas, tokens ou outros dados sensíveis.
+- Se encontrar um problema, registre a tela/módulo, o passo realizado e a mensagem de erro, sem incluir tokens ou outros dados sensíveis.
 
 ### Perfis de acesso
 
