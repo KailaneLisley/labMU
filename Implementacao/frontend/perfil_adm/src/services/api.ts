@@ -29,8 +29,11 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       ...options,
       headers,
     });
-  } catch (err) {
-    throw new Error("Não foi possível conectar ao servidor do labMU. Verifique se o backend está ativo.");
+  } catch (err: any) {
+    if (err?.message && !err.message.includes("fetch")) {
+      throw err;
+    }
+    throw new Error("Não foi possível conectar ao servidor do labMU. Verifique se o backend está ativo na porta 3001.");
   }
 
   const data = await response.json().catch(() => null);

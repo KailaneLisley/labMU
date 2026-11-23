@@ -4,7 +4,7 @@ import { initializeData } from "./bootstrap.js";
 
 initializeData();
 
-app.listen(env.PORT, () => {
+app.listen(env.PORT, "0.0.0.0", () => {
   console.log(`
 =====================================================
   🚀 labMU - Backend Server Rodando com Sucesso!

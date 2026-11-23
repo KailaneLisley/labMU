@@ -1,0 +1,14 @@
+{
+  "name": "labmu-workspace",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão labMU - MUSARQ UNICAP",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix Implementacao/backend run dev",
+    "dev:frontend": "npm --prefix Implementacao/frontend/perfil_adm run dev",
+    "build:backend": "npm --prefix Implementacao/backend run build",
+    "build:frontend": "npm --prefix Implementacao/frontend/perfil_adm run build",
+    "test:backend": "npm --prefix Implementacao/backend test",
+    "dev": "echo '\nPara rodar o labMU, inicie em 2 terminais:\n  Terminal 1: npm run dev:backend\n  Terminal 2: npm run dev:frontend\n'"
+  }
+}
