@@ -1,6 +1,7 @@
-#  labMU — Sistema de Gestão de Equipamentos
+# labMU — Sistema de Gestão de Equipamentos
+
 > **Laboratório de Prototipagem do MUSARQ — Universidade Católica de Pernambuco (UNICAP)**  
-> **Equipe 07** | **Metodologia:** Scrum | **Tecnologias:** React + Vite + Node.js + SQLite
+> **Equipe 07** | **Metodologia:** Scrum | **Tecnologias:** React + Vite + Node.js + Express + TypeScript + PostgreSQL (Supabase)
 
 ---
 
@@ -11,13 +12,53 @@ O **labMU** é uma plataforma integrada de gestão desenvolvida para o Laborató
 - **Controle de Acessos & Usuários:** Gestão de Administradores, Técnicos e Clientes.
 - **Inventário de Máquinas Fixas:** Acompanhamento de impressoras 3D e scanners fixos com rotinas preventivas e corretivas.
 - **Controle de Suprimentos & Estoque:** Entrada de matéria-prima (filamentos e resinas) em kg e baixa automática e fracionada em gramas/unidades por ordem de produção.
-- **Fluxo de Empréstimos de Equipamentos Portáteis:** Controle rigoroso de retirada e devolução de portáteis (tablets, celulares, mesas digitalizadoras), com bloqueio estrito para impedir empréstimo de máquinas fixas.
-- **Registro de Produções:** Histórico auditável de peças impressas e escaneamentos realizados.
-- **Relatórios Gerenciais & Dashboard:** Indicadores em tempo real, filtros dinâmicos e exportação de dados para relatórios operacionais.
+- **Fluxo de Empréstimos de Equipamentos Portáteis:** Controle de retirada e devolução de portáteis, com bloqueio para impedir empréstimo de máquinas fixas.
+- **Registro de Produções:** Histórico de peças impressas e escaneamentos realizados.
+- **Relatórios Gerenciais & Dashboard:** Indicadores, filtros e exportação de dados para relatórios operacionais.
 
 ---
 
-## 🏛️ 2. Arquitetura da Solução
+## 2. Acesso à versão de demonstração
+
+A versão publicada do labMU pode ser acessada pelo link:
+
+<https://lab-mu-gamma.vercel.app>
+
+**Backend / API:** <https://labmu-api.vercel.app>  
+**Verificação de disponibilidade:** <https://labmu-api.vercel.app/api/health>
+
+O endpoint de saúde deve retornar um JSON com `"status": "ok"` quando a API estiver disponível.
+
+### Como testar
+
+1. Acesse o [labMU — versão de demonstração](https://lab-mu-gamma.vercel.app).
+2. Entre com as credenciais de demonstração fornecidas pela equipe responsável. Por segurança, usuários e senhas de produção não são publicados neste repositório.
+3. Após o login, confira o Dashboard e navegue pelos módulos liberados para o perfil utilizado.
+4. Verifique, preferencialmente, as telas de consulta: Usuários, Máquinas, Manutenção, Estoque, Empréstimos, Produções e Relatórios. A disponibilidade de cada módulo depende das permissões do perfil.
+5. Para validar uma funcionalidade de escrita, combine previamente com a equipe responsável e utilize apenas registros de teste autorizados.
+6. Ao terminar, encerre a sessão pelo sistema.
+
+### Cuidados durante a demonstração
+
+- Utilize somente a conta de demonstração disponibilizada pela equipe. Não compartilhe credenciais em issues, commits ou mensagens públicas.
+- Prefira consultas e navegação. Não exclua, inative ou edite registros reais.
+- Não registre empréstimos, devoluções, manutenções, produções ou movimentações de estoque sem autorização: essas operações alteram os dados compartilhados da demonstração.
+- Não insira dados pessoais, informações institucionais sigilosas ou senhas reais.
+- Se encontrar um problema, registre a tela/módulo, o passo realizado e a mensagem de erro, sem incluir senhas, tokens ou outros dados sensíveis.
+
+### Perfis de acesso
+
+| Perfil | Acesso |
+| :--- | :--- |
+| **Administrador** | Acesso às funcionalidades administrativas, incluindo Dashboard, usuários, equipamentos, empréstimos e relatórios. |
+| **Técnico** | Acesso às funcionalidades operacionais permitidas, como máquinas, manutenção, estoque e perfil. |
+| **Cliente** | Não possui acesso direto ao sistema; é cadastrado para vínculo a produções e empréstimos. |
+
+O cadastro público disponível na aplicação é destinado a Técnicos e exige e-mail institucional `@unicap.br`. A criação de Administradores é restrita à equipe responsável.
+
+---
+
+## 3. Arquitetura da Solução
 
 O sistema foi arquitetado em duas camadas independentes e integradas via API REST:
 
@@ -26,180 +67,146 @@ O sistema foi arquitetado em duas camadas independentes e integradas via API RES
 │                       CLIENTE (FRONTEND)                    │
 │                                                             │
 │   React 18 + Vite + TypeScript + Tailwind CSS + Lucide UI   │
-│   ├── SPA Modular com React Router                          │
-│   ├── Modo Híbrido: Conexão API REST + Fallback Offline     │
-│   └── Localização: Implementacao/frontend/perfil_adm        │
+│   ├── SPA modular com React Router                          │
+│   ├── Consumo da API REST com autenticação JWT              │
+│   └── Diretório: Implementacao/frontend/perfil_adm          │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                │ Requisições HTTP / JSON
-                               │ Header: Authorization: Bearer <JWT>
+                               │ Authorization: Bearer <JWT>
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       SERVIDOR (BACKEND)                    │
 │                                                             │
-│   Node.js 22 + Express 5 + TypeScript + node:sqlite         │
-│   ├── Arquitetura em Camadas: Routes -> Controllers -> Services
-│   ├── Criptografia com bcryptjs + Sessões Stateless com JWT │
-│   ├── Banco de Dados Relacional SQLite com Transações ACID  │
-│   └── Localização: Implementacao/backend                    │
+│   Node.js 22 + Express 5 + TypeScript                       │
+│   ├── Arquitetura em camadas: Routes → Controllers → Services
+│   ├── Autenticação JWT e senhas protegidas com bcryptjs     │
+│   ├── PostgreSQL hospedado no Supabase                      │
+│   └── API publicada como Vercel Functions                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-##  3. Perfis de Usuário & Políticas de Segurança
+## 4. Perfis de Usuário & Políticas de Segurança
 
-| Perfil | Acesso ao Sistema | Cadastro / Criação | Política de Recuperação de Senha |
+| Perfil | Acesso ao Sistema | Cadastro / Criação | Recuperação de Senha |
 | :--- | :---: | :--- | :--- |
-| **Administrador** |  Sim (Login/Senha) | **Exclusivo via Banco de Dados** (cadastrado previamente pela coordenação/desenvolvedores). | **Restrita:** Por segurança institucional, administradores não utilizam recuperação automática. Devem contatar o suporte técnico (`musarq@unicap.br`). |
-| **Técnico** |  Sim (Login/Senha) | **Público Institucional** (`/cadastro`), exigindo e-mail `@unicap.br`, matrícula e definição de **Pergunta Secreta de Segurança**. | **Autônoma:** Validação em 3 etapas com verificação do e-mail institucional, resposta da pergunta secreta e definição de nova senha segura. |
-| **Cliente** |  Não possui login | Cadastrado por técnicos/administradores para fins de vínculo a ordens de produção e empréstimos. | Não aplicável. |
+| **Administrador** | Sim (Login/Senha) | Restrito à equipe responsável; não há cadastro público. | Não utiliza recuperação automática. Deve contatar a administração/suporte. |
+| **Técnico** | Sim (Login/Senha) | Cadastro público institucional (`@unicap.br`), com matrícula e pergunta secreta. | Fluxo de recuperação em etapas com validação da pergunta secreta. |
+| **Cliente** | Não possui login | Cadastrado por técnicos/administradores para vínculo a produções e empréstimos. | Não aplicável. |
 
 ---
 
-##  4. Módulos e Funcionalidades Principais
+## 5. Módulos e Funcionalidades Principais
 
 1. **Autenticação & Sessões:** Login com geração de JWT, rotas protegidas e validação de cargos (`role`).
-2. **Recuperação de Senha por Pergunta Secreta:** Fluxo em 3 passos para técnicos, com perguntas personalizadas ou pré-definidas e validação *case-insensitive*.
-3. **Gestão de Usuários:** Listagem paginada, filtros por perfil/status, ativação/inativação e auditoria.
-4. **Parque de Máquinas (Fixas):** Controle de impressoras 3D (FDM, Resina) e scanners. Cada equipamento possui TAG patrimonial e agenda de manutenção preventiva (30 dias).
+2. **Recuperação de Senha por Pergunta Secreta:** Fluxo em etapas para técnicos; recuperação automática de administradores bloqueada.
+3. **Gestão de Usuários:** Listagem, filtros por perfil/status, ativação/inativação e auditoria.
+4. **Parque de Máquinas (Fixas):** Controle de impressoras 3D (FDM, Resina) e scanners, com TAG patrimonial e agenda de manutenção preventiva.
 5. **Gestão de Manutenções:** Abertura de chamados preventivos e corretivos com registro de custos, técnico responsável e peças trocadas.
-6. **Controle de Estoque Fracionado:** Entrada de bobinas/resinas em quilogramas (kg) com abatimento automático e preciso em gramas (g) durante a produção.
-7. **Empréstimos de Equipamentos Portáteis:** Sistema de retirada e devolução com cálculo de status (em andamento, atrasado, devolvido).  
-   > ** Regra de Negócio Crucial:** Máquinas fixas de laboratório são **estritamente proibidas** de serem emprestadas. Apenas itens portáteis cadastrados no inventário de empréstimos podem ser retirados.
-8. **Relatórios Gerenciais:**
-   - Produção mensal consolidada por técnico.
-   - Consumo periódico de insumos do estoque.
-   - Estatísticas e movimentações de empréstimos.
-   - Indicadores de manutenção preventiva e corretiva.
-   - Exportação de dados operacionais em formato CSV.
-9. **Dashboard em Tempo Real:** Cards dinâmicos com contadores de máquinas ativas, alertas de suprimentos em nível crítico e devoluções pendentes.
+6. **Controle de Estoque Fracionado:** Entrada de bobinas/resinas em quilogramas (kg) com abatimento automático em gramas (g) durante a produção.
+7. **Empréstimos de Equipamentos Portáteis:** Retirada e devolução com cálculo de status. Máquinas fixas não podem ser emprestadas.
+8. **Relatórios Gerenciais:** Produção por técnico, consumo de insumos, movimentações de empréstimos e indicadores de manutenção, com exportação CSV.
+9. **Dashboard:** Indicadores e alertas operacionais consolidados.
 
 ---
 
-## 5. Credenciais Padrão para Início Rápido
-
-O banco de dados SQLite inicializa com dados pré-carregados (*seed*):
-
-| Perfil | E-mail Institucional | Senha Padrão | Pergunta Secreta | Resposta Secreta |
-| :--- | :--- | :--- | :--- | :--- |
-| **Administrador** | `admin.musarq@unicap.br` | `Admin@123` | *Restrita* | *Restrita* |
-| **Técnico** | `tecnico.musarq@unicap.br` | `Tecnico@123` | *Qual o nome do seu primeiro animal de estimação?* | `Rex` |
-
----
-
-##  6. Como Executar o Projeto Localmente
+## 6. Como Executar o Projeto Localmente
 
 ### Pré-requisitos
-- **Node.js:** Versão 22 ou superior *(obrigatório para suporte nativo ao módulo `node:sqlite`)*.
-- **npm:** Versão 10 ou superior.
+
+- **Node.js:** versão 22.13.0 ou superior.
+- **npm:** versão 10 ou superior.
 - **Git** instalado.
+- Uma instância PostgreSQL acessível para desenvolvimento.
 
----
-
-### Passo 1: Executar o Backend
+### Passo 1: Configurar e executar o Backend
 
 ```bash
-# Acessar a pasta do backend
-cd labMU/Implementacao/backend
+cd Implementacao/backend
+npm ci
+```
 
-# Instalar dependências
-npm install
+Crie um arquivo `.env` com base no `.env.example` e configure as variáveis necessárias para o ambiente local, incluindo `DATABASE_URL`, `JWT_SECRET` e as configurações de conexão SSL quando aplicáveis. Nunca compartilhe ou versione o arquivo `.env`.
 
-# Iniciar em modo de desenvolvimento (porta 3001)
+O schema do PostgreSQL deve estar aplicado ao banco antes de iniciar a API. Consulte as instruções e migrações em [Implementacao/backend/README.md](Implementacao/backend/README.md) e no diretório de migrações do projeto.
+
+Inicie o servidor:
+
+```bash
 npm run dev
 ```
 
-> O backend criará automaticamente o banco de dados `data/labmu.sqlite` e aplicará as migrações e o seed de dados iniciais.
-> O endpoint de verificação estará disponível em: `http://localhost:3001/api/health`.
+Por padrão, a API fica disponível em `http://localhost:3001`. O health check é `http://localhost:3001/api/health`.
 
-Para rodar a suite de testes automatizados:
+### Passo 2: Configurar e executar o Frontend
+
+Em outro terminal:
+
 ```bash
-npm test
+cd Implementacao/frontend/perfil_adm
+npm ci
 ```
 
----
+Configure `VITE_API_URL` no ambiente local apontando para a API, por exemplo:
 
-### Passo 2: Executar o Frontend
+```env
+VITE_API_URL=http://localhost:3001/api
+```
 
-Em um novo terminal:
+Inicie o Vite:
 
 ```bash
-# Acessar a pasta da SPA React
-cd labMU/Implementacao/frontend/perfil_adm
-
-# Instalar dependências
-npm install
-
-# Iniciar o servidor Vite (porta 5173 por padrão)
 npm run dev
 ```
 
-Abra seu navegador em: `http://localhost:5173`.
+Acesse <http://localhost:5173>.
 
-> **Modo Híbrido:** A SPA se comunica diretamente com a API REST em `http://localhost:3001/api`. Caso o backend esteja indisponível, a aplicação possui um modo *fallback* que armazena os dados em `localStorage` para demonstração.
+Para detalhes adicionais, consulte os READMEs específicos do [backend](Implementacao/backend/README.md) e do [frontend](Implementacao/frontend/perfil_adm/README.md).
 
 ---
 
-##  7. Estrutura do Repositório
-
-O repositório é organizado de forma modular. Cada pasta possui sua documentação técnica específica:
+## 7. Estrutura do Repositório
 
 ```
 labMU/
-├── README.md                                  # Este documento (Visão Geral e Guia Principal)
-│
-├── Implementacao/                             # Código-fonte da aplicação
-│   ├── README.md                              # Guia da Camada de Implementação
-│   │
-│   ├── backend/                               # Servidor REST Node.js 22 + TypeScript + SQLite
-│   │   ├── README.md                          # Documentação completa da API e Endpoints
+├── README.md                                  # Visão geral e guia principal
+├── Implementacao/
+│   ├── README.md                              # Guia da camada de implementação
+│   ├── backend/                               # API Node.js + TypeScript + PostgreSQL
+│   │   ├── README.md                          # Documentação da API e endpoints
 │   │   ├── src/                               # Código-fonte do backend
-│   │   │   ├── README.md                      # Arquitetura interna e padrões do backend
 │   │   │   ├── config/                        # Variáveis de ambiente e configurações
-│   │   │   ├── database/                      # Schema SQL, migrações e seed
-│   │   │   ├── middlewares/                   # Autenticação JWT e tratamento centralizado de erros
-│   │   │   └── modules/                       # Módulos de domínio (auth, users, machines, etc.)
+│   │   │   ├── database/                      # Acesso ao banco e schema
+│   │   │   ├── middlewares/                   # Autenticação JWT e tratamento de erros
+│   │   │   └── modules/                       # Módulos de domínio
 │   │   └── tests/                             # Testes automatizados da API
-│   │
-│   └── frontend/                              # Aplicações e protótipos de interface
-│       ├── README.md                          # Visão geral do frontend e design system
-│       │
-│       ├── perfil_adm/                        # Aplicação SPA Oficial (React 18 + Vite + Tailwind)
-│       │   ├── README.md                      # Documentação completa da SPA
-│       │   └── src/                           # Código-fonte da SPA
-│       │       ├── README.md                  # Estrutura de páginas, componentes e serviços
-│       │       ├── components/                # Componentes compartilhados e Layout
-│       │       ├── pages/                     # Telas organizadas por módulo de negócio
-│       │       ├── services/                  # Cliente HTTP integrado à API
-│       │       └── lib/                       # Helpers, persistência e exportação CSV
-│       │
-│       ├── login_adm/                         # Protótipo estático original (HTML/CSS)
-│       │   └── README.md                      # Documentação e histórico do protótipo
-│       │
-│       └── cadastro_adm/                      # Protótipo de componente de cadastro
-│           └── README.md                      # Documentação do componente isolado
-│
-└── Documentacao/                              # Documentos de especificação, Sprints e Testes
-    ├── README.md                              # Guia de documentações acadêmicas e Scrum
-    ├── Backend_Requisitos_e_Integracao.md      # Especificação formal dos requisitos e fluxos
-    ├── Relatorio_de_Testes_labMU.md           # Relatório detalhado dos testes de qualidade
-    └── Projetos/Sprints/                      # Documentação iterativa das Sprints da Equipe 07
+│   └── frontend/
+│       ├── README.md                          # Visão geral do frontend
+│       └── perfil_adm/                        # SPA oficial React + Vite
+│           ├── README.md                      # Documentação da SPA
+│           └── src/                           # Páginas, componentes e serviços
+└── Documentacao/                              # Requisitos, testes e documentação Scrum
 ```
 
 ---
 
-##  8. Opções de Deploy Gratuito
+## 8. Deploy e Infraestrutura
 
-O projeto foi preparado para deploy simplificado e gratuito:
+A versão de demonstração está publicada com a seguinte arquitetura:
 
-- **Backend no [Render](https://render.com/):** o arquivo `render.yaml` (na raiz) descreve o Web Service. Ao criar o serviço com "Blueprint", ele já define o build (`npm install && npm run build`), o start (`npm start`), a versão do Node (22.13.0 ou superior, necessária para o `node:sqlite` sem flag) e a checagem de saúde em `/api/health`. Você precisa preencher manualmente:
-  - `CORS_ORIGINS`: URL exata do frontend na Vercel, sem barra final (ex.: `https://labmu.vercel.app`).
-  - `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`: primeiro administrador (senha com ao menos 8 caracteres, letras e números). Só é criado se não houver nenhum administrador.
-  - `JWT_SECRET` é gerado automaticamente pelo blueprint; em produção o servidor não sobe sem ele.
-  - Atenção: o SQLite fica no disco do serviço. No plano gratuito o disco é efêmero e os dados são perdidos a cada novo deploy ou reinício. Para persistência, use um disco persistente pago ou outro banco.
-- **Frontend na [Vercel](https://vercel.com/):** importe o repositório e defina o *Root Directory* como `Implementacao/frontend/perfil_adm` (framework Vite, build `npm run build`, saída `dist`). Defina a variável `VITE_API_URL` com a URL do backend no Render (ex.: `https://labmu-api.onrender.com`), sem barra final. A variável é embutida no build: depois de alterá-la, faça um novo deploy. O arquivo `vercel.json` da pasta redireciona todas as rotas para `index.html`, para que recarregar páginas como `/dashboard` funcione.
-- **Ordem recomendada:** suba o backend primeiro, copie a URL do Render para `VITE_API_URL` na Vercel e, depois, copie a URL da Vercel para `CORS_ORIGINS` no Render.
+- **Frontend:** [Vercel](https://vercel.com/) — aplicação React/Vite.
+- **Backend:** [Vercel Functions](https://vercel.com/docs/functions) — API Node.js/Express.
+- **Banco de dados:** [Supabase](https://supabase.com/) — PostgreSQL.
+
+URLs de produção:
+
+- Frontend: <https://lab-mu-gamma.vercel.app>
+- Backend: <https://labmu-api.vercel.app>
+- Health check: <https://labmu-api.vercel.app/api/health>
+
+As configurações e credenciais de produção são gerenciadas nas plataformas de hospedagem e não devem ser incluídas no repositório. Para orientações técnicas de implantação, consulte a documentação específica do backend.
 
 ---
 
@@ -212,4 +219,3 @@ Projeto desenvolvido no âmbito das disciplinas de Engenharia de Software da Uni
 - **Lucas Mendes**
 - **Quezia Costa**
 - **Kailane Lisley**
-
