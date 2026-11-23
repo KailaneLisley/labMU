@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import Sidebar from "./Sidebar";
 import { Navigate, useLocation } from "react-router-dom";
 import { getSession } from "../../lib/session";
+import { canAccessPath, getHomePath } from "../../lib/permissions";
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,9 +10,15 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
+  const session = getSession();
 
-  if (!getSession()) {
+  if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  // Mesmo digitando a URL diretamente, cada perfil só alcança as próprias telas.
+  if (!canAccessPath(location.pathname, session.user.role)) {
+    return <Navigate to={getHomePath(session.user.role)} replace />;
   }
 
   return (

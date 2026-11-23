@@ -80,9 +80,9 @@ npm start
 ### 2. Gestão de Usuários
 | Método | Endpoint | Descrição | Acesso |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/users` | Lista usuários com paginação e filtros (`q`, `role`, `status`). | Autenticado |
+| `GET` | `/api/users` | Lista usuários com paginação e filtros (`q`, `role`, `status`). | Administrador |
 | `POST` | `/api/users` | Cadastra novo usuário (Administrador, Técnico ou Cliente). | Administrador |
-| `GET` | `/api/users/:id` | Retorna detalhes de um usuário específico. | Autenticado |
+| `GET` | `/api/users/:id` | Retorna detalhes de um usuário específico. | Administrador |
 | `PATCH` | `/api/users/:id` | Atualiza dados cadastrais de um usuário. | Administrador |
 | `PATCH` | `/api/users/:id/status` | Altera status (`ativo`/`inativo`). | Administrador |
 | `PATCH` | `/api/users/me` | Atualiza o próprio perfil do usuário logado. | Autenticado |
@@ -113,11 +113,11 @@ npm start
 ### 6. Equipamentos Portáteis & Empréstimos
 | Método | Endpoint | Descrição | Acesso |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/equipment` | Inventário de equipamentos portáteis disponíveis para retirada. | Autenticado |
-| `POST` | `/api/equipment` | Cadastra novo item portátil (bloqueia registro de máquinas fixas). | Autenticado |
-| `GET` | `/api/loans` | Lista empréstimos em andamento, atrasados e concluídos. | Autenticado |
-| `POST` | `/api/loans` | Registra retirada de equipamento portátil com bloqueio de duplicidade. | Autenticado |
-| `POST` | `/api/loans/:id/return` | Registra devolução e libera o equipamento. | Autenticado |
+| `GET` | `/api/equipment` | Inventário de equipamentos portáteis disponíveis para retirada. | Administrador |
+| `POST` | `/api/equipment` | Cadastra novo item portátil (bloqueia registro de máquinas fixas). | Administrador |
+| `GET` | `/api/loans` | Lista empréstimos em andamento, atrasados e concluídos. | Administrador |
+| `POST` | `/api/loans` | Registra retirada de equipamento portátil com bloqueio de duplicidade. | Administrador |
+| `POST` | `/api/loans/:id/return` | Registra devolução e libera o equipamento. | Administrador |
 
 ### 7. Produção & Consumo Fracionado
 | Método | Endpoint | Descrição | Acesso |
@@ -128,12 +128,12 @@ npm start
 ### 8. Relatórios & Dashboard
 | Método | Endpoint | Descrição | Acesso |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/dashboard/summary` | Contadores consolidados e alertas operacionais em tempo real. | Autenticado |
-| `GET` | `/api/reports/production` | Relatório detalhado de produção com tempo médio e gasto de insumos. | Autenticado |
-| `GET` | `/api/reports/production-by-technician` | Volume de produção consolidado por técnico. | Autenticado |
-| `GET` | `/api/reports/stock-consumption` | Relatório periódico de consumo de insumos. | Autenticado |
-| `GET` | `/api/reports/loans` | Estatísticas de empréstimos e devoluções. | Autenticado |
-| `GET` | `/api/reports/maintenances` | Estatísticas de custos e manutenções preventivas/corretivas. | Autenticado |
+| `GET` | `/api/dashboard/summary` | Contadores consolidados e alertas operacionais em tempo real. | Administrador |
+| `GET` | `/api/reports/production` | Relatório detalhado de produção com tempo médio e gasto de insumos. | Administrador |
+| `GET` | `/api/reports/production-by-technician` | Volume de produção consolidado por técnico. | Administrador |
+| `GET` | `/api/reports/stock-consumption` | Relatório periódico de consumo de insumos. | Administrador |
+| `GET` | `/api/reports/loans` | Estatísticas de empréstimos e devoluções. | Administrador |
+| `GET` | `/api/reports/maintenances` | Estatísticas de custos e manutenções preventivas/corretivas. | Autenticado (usado pela tela de Manutenção) |
 
 ---
 

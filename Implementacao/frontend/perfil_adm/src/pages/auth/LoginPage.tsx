@@ -3,14 +3,11 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSession, saveSession as persistSession, UserRole } from "../../lib/session";
 import { api } from "../../services/api";
+import { getHomePath } from "../../lib/permissions";
 
 const CONFIG = {
   EMAIL_DOMAIN: "@unicap.br",
   MIN_PASSWORD_LENGTH: 6,
-  ROUTES: {
-    administrador: "/dashboard",
-    tecnico: "/dashboard",
-  },
 };
 
 const REMEMBER_KEY = "labmu:remember";
@@ -98,10 +95,7 @@ export const LoginPage = (): JSX.Element => {
 
       setAlert({ type: "success", message: "Login realizado com sucesso! Redirecionando..." });
       await sleep(600);
-      navigate(
-        CONFIG.ROUTES[data.user.role as keyof typeof CONFIG.ROUTES] ||
-          CONFIG.ROUTES[payload.role as keyof typeof CONFIG.ROUTES]
-      );
+      navigate(getHomePath((data.user.role ?? payload.role) as UserRole));
     } catch (error) {
       setAlert({
         type: "error",
@@ -114,8 +108,9 @@ export const LoginPage = (): JSX.Element => {
 
   // Restaurar dados salvos
   useEffect(() => {
-    if (getSession()) {
-      navigate("/dashboard", { replace: true });
+    const currentSession = getSession();
+    if (currentSession) {
+      navigate(getHomePath(currentSession.user.role), { replace: true });
       return;
     }
     const rawRemember = localStorage.getItem(REMEMBER_KEY);

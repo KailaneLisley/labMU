@@ -10,9 +10,9 @@ usersRouter.use(authenticateToken);
 // Atualização do próprio perfil
 usersRouter.patch("/me", UsersController.updateProfile);
 
-// Listagem e busca de usuários (Acesso para administrador e técnico)
-usersRouter.get("/", UsersController.list);
-usersRouter.get("/:id", UsersController.getById);
+// Listagem e busca de usuários (apenas administrador)
+usersRouter.get("/", requireRole("administrador"), UsersController.list);
+usersRouter.get("/:id", requireRole("administrador"), UsersController.getById);
 
 // Criação, edição e status (Apenas administrador)
 usersRouter.post("/", requireRole("administrador"), UsersController.create);

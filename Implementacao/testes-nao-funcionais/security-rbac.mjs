@@ -54,7 +54,11 @@ if (!prodId) {
 }
 
 const p7 = await call("GET", "/api/users", { token: techA.token });
-rec("P7", null, "Técnico lista usuários (decisão de produto pendente, informativo)", `status=${p7.status} total=${p7.json?.total}`, "INFO");
+rec("P7", p7.status === 403, "Técnico não lista usuários", `status=${p7.status}`);
+const p8 = await call("GET", "/api/dashboard/summary", { token: techA.token });
+rec("P8", p8.status === 403, "Técnico não acessa dashboard", `status=${p8.status}`);
+const p9 = await call("GET", "/api/reports/maintenances", { token: techA.token });
+rec("P9", p9.status === 200, "Técnico acessa relatório de manutenções da própria tela", `status=${p9.status}`);
 
 // Revogação de sessão
 const sess = await login(techB.email, PASSWORD);

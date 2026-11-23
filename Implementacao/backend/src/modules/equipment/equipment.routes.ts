@@ -4,7 +4,8 @@ import { authenticateToken, requireRole } from "../../middlewares/auth.js";
 
 export const equipmentRouter = Router();
 
-equipmentRouter.use(authenticateToken);
+// Equipamentos portáteis são usados apenas pela tela de empréstimos (administrador)
+equipmentRouter.use(authenticateToken, requireRole("administrador"));
 
 equipmentRouter.get("/", EquipmentController.list);
 equipmentRouter.get("/:id", EquipmentController.getById);

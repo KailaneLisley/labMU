@@ -1,6 +1,7 @@
 import { LayoutDashboard, Users, Wrench, Package, Share2, FileText, Home } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getSession } from "../../lib/session";
+import { canAccessPath } from "../../lib/permissions";
 
 const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -16,6 +17,8 @@ export const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const session = getSession();
+  const role = session?.user.role;
+  const visibleItems = navigationItems.filter((item) => canAccessPath(item.path, role));
 
   const isActive = (path: string) =>
     location.pathname === path || (path !== "/dashboard" && location.pathname.startsWith(`${path}/`));
@@ -38,7 +41,7 @@ export const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-6 max-md:px-2">
         <div className="space-y-2">
-          {navigationItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
             return (

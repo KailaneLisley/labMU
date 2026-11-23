@@ -4,7 +4,8 @@ import { authenticateToken, requireRole } from "../../middlewares/auth.js";
 
 export const loansRouter = Router();
 
-loansRouter.use(authenticateToken);
+// Tela de empréstimos é exclusiva do administrador
+loansRouter.use(authenticateToken, requireRole("administrador"));
 
 loansRouter.get("/", LoansController.list);
 loansRouter.get("/:id", LoansController.getById);

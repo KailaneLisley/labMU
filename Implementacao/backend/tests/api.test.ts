@@ -590,16 +590,17 @@ test("R3: empréstimo recusa data prevista em formato inválido", async () => {
 });
 
 test("R4: relatório com 'até' igual à data inclui os registros do último dia", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
   const tech = await createTechnician();
   const today = new Date().toISOString().slice(0, 10);
 
-  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: adminHeaders });
   await makeRequest("/api/productions", {
     method: "POST",
     headers: tech.headers,
     body: { type: "impressao_3d", description: "Para o relatório", machineId: "mach-1" },
   });
-  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: adminHeaders });
 
   assert.equal(after.data.metrics.totalJobs, before.data.metrics.totalJobs + 1);
 });
@@ -982,7 +983,7 @@ test("R6: cancelamento de produção devolve o insumo ao estoque e não conta no
   assert.equal(prod.status, 201);
   const productionId = prod.data.production.id;
 
-  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  const before = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: adminHeaders });
   const supplyBefore = await makeRequest(`/api/supplies/${supplyId}`, { headers: adminHeaders });
   assert.equal(supplyBefore.data.supply.balance, 3);
 
@@ -1012,7 +1013,7 @@ test("R6: cancelamento de produção devolve o insumo ao estoque e não conta no
   assert.equal(again.status, 400);
   assert.equal(again.data.error.code, "PRODUCTION_ALREADY_CANCELLED");
 
-  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: tech.headers });
+  const after = await makeRequest(`/api/reports/production?from=${today}&to=${today}`, { headers: adminHeaders });
   // A produção cancelada sai do relatório: o total cai em uma unidade
   assert.equal(after.data.metrics.totalJobs, before.data.metrics.totalJobs - 1);
 });
@@ -1155,6 +1156,7 @@ test("V1: valores fora do domínio são recusados com código específico", asyn
 });
 
 test("R9: relatório de produção por técnico agrupa por mês quando pedido", async () => {
+  const adminHeaders = await loginAs(env.DEFAULT_ADMIN_EMAIL, env.DEFAULT_ADMIN_PASSWORD, "administrador");
   const tech = await createTechnician();
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
@@ -1166,7 +1168,7 @@ test("R9: relatório de produção por técnico agrupa por mês quando pedido", 
   });
 
   const grouped = await makeRequest(`/api/reports/production-by-technician?from=${today}&to=${today}&groupBy=month`, {
-    headers: tech.headers,
+    headers: adminHeaders,
   });
   assert.equal(grouped.status, 200);
   const row = grouped.data.report.find((r: any) => r.technicianId === tech.id);
@@ -1175,7 +1177,7 @@ test("R9: relatório de produção por técnico agrupa por mês quando pedido", 
   assert.ok(row.totalJobs >= 1);
 
   const plain = await makeRequest(`/api/reports/production-by-technician?from=${today}&to=${today}`, {
-    headers: tech.headers,
+    headers: adminHeaders,
   });
   assert.equal(plain.data.report[0].month, undefined);
 });
@@ -1189,7 +1191,16 @@ test("Permissões: cada rota restrita recusa o perfil errado", async () => {
   const cases: Array<{ name: string; method: string; path: string; body?: any; role: "tecnico" | "admin"; expected: number }> = [
     { name: "técnico cria usuário", method: "POST", path: "/api/users", role: "tecnico", expected: 403,
       body: { name: "X", email: `p.${Date.now()}@unicap.br`, role: "tecnico", registration: `P${Date.now()}` } },
-    { name: "técnico lista usuários", method: "GET", path: "/api/users", role: "tecnico", expected: 200 },
+    { name: "técnico lista usuários", method: "GET", path: "/api/users", role: "tecnico", expected: 403 },
+    { name: "técnico acessa dashboard", method: "GET", path: "/api/dashboard/summary", role: "tecnico", expected: 403 },
+    { name: "técnico acessa relatório de produção", method: "GET", path: "/api/reports/production", role: "tecnico", expected: 403 },
+    { name: "técnico acessa relatório de empréstimos", method: "GET", path: "/api/reports/loans", role: "tecnico", expected: 403 },
+    { name: "técnico lista equipamentos", method: "GET", path: "/api/equipment", role: "tecnico", expected: 403 },
+    { name: "técnico lista empréstimos", method: "GET", path: "/api/loans", role: "tecnico", expected: 403 },
+    { name: "técnico acessa relatório de manutenções", method: "GET", path: "/api/reports/maintenances", role: "tecnico", expected: 200 },
+    { name: "técnico lista máquinas", method: "GET", path: "/api/machines", role: "tecnico", expected: 200 },
+    { name: "técnico lista manutenções", method: "GET", path: "/api/maintenances", role: "tecnico", expected: 200 },
+    { name: "técnico lista suprimentos", method: "GET", path: "/api/supplies", role: "tecnico", expected: 200 },
     { name: "técnico ajusta estoque", method: "POST", path: "/api/supplies/adjustments", role: "tecnico", expected: 403,
       body: { supplyId: "sup-x", quantity: 1, reason: "teste" } },
     { name: "técnico remove máquina", method: "DELETE", path: "/api/machines/mach-5", role: "tecnico", expected: 403 },
@@ -1352,7 +1363,7 @@ test("Relatórios: estoque, empréstimos e manutenções devolvem métricas e re
   const tech = await createTechnician();
   const period = "from=2020-01-01&to=2099-12-31";
 
-  const stock = await makeRequest(`/api/reports/stock-consumption?${period}`, { headers: tech.headers });
+  const stock = await makeRequest(`/api/reports/stock-consumption?${period}`, { headers: adminHeaders });
   assert.equal(stock.status, 200);
   assert.ok(Array.isArray(stock.data.report));
   assert.ok(stock.data.report.every((r: any) => typeof r.totalConsumedKg === "number" && typeof r.totalReceivedKg === "number"));

@@ -37,20 +37,22 @@ const bal2 = await call("GET", `/api/supplies/${sup.j.supply.id}`, { token: t })
 log(cancel.s === 200 && bal2.j.supply.balance === 5, "cancelamento devolve o saldo");
 const maint = await call("POST", "/api/maintenances", { token: t, body: { machineId: mach.j.machine.id, type: "preventiva", date: new Date().toISOString().slice(0, 10), description: "Smoke", cost: 10 } });
 log(maint.s === 201, "registro de manutenção");
-const eq = await call("POST", "/api/equipment", { token: t, body: { name: "Smoke Tablet", code: `SMK-${sfx}` } });
-const loan = await call("POST", "/api/loans", { token: t, body: { equipmentId: eq.j.item.id, responsibleName: "Responsável Smoke", dueDate: "2030-01-01" } });
+const eq = await call("POST", "/api/equipment", { token: adm, body: { name: "Smoke Tablet", code: `SMK-${sfx}` } });
+const loan = await call("POST", "/api/loans", { token: adm, body: { equipmentId: eq.j.item.id, responsibleName: "Responsável Smoke", dueDate: "2030-01-01" } });
 log(loan.s === 201, "retirada de equipamento portátil");
-const again = await call("POST", "/api/loans", { token: t, body: { equipmentId: eq.j.item.id, responsibleName: "Outro", dueDate: "2030-01-01" } });
+const again = await call("POST", "/api/loans", { token: adm, body: { equipmentId: eq.j.item.id, responsibleName: "Outro", dueDate: "2030-01-01" } });
 log(again.s === 409, "segunda retirada recusada (409)");
-const ret = await call("POST", `/api/loans/${loan.j.loan.id}/return`, { token: t });
+const ret = await call("POST", `/api/loans/${loan.j.loan.id}/return`, { token: adm });
 log(ret.s === 200, "devolução do equipamento");
 const today = new Date().toISOString().slice(0, 10);
 for (const r of ["production", "production-by-technician", "stock-consumption", "loans", "maintenances"]) {
-  const rep = await call("GET", `/api/reports/${r}?from=${today}&to=${today}`, { token: t });
+  const rep = await call("GET", `/api/reports/${r}?from=${today}&to=${today}`, { token: adm });
   log(rep.s === 200, `relatório ${r}`);
 }
-const dash = await call("GET", "/api/dashboard/summary", { token: t }); log(dash.s === 200, "dashboard");
+const dash = await call("GET", "/api/dashboard/summary", { token: adm }); log(dash.s === 200, "dashboard");
 const users = await call("GET", "/api/users?limit=5", { token: adm }); log(users.s === 200 && users.j.data.length <= 5, "lista de usuários paginada");
+const rbac = await call("GET", "/api/dashboard/summary", { token: t });
+log(rbac.s === 403, "técnico não acessa dashboard (403)");
 const forbidden = await call("POST", "/api/users", { token: t, body: { name: "X Y", email: `x.${sfx}@unicap.br`, role: "tecnico", registration: `X${sfx}` } });
 log(forbidden.s === 403, "técnico não cria usuário (403)");
 const out = await call("POST", "/api/auth/logout", { token: t });

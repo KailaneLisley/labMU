@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, Edit2, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { clearSession, getProfileStorageKey, getSession } from "../../lib/session";
+import { getCurrentRole, getHomePath } from "../../lib/permissions";
 import { readJsonFromStorage } from "../../lib/storage";
 import { api } from "../../services/api";
 
@@ -78,10 +79,10 @@ export const ProfilePage = (): JSX.Element => {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <button
             className="inline-flex items-center gap-2 text-[#8B1329] hover:text-[#6b0f1f] transition-colors font-medium text-sm"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate(getHomePath(getCurrentRole()))}
           >
             <ChevronLeft className="w-4 h-4" />
-            Voltar ao Dashboard
+            Voltar ao Painel
           </button>
         </div>
       </div>

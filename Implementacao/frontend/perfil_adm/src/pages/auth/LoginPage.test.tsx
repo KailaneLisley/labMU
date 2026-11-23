@@ -15,6 +15,7 @@ function renderLogin() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<p>PAINEL</p>} />
+        <Route path="/maquinas" element={<p>MÁQUINAS</p>} />
       </Routes>
     </MemoryRouter>
   );
@@ -69,7 +70,7 @@ describe("LoginPage: validação do formulário", () => {
 });
 
 describe("LoginPage: autenticação pela API", () => {
-  it("grava a sessão e vai para o painel quando a API aceita", async () => {
+  it("grava a sessão e vai para a tela inicial do perfil quando a API aceita", async () => {
     vi.spyOn(api, "login").mockResolvedValue({ token: TECH_SESSION.token, user: TECH_SESSION.user });
     const page = renderLogin();
 
@@ -77,8 +78,23 @@ describe("LoginPage: autenticação pela API", () => {
     await userEvent.type(page.password(), "Tecnico@123");
     fireEvent.click(page.submit());
 
-    expect(await screen.findByText("PAINEL", {}, { timeout: 3000 })).toBeTruthy();
+    expect(await screen.findByText("MÁQUINAS", {}, { timeout: 3000 })).toBeTruthy();
     expect(JSON.parse(sessionStorage.getItem("labmu:session") as string).token).toBe("jwt-real");
+  });
+
+  it("leva o administrador ao dashboard quando a API aceita", async () => {
+    vi.spyOn(api, "login").mockResolvedValue({
+      token: "jwt-admin",
+      user: { name: "Admin MUSARQ", email: "admin.musarq@unicap.br", role: "administrador" },
+    });
+    const page = renderLogin();
+
+    fireEvent.click(page.roleRadio("administrador"));
+    await userEvent.type(page.email(), "admin.musarq@unicap.br");
+    await userEvent.type(page.password(), "Admin@123");
+    fireEvent.click(page.submit());
+
+    expect(await screen.findByText("PAINEL", {}, { timeout: 3000 })).toBeTruthy();
   });
 
   it("envia o perfil escolhido junto com as credenciais", async () => {

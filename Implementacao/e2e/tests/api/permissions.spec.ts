@@ -16,13 +16,25 @@ test.describe("Autenticação e permissões (API)", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("técnico não administra usuários, ajustes de estoque nem remove máquinas", async ({ request }) => {
+  test("técnico só acessa máquinas, manutenção e estoque", async ({ request }) => {
     const tech = await ApiClient.login(request, TECH);
 
     expect((await tech.post("/users", { name: "X", email: `${unique("x")}@unicap.br`, role: "tecnico", registration: unique("R") })).status()).toBe(403);
     expect((await tech.post("/supplies/adjustments", { supplyId: "sup-x", quantity: 1, reason: "teste" })).status()).toBe(403);
     expect((await tech.delete("/machines/mach-5")).status()).toBe(403);
-    expect((await tech.get("/users")).status()).toBe(200);
+
+    // Telas liberadas para o técnico
+    expect((await tech.get("/machines")).status()).toBe(200);
+    expect((await tech.get("/maintenances")).status()).toBe(200);
+    expect((await tech.get("/supplies")).status()).toBe(200);
+    expect((await tech.get("/reports/maintenances")).status()).toBe(200);
+
+    // Telas exclusivas do administrador
+    expect((await tech.get("/users")).status()).toBe(403);
+    expect((await tech.get("/dashboard/summary")).status()).toBe(403);
+    expect((await tech.get("/reports/production")).status()).toBe(403);
+    expect((await tech.get("/loans")).status()).toBe(403);
+    expect((await tech.get("/equipment")).status()).toBe(403);
   });
 
   test("administrador acessa as rotas de técnico e de administrador", async ({ request }) => {

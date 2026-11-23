@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { DashboardController } from "./dashboard.controller.js";
-import { authenticateToken } from "../../middlewares/auth.js";
+import { authenticateToken, requireRole } from "../../middlewares/auth.js";
 
 export const dashboardRouter = Router();
 
-dashboardRouter.use(authenticateToken);
+// Dashboard é exclusivo do administrador
+dashboardRouter.use(authenticateToken, requireRole("administrador"));
 dashboardRouter.get("/summary", DashboardController.summary);
 

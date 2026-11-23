@@ -12,7 +12,7 @@ export async function loginUi(page: Page, account: { email: string; password: st
   await page.locator("#email").fill(account.email);
   await page.locator('input[type="password"]').fill(account.password);
   await page.getByRole("button", { name: "Entrar no Sistema" }).click();
-  await page.waitForURL("**/dashboard");
+  await page.waitForURL(account.role === "administrador" ? "**/dashboard" : "**/maquinas");
 }
 
 // Fluxo de recuperação completo, pela tela de recuperação de senha

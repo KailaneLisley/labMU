@@ -36,6 +36,17 @@ Aplicação web **Single Page Application (SPA)** oficial para operação e gest
 | `/perfil` | `ProfilePage` | Sim | Visualização de dados do usuário autenticado |
 | `/editar-perfil` | `EditProfilePage` | Sim | Edição de nome, telefone e preferências do usuário |
 
+### Permissões por perfil
+
+As regras ficam em `src/lib/permissions.ts` e são aplicadas pelo `Layout` (mesmo digitando a URL diretamente) e pela API:
+
+| Perfil | Telas liberadas |
+| :--- | :--- |
+| **Técnico** | Máquinas, Manutenção, Estoque e Suprimentos, Perfil |
+| **Administrador** | Todas as telas: Dashboard, Gestão de Usuários, Máquinas, Manutenção, Estoque e Suprimentos, Empréstimo, Relatórios Gerenciais e Perfil |
+
+O técnico entra em `/maquinas`; o administrador entra em `/dashboard`.
+
 ---
 
 ## 🔐 Fluxos de Autenticação e Segurança

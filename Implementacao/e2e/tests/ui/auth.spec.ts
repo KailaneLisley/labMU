@@ -3,11 +3,11 @@ import { ADMIN, TECH, loginAdmin, unique } from "../../support/api";
 import { loginUi, recoverPasswordUi, collectPageErrors } from "../../support/ui";
 
 test.describe("Autenticação (UI + backend real)", () => {
-  test("técnico com credenciais válidas chega ao painel", async ({ page }) => {
+  test("técnico com credenciais válidas chega às máquinas", async ({ page }) => {
     const errors = collectPageErrors(page);
     await loginUi(page, { ...TECH });
 
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/maquinas$/);
     const stored = await page.evaluate(() => sessionStorage.getItem("labmu:session") ?? localStorage.getItem("labmu:session"));
     expect(JSON.parse(stored as string).user.role).toBe("tecnico");
     expect(errors).toEqual([]);
