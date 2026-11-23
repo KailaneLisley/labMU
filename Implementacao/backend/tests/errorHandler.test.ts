@@ -24,14 +24,14 @@ function handle(err: unknown) {
 }
 
 test("violação de CHECK do banco informa o campo na mensagem", () => {
-  const res = handle(new Error("CHECK constraint failed: role IN ('administrador','tecnico')"));
+  const res = handle(Object.assign(new Error("new row violates check constraint users_role_check"), { code: "23514", constraint: "users_role_check" }));
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error.code, "VALIDATION_ERROR");
   assert.equal(res.body.error.message, 'Valor inválido para o campo "role".');
 });
 
 test("violação de CHECK sem nome de coluna usa a mensagem genérica", () => {
-  const res = handle(new Error("CHECK constraint failed: (quantidade > 0)"));
+  const res = handle(Object.assign(new Error("new row violates check constraint stock_movements_quantity_check"), { code: "23514", constraint: "stock_movements_quantity_check" }));
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error.message, "Um dos valores informados não é permitido.");
 });

@@ -3,10 +3,10 @@ import { ReportsService } from "./reports.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class ReportsController {
-  static production = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static production = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { from, to, technicianId } = req.query;
-      const report = ReportsService.getProductionReport({
+      const report = await ReportsService.getProductionReport({
         from: from as string,
         to: to as string,
         technicianId: technicianId as string,
@@ -17,10 +17,10 @@ export class ReportsController {
     }
   };
 
-  static productionByTechnician = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static productionByTechnician = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { from, to, groupBy } = req.query;
-      const report = ReportsService.getProductionByTechnician({
+      const report = await ReportsService.getProductionByTechnician({
         from: from as string,
         to: to as string,
         groupBy: groupBy as string,
@@ -31,10 +31,10 @@ export class ReportsController {
     }
   };
 
-  static stockConsumption = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static stockConsumption = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { from, to } = req.query;
-      const report = ReportsService.getStockConsumption({
+      const report = await ReportsService.getStockConsumption({
         from: from as string,
         to: to as string,
       });
@@ -44,10 +44,10 @@ export class ReportsController {
     }
   };
 
-  static loans = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static loans = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { from, to } = req.query;
-      const report = ReportsService.getLoansReport({
+      const report = await ReportsService.getLoansReport({
         from: from as string,
         to: to as string,
       });
@@ -57,10 +57,10 @@ export class ReportsController {
     }
   };
 
-  static maintenances = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static maintenances = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { from, to } = req.query;
-      const report = ReportsService.getMaintenancesReport({
+      const report = await ReportsService.getMaintenancesReport({
         from: from as string,
         to: to as string,
       });

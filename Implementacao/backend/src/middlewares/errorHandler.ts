@@ -42,10 +42,10 @@ export const errorHandler = (
     return;
   }
 
-  // Valor fora do domínio permitido pelo banco (ex.: perfil ou tipo inexistente)
-  if (String(err?.message).includes("CHECK constraint failed")) {
-    // O SQLite informa a coluna na mensagem, ex.: "CHECK constraint failed: role IN (...)"
-    const field = String(err.message).match(/CHECK constraint failed:\s*\(?(\w+)\s+IN\b/)?.[1];
+  // Valor fora do domínio permitido pelo banco (PostgreSQL CHECK / SQLite legacy).
+  if (err?.code === "23514" || String(err?.message).includes("CHECK constraint failed")) {
+    const constraint = String(err?.constraint || err?.message || "");
+    const field = err?.column || constraint.match(/_(role|status|type)_check$/)?.[1];
     res.status(400).json({
       error: {
         code: "VALIDATION_ERROR",
@@ -70,11 +70,22 @@ export const errorHandler = (
   }
 
   // SQLite constraints error
-  if (err?.code === "SQLITE_CONSTRAINT" || String(err).includes("UNIQUE constraint failed")) {
+  if (err?.code === "23505" || err?.code === "SQLITE_CONSTRAINT" || String(err).includes("UNIQUE constraint failed")) {
     res.status(409).json({
       error: {
         code: "CONFLICT",
         message: "Registro conflitante: já existe um item cadastrado com este identificador único.",
+      },
+    });
+    return;
+  }
+
+  // Referência inexistente ou campo obrigatório ausente no PostgreSQL.
+  if (err?.code === "23503" || err?.code === "23502") {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Um dos valores informados é inválido ou está ausente.",
       },
     });
     return;

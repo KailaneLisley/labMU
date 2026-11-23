@@ -1,10 +1,10 @@
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
 
 export class DashboardService {
-  static getSummary() {
+  static async getSummary() {
     // 1. Contagens de máquinas
-    const machinesStats = query.get<any>(`
+    const machinesStats = await postgres.get<any>(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'ativa' THEN 1 ELSE 0 END) as active,
@@ -14,7 +14,7 @@ export class DashboardService {
     `) || { total: 0, active: 0, maintenance: 0, inactive: 0 };
 
     // 2. Contagens de usuários
-    const usersStats = query.get<any>(`
+    const usersStats = await postgres.get<any>(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN role = 'tecnico' THEN 1 ELSE 0 END) as technicians,
@@ -24,7 +24,7 @@ export class DashboardService {
     `) || { total: 0, technicians: 0, admins: 0, clients: 0 };
 
     // 3. Empréstimos
-    const loansStats = query.get<any>(`
+    const loansStats = await postgres.get<any>(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN ${effectiveLoanStatusSql("l")} IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END) as active,
@@ -34,7 +34,7 @@ export class DashboardService {
     `) || { total: 0, active: 0, overdue: 0, returned: 0 };
 
     // 4. Suprimentos em nível crítico ou baixo
-    const suppliesStats = query.get<any>(`
+    const suppliesStats = await postgres.get<any>(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status IN ('abaixo', 'critico') THEN 1 ELSE 0 END) as low_stock,
@@ -43,7 +43,7 @@ export class DashboardService {
     `) || { total: 0, low_stock: 0, total_kg: 0 };
 
     // 5. Atividades recentes (últimas produções)
-    const recentProductions = query.all(`
+    const recentProductions = await postgres.all(`
       SELECT p.id, p.type, p.description, p.client_name, p.supply_consumed, p.created_at,
              m.name as machine_name, u.name as technician_name
       FROM productions p
@@ -54,7 +54,7 @@ export class DashboardService {
     `);
 
     // 6. Próximas manutenções
-    const upcomingMaintenances = query.all(`
+    const upcomingMaintenances = await postgres.all(`
       SELECT m.id, m.name, m.tag, m.next_maintenance_date, m.status
       FROM machines m
       WHERE m.next_maintenance_date IS NOT NULL

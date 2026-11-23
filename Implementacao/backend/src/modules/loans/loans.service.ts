@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { isValidDateInput } from "../../utils/dates.js";
 import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "./loanStatus.js";
 
 export class LoansService {
-  static listLoans(filters: { status?: string; equipmentId?: string; from?: string; to?: string }) {
+  static async listLoans(filters: { status?: string; equipmentId?: string; from?: string; to?: string }) {
     const status = effectiveLoanStatusSql("l");
     let sql = `
       SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, ${status} AS status, l.notes, l.created_at,
@@ -40,11 +40,11 @@ export class LoansService {
 
     sql += ` ORDER BY l.checkout_date DESC`;
 
-    return query.all(sql, ...params);
+    return await postgres.all(sql, ...params);
   }
 
-  static getLoanById(id: string) {
-    const l = query.get<any>(
+  static async getLoanById(id: string) {
+    const l = await postgres.get<any>(
       `
       SELECT l.id, l.equipment_id, l.responsible_name, l.responsible_id, l.checkout_date, l.due_date, l.return_date, ${effectiveLoanStatusSql("l")} AS status, l.notes, l.created_at,
              pe.name as equipment_name, pe.code as equipment_code, pe.category as equipment_category,
@@ -64,7 +64,7 @@ export class LoansService {
     return l;
   }
 
-  static checkoutLoan(data: {
+  static async checkoutLoan(data: {
     equipmentId: string;
     responsibleName: string;
     responsibleId?: string;
@@ -80,9 +80,9 @@ export class LoansService {
       throw new AppError("Data prevista de devolução inválida. Use o formato AAAA-MM-DD ou ISO 8601.", 400, "INVALID_DUE_DATE");
     }
 
-    return query.transaction(() => {
+    return postgres.transaction(async () => {
       // 1. Verifica se é equipamento portátil
-      const equipment = query.get<any>("SELECT id, name, status FROM portable_equipment WHERE id = ?", data.equipmentId);
+      const equipment = await postgres.get<any>("SELECT id, name, status FROM portable_equipment WHERE id = ?", data.equipmentId);
       if (!equipment) {
         throw new AppError("Equipamento portátil não encontrado.", 404, "EQUIPMENT_NOT_FOUND");
       }
@@ -96,7 +96,7 @@ export class LoansService {
       }
 
       // 2. Verifica se já está emprestado
-      const activeLoan = query.get<any>(
+      const activeLoan = await postgres.get<any>(
         `SELECT id FROM loans l WHERE l.equipment_id = ? AND ${ACTIVE_LOAN_SQL("l")}`,
         data.equipmentId
       );
@@ -114,7 +114,7 @@ export class LoansService {
       // O status exibido ('atrasado', 'devolucao_hoje') é calculado na consulta.
       const status = "em_campo";
 
-      query.run(
+      await postgres.run(
         `INSERT INTO loans (id, equipment_id, responsible_name, responsible_id, due_date, status, notes, operator_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
@@ -128,37 +128,37 @@ export class LoansService {
       );
 
       // Atualiza status do equipamento portátil
-      query.run(
-        `UPDATE portable_equipment SET status = 'em_campo', updated_at = datetime('now') WHERE id = ?`,
+      await postgres.run(
+        `UPDATE portable_equipment SET status = 'em_campo', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         data.equipmentId
       );
 
-      return this.getLoanById(id);
+      return await this.getLoanById(id);
     });
   }
 
-  static returnLoan(id: string, operatorId?: string) {
-    const loan = this.getLoanById(id);
+  static async returnLoan(id: string, operatorId?: string) {
+    const loan = await this.getLoanById(id);
 
     if (loan.status === "devolvido") {
       throw new AppError("Este empréstimo já foi encerrado e devolvido anteriormente.", 400);
     }
 
-    return query.transaction(() => {
-      query.run(
+    return postgres.transaction(async () => {
+      await postgres.run(
         `UPDATE loans
-         SET status = 'devolvido', return_date = datetime('now'), operator_id = COALESCE(?, operator_id), updated_at = datetime('now')
+         SET status = 'devolvido', return_date = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS'), operator_id = COALESCE(?, operator_id), updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
          WHERE id = ?`,
         operatorId || null,
         id
       );
 
-      query.run(
-        `UPDATE portable_equipment SET status = 'disponivel', updated_at = datetime('now') WHERE id = ?`,
+      await postgres.run(
+        `UPDATE portable_equipment SET status = 'disponivel', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
         loan.equipment_id
       );
 
-      return this.getLoanById(id);
+      return await this.getLoanById(id);
     });
   }
 }

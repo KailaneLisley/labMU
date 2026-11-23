@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { assertAllowed } from "../../utils/validation.js";
 
@@ -7,7 +7,7 @@ const MACHINE_TYPES = ["printer_3d_fdm", "printer_3d_resin", "scanner"];
 const MACHINE_STATUSES = ["ativa", "manutencao", "inativa"];
 
 export class MachinesService {
-  static listMachines(filters: { q?: string; type?: string; status?: string }) {
+  static async listMachines(filters: { q?: string; type?: string; status?: string }) {
     let sql = `SELECT id, name, tag, type, dimensions, bench, room, status, last_maintenance, next_maintenance_date, created_at, updated_at
                FROM machines WHERE 1=1`;
     const params: any[] = [];
@@ -34,7 +34,7 @@ export class MachinesService {
 
     sql += ` ORDER BY name ASC`;
 
-    const records = query.all(sql, ...params);
+    const records = await postgres.all(sql, ...params);
     return records.map((m) => ({
       id: m.id,
       name: m.name,
@@ -53,8 +53,8 @@ export class MachinesService {
     }));
   }
 
-  static getMachineById(id: string) {
-    const m = query.get<any>(
+  static async getMachineById(id: string) {
+    const m = await postgres.get<any>(
       `SELECT id, name, tag, type, dimensions, bench, room, status, last_maintenance, next_maintenance_date, created_at, updated_at
        FROM machines WHERE id = ?`,
       id
@@ -82,7 +82,7 @@ export class MachinesService {
     };
   }
 
-  static createMachine(data: {
+  static async createMachine(data: {
     name: string;
     tag: string;
     type: "printer_3d_fdm" | "printer_3d_resin" | "scanner";
@@ -107,7 +107,7 @@ export class MachinesService {
       throw new AppError("Situação de máquina inválida.", 400, "INVALID_MACHINE_STATUS");
     }
 
-    const existingTag = query.get("SELECT id FROM machines WHERE UPPER(tag) = ?", tag);
+    const existingTag = await postgres.get("SELECT id FROM machines WHERE UPPER(tag) = ?", tag);
     if (existingTag) {
       throw new AppError("Já existe uma máquina cadastrada com esta TAG.", 409, "TAG_EXISTS");
     }
@@ -116,7 +116,7 @@ export class MachinesService {
     const bench = data.location?.bench || "";
     const room = data.location?.room || "";
 
-    query.run(
+    await postgres.run(
       `INSERT INTO machines (id, name, tag, type, dimensions, bench, room, status, last_maintenance, next_maintenance_date)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
@@ -131,10 +131,10 @@ export class MachinesService {
       data.nextMaintenanceDate || null
     );
 
-    return this.getMachineById(id);
+    return await this.getMachineById(id);
   }
 
-  static updateMachine(id: string, data: {
+  static async updateMachine(id: string, data: {
     name?: string;
     tag?: string;
     type?: "printer_3d_fdm" | "printer_3d_resin" | "scanner";
@@ -144,10 +144,10 @@ export class MachinesService {
     lastMaintenance?: string;
     nextMaintenanceDate?: string;
   }) {
-    const existing = this.getMachineById(id);
+    const existing = await this.getMachineById(id);
 
     if (data.tag && data.tag.toUpperCase() !== existing.tag.toUpperCase()) {
-      const tagConflict = query.get("SELECT id FROM machines WHERE UPPER(tag) = ? AND id != ?", data.tag.toUpperCase(), id);
+      const tagConflict = await postgres.get("SELECT id FROM machines WHERE UPPER(tag) = ? AND id != ?", data.tag.toUpperCase(), id);
       if (tagConflict) {
         throw new AppError("Já existe outra máquina com esta TAG.", 409, "TAG_EXISTS");
       }
@@ -165,9 +165,9 @@ export class MachinesService {
     const lastMaintenance = data.lastMaintenance !== undefined ? data.lastMaintenance : existing.lastMaintenance;
     const nextMaintenanceDate = data.nextMaintenanceDate !== undefined ? data.nextMaintenanceDate : existing.nextMaintenanceDate;
 
-    query.run(
+    await postgres.run(
       `UPDATE machines
-       SET name = ?, tag = ?, type = ?, dimensions = ?, bench = ?, room = ?, status = ?, last_maintenance = ?, next_maintenance_date = ?, updated_at = datetime('now')
+       SET name = ?, tag = ?, type = ?, dimensions = ?, bench = ?, room = ?, status = ?, last_maintenance = ?, next_maintenance_date = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       tag,
@@ -181,23 +181,23 @@ export class MachinesService {
       id
     );
 
-    return this.getMachineById(id);
+    return await this.getMachineById(id);
   }
 
-  static deleteMachine(id: string) {
-    this.getMachineById(id);
+  static async deleteMachine(id: string) {
+    await this.getMachineById(id);
 
     // Verifica se há manutenções ou produções associadas
-    const hasMaintenance = query.get("SELECT id FROM maintenances WHERE machine_id = ?", id);
-    const hasProduction = query.get("SELECT id FROM productions WHERE machine_id = ?", id);
+    const hasMaintenance = await postgres.get("SELECT id FROM maintenances WHERE machine_id = ?", id);
+    const hasProduction = await postgres.get("SELECT id FROM productions WHERE machine_id = ?", id);
 
     if (hasMaintenance || hasProduction) {
       // Arquivamento / Inativação segura para não quebrar histórico auditável
-      query.run(`UPDATE machines SET status = 'inativa', updated_at = datetime('now') WHERE id = ?`, id);
+      await postgres.run(`UPDATE machines SET status = 'inativa', updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, id);
       return { message: "Máquina possui histórico e foi marcada como inativa." };
     }
 
-    query.run("DELETE FROM machines WHERE id = ?", id);
+    await postgres.run("DELETE FROM machines WHERE id = ?", id);
     return { message: "Máquina removida com sucesso." };
   }
 }

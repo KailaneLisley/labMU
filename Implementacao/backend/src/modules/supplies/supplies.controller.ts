@@ -3,10 +3,10 @@ import { SuppliesService } from "./supplies.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export class SuppliesController {
-  static list = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static list = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { q, status, type } = req.query;
-      const supplies = SuppliesService.listSupplies({
+      const supplies = await SuppliesService.listSupplies({
         q: q as string,
         status: status as string,
         type: type as string,
@@ -17,27 +17,27 @@ export class SuppliesController {
     }
   };
 
-  static getById = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static getById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const supply = SuppliesService.getSupplyById(String(req.params.id));
+      const supply = await SuppliesService.getSupplyById(String(req.params.id));
       res.status(200).json({ supply });
     } catch (error) {
       next(error);
     }
   };
 
-  static create = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static create = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const supply = SuppliesService.createSupply(req.body);
+      const supply = await SuppliesService.createSupply(req.body);
       res.status(201).json({ supply });
     } catch (error) {
       next(error);
     }
   };
 
-  static registerEntry = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static registerEntry = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = SuppliesService.registerEntry({
+      const result = await SuppliesService.registerEntry({
         ...req.body,
         userId: req.user?.id,
       });
@@ -47,10 +47,10 @@ export class SuppliesController {
     }
   };
 
-  static adjust = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static adjust = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { supplyId, quantity, reason } = req.body;
-      const result = SuppliesService.adjustStock({
+      const result = await SuppliesService.adjustStock({
         supplyId,
         quantity,
         reason,
@@ -62,10 +62,10 @@ export class SuppliesController {
     }
   };
 
-  static listMovements = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static listMovements = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { supplyId, from, to } = req.query;
-      const movements = SuppliesService.listMovements({
+      const movements = await SuppliesService.listMovements({
         supplyId: supplyId as string,
         from: from as string,
         to: to as string,
@@ -76,9 +76,9 @@ export class SuppliesController {
     }
   };
 
-  static update = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  static update = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const supply = SuppliesService.updateSupply(String(req.params.id), req.body);
+      const supply = await SuppliesService.updateSupply(String(req.params.id), req.body);
       res.status(200).json({ supply });
     } catch (error) {
       next(error);

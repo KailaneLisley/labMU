@@ -1,4 +1,4 @@
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { effectiveLoanStatusSql } from "../loans/loanStatus.js";
 import { upperBoundClause } from "../../utils/dates.js";
 
@@ -7,7 +7,7 @@ const REPORT_RECORD_LIMIT = 500;
 
 export class ReportsService {
   // 1. Relatório de Produção Geral e Detalhado
-  static getProductionReport(filters: { from?: string; to?: string; technicianId?: string }) {
+  static async getProductionReport(filters: { from?: string; to?: string; technicianId?: string }) {
     let sql = `
       SELECT p.id, p.type, p.description, p.client_name, p.supply_consumed, p.duration_minutes, p.created_at,
              m.name as machine_name, m.tag as machine_tag,
@@ -38,10 +38,10 @@ export class ReportsService {
     const orderBy = ` ORDER BY p.created_at DESC`;
 
     // Métricas agregadas no banco (não carregam todos os registros na memória)
-    const agg = query.get<any>(
-      `SELECT COUNT(*) AS totalJobs,
-              COALESCE(SUM(duration_minutes), 0) AS totalMinutes,
-              COALESCE(SUM(supply_consumed), 0) AS totalMaterialKg
+    const agg = await postgres.get<any>(
+      `SELECT COUNT(*) AS "totalJobs",
+              COALESCE(SUM(duration_minutes), 0) AS "totalMinutes",
+              COALESCE(SUM(supply_consumed), 0) AS "totalMaterialKg"
        FROM (${sql})`,
       ...params
     );
@@ -51,7 +51,7 @@ export class ReportsService {
     const avgDurationMinutes = totalJobs > 0 ? Math.round(totalMinutes / totalJobs) : 0;
 
     // Lista detalhada limitada aos registros mais recentes
-    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = await postgres.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
@@ -67,9 +67,9 @@ export class ReportsService {
   }
 
   // 2. Relatório de Produção Mensal por Técnico
-  static getProductionByTechnician(filters: { from?: string; to?: string; groupBy?: string }) {
+  static async getProductionByTechnician(filters: { from?: string; to?: string; groupBy?: string }) {
     const isMonthly = filters.groupBy === "month";
-    const selectMonth = isMonthly ? "strftime('%Y-%m', p.created_at) as month," : "";
+    const selectMonth = isMonthly ? "TO_CHAR(p.created_at::timestamp, 'YYYY-MM') as month," : "";
     const groupClause = isMonthly
       ? "GROUP BY month, u.id, u.name ORDER BY month DESC, total_jobs DESC"
       : "GROUP BY u.id, u.name ORDER BY total_jobs DESC";
@@ -99,7 +99,7 @@ export class ReportsService {
 
     sql += ` ${groupClause}`;
 
-    const rows = query.all(sql, ...params);
+    const rows = await postgres.all(sql, ...params);
     return rows.map((r) => ({
       ...(filters.groupBy === "month" ? { month: r.month } : {}),
       technicianId: r.technician_id,
@@ -113,7 +113,7 @@ export class ReportsService {
   }
 
   // 3. Relatório de Consumo Mensal de Estoque
-  static getStockConsumption(filters: { from?: string; to?: string }) {
+  static async getStockConsumption(filters: { from?: string; to?: string }) {
     let sql = `
       SELECT s.id as supply_id, s.name as supply_name, s.color as supply_color, s.type as supply_type, s.balance as current_balance,
              COALESCE(SUM(CASE WHEN sm.type = 'entrada' THEN sm.quantity ELSE 0 END), 0) as total_received_kg,
@@ -137,7 +137,7 @@ export class ReportsService {
 
     sql += ` GROUP BY s.id, s.name, s.color, s.type, s.balance ORDER BY total_consumed_kg DESC`;
 
-    const rows = query.all(sql, ...params);
+    const rows = await postgres.all(sql, ...params);
     return rows.map((r) => ({
       supplyId: r.supply_id,
       supplyName: `${r.supply_name} (${r.supply_color})`,
@@ -149,7 +149,7 @@ export class ReportsService {
   }
 
   // 4. Relatório Mensal de Empréstimos
-  static getLoansReport(filters: { from?: string; to?: string }) {
+  static async getLoansReport(filters: { from?: string; to?: string }) {
     let sql = `
       SELECT l.id, l.equipment_id, l.responsible_name, l.checkout_date, l.due_date, l.return_date, ${effectiveLoanStatusSql("l")} AS status,
              pe.name as equipment_name, pe.code as equipment_code, pe.category as equipment_category
@@ -171,15 +171,15 @@ export class ReportsService {
 
     const orderBy = ` ORDER BY l.checkout_date DESC`;
 
-    const agg = query.get<any>(
-      `SELECT COUNT(*) AS totalLoans,
-              COALESCE(SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END), 0) AS activeLoans,
-              COALESCE(SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END), 0) AS overdueLoans,
-              COALESCE(SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END), 0) AS returnedLoans
+    const agg = await postgres.get<any>(
+      `SELECT COUNT(*) AS "totalLoans",
+              COALESCE(SUM(CASE WHEN status IN ('em_campo', 'devolucao_hoje') THEN 1 ELSE 0 END), 0) AS "activeLoans",
+              COALESCE(SUM(CASE WHEN status = 'atrasado' THEN 1 ELSE 0 END), 0) AS "overdueLoans",
+              COALESCE(SUM(CASE WHEN status = 'devolvido' THEN 1 ELSE 0 END), 0) AS "returnedLoans"
        FROM (${sql})`,
       ...params
     );
-    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = await postgres.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {
@@ -195,7 +195,7 @@ export class ReportsService {
   }
 
   // 5. Relatório de Manutenções
-  static getMaintenancesReport(filters: { from?: string; to?: string }) {
+  static async getMaintenancesReport(filters: { from?: string; to?: string }) {
     let sql = `
       SELECT m.id, m.type, m.status, m.date, m.description, m.parts, m.cost,
              mach.name as machine_name, mach.tag as machine_tag,
@@ -219,15 +219,15 @@ export class ReportsService {
 
     const orderBy = ` ORDER BY m.date DESC`;
 
-    const agg = query.get<any>(
-      `SELECT COUNT(*) AS totalMaintenances,
-              COALESCE(SUM(CASE WHEN type = 'preventiva' THEN 1 ELSE 0 END), 0) AS preventiveCount,
-              COALESCE(SUM(CASE WHEN type = 'corretiva' THEN 1 ELSE 0 END), 0) AS correctiveCount,
-              COALESCE(SUM(cost), 0) AS totalCost
+    const agg = await postgres.get<any>(
+      `SELECT COUNT(*) AS "totalMaintenances",
+              COALESCE(SUM(CASE WHEN type = 'preventiva' THEN 1 ELSE 0 END), 0) AS "preventiveCount",
+              COALESCE(SUM(CASE WHEN type = 'corretiva' THEN 1 ELSE 0 END), 0) AS "correctiveCount",
+              COALESCE(SUM(cost), 0) AS "totalCost"
        FROM (${sql})`,
       ...params
     );
-    const records = query.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
+    const records = await postgres.all(`${sql}${orderBy} LIMIT ?`, ...params, REPORT_RECORD_LIMIT);
 
     return {
       metrics: {

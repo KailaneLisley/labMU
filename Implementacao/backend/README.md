@@ -1,6 +1,6 @@
 #  labMU — Backend API RESTful
 
-API RESTful completa desenvolvida para a gestão operacional do Laboratório de Prototipagem do MUSARQ/UNICAP. Construída em **Node.js (v22+)** com **TypeScript**, **Express 5**, banco de dados relacional **SQLite nativo** (`node:sqlite`), autenticação **JWT** e criptografia de senhas com **bcryptjs**.
+API RESTful completa desenvolvida para a gestão operacional do Laboratório de Prototipagem do MUSARQ/UNICAP. Construída em **Node.js (v22.13+)** com **TypeScript**, **Express 5**, banco de dados relacional **PostgreSQL** (Supabase, versão 17), autenticação **JWT** e criptografia de senhas com **bcryptjs**. O backend é exportado como handler para **Vercel Functions** (ver `DEPLOY_VERCEL.md`).
 
 ---
 
@@ -18,8 +18,9 @@ Ao inicializar pela primeira vez, o sistema executa o *seed* automático do banc
 ## Como Executar
 
 ### 1. Pré-requisitos
-- **Node.js v22.5.0 ou superior** *(necessário para o módulo experimental nativo `node:sqlite`)*.
+- **Node.js v22.13.0 ou superior** (valor de `engines` no `package.json`).
 - **npm v10+**.
+- **PostgreSQL 17** acessível pela variável `DATABASE_URL` (Supabase, em produção/desenvolvimento) ou `TEST_DATABASE_URL` (testes). Para um banco local descartável, use Docker: `docker run -d -p 55432:5432 -e POSTGRES_PASSWORD=... postgres:17`, aplique `supabase/migrations/202611160001_initial_schema.sql` e defina `PGSSL=disable`.
 
 ### 2. Instalação de dependências
 ```bash
@@ -31,7 +32,7 @@ npm install
 ```bash
 npm run dev
 ```
-O servidor inicializa por padrão na porta **3001** (`http://localhost:3001`). O banco SQLite é criado automaticamente em `data/labmu.sqlite`.
+O servidor inicializa por padrão na porta **3001** (`http://localhost:3001`). Ele usa `DATABASE_URL` e, em desenvolvimento, aplica o seed com as contas padrão. O schema precisa estar aplicado no banco antes do primeiro start.
 
 ### 4. Executando os Testes Automatizados
 ```bash

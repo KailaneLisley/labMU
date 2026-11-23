@@ -1,22 +1,22 @@
 import bcrypt from "bcryptjs";
 import { env } from "./config/env.js";
-import { query } from "./database/connection.js";
+import { postgres } from "./database/postgres.js";
 import { seedDatabase } from "./database/seed.js";
 
 // Cria dados iniciais. Em desenvolvimento usa as contas padrão do seed.
 // Em produção não há contas com senha conhecida: o primeiro administrador vem de
 // INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD e só é criado se nenhum administrador existir.
-export function initializeData(): void {
+export async function initializeData(): Promise<void> {
   if (env.NODE_ENV === "production") {
-    createInitialAdminIfMissing();
+    await createInitialAdminIfMissing();
     return;
   }
 
-  seedDatabase();
+  await seedDatabase();
 }
 
-function createInitialAdminIfMissing(): void {
-  const admins = query.get<{ total: number }>("SELECT COUNT(*) AS total FROM users WHERE role = 'administrador'");
+async function createInitialAdminIfMissing(): Promise<void> {
+  const admins = await postgres.get<{ total: number }>("SELECT COUNT(*) AS total FROM users WHERE role = 'administrador'");
   if ((admins?.total ?? 0) > 0) return;
 
   if (!env.INITIAL_ADMIN_EMAIL || !env.INITIAL_ADMIN_PASSWORD) {
@@ -31,7 +31,7 @@ function createInitialAdminIfMissing(): void {
     throw new Error("INITIAL_ADMIN_PASSWORD deve ter ao menos 8 caracteres, com letras e números.");
   }
 
-  query.run(
+  await postgres.run(
     `INSERT INTO users (id, name, email, role, registration, status, password_hash, initials, avatar_color)
      VALUES (?, ?, ?, 'administrador', ?, 'ativo', ?, 'AD', 'bg-red-200')`,
     "usr-admin-inicial",

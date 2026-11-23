@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../../database/connection.js";
+import { postgres } from "../../database/postgres.js";
 import { AppError } from "../../middlewares/errorHandler.js";
 import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "../loans/loanStatus.js";
 
@@ -7,7 +7,7 @@ import { ACTIVE_LOAN_SQL, effectiveLoanStatusSql } from "../loans/loanStatus.js"
 const EQUIPMENT_STATUS_SQL = `(CASE WHEN l.id IS NOT NULL THEN ${effectiveLoanStatusSql("l")} ELSE pe.status END)`;
 
 export class EquipmentService {
-  static listEquipment(filters: { q?: string; status?: string; category?: string }) {
+  static async listEquipment(filters: { q?: string; status?: string; category?: string }) {
     let sql = `
       SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, ${EQUIPMENT_STATUS_SQL} AS status,
              l.responsible_name as current_responsible, l.due_date as current_due_date, l.id as current_loan_id
@@ -35,7 +35,7 @@ export class EquipmentService {
 
     sql += ` ORDER BY pe.name ASC`;
 
-    const records = query.all(sql, ...params);
+    const records = await postgres.all(sql, ...params);
     return records.map((r) => ({
       id: r.id,
       name: r.name,
@@ -52,8 +52,8 @@ export class EquipmentService {
     }));
   }
 
-  static getEquipmentById(id: string) {
-    const r = query.get<any>(
+  static async getEquipmentById(id: string) {
+    const r = await postgres.get<any>(
       `
       SELECT pe.id, pe.name, pe.code, pe.category, pe.serial_number, pe.location, pe.condition, pe.accessories, ${EQUIPMENT_STATUS_SQL} AS status,
              l.responsible_name as current_responsible, l.due_date as current_due_date, l.id as current_loan_id
@@ -84,7 +84,7 @@ export class EquipmentService {
     };
   }
 
-  static createEquipment(data: {
+  static async createEquipment(data: {
     name: string;
     code: string;
     category?: string;
@@ -101,7 +101,7 @@ export class EquipmentService {
     }
 
     // Regra: Verifica se o código colide com uma máquina fixa
-    const fixedMachineConflict = query.get("SELECT id FROM machines WHERE UPPER(tag) = ?", code.toUpperCase());
+    const fixedMachineConflict = await postgres.get("SELECT id FROM machines WHERE UPPER(tag) = ?", code.toUpperCase());
     if (fixedMachineConflict) {
       throw new AppError(
         "Este código já pertence a uma máquina fixa do laboratório. Máquinas fixas não são portáteis e não podem ser cadastradas para empréstimo.",
@@ -110,14 +110,14 @@ export class EquipmentService {
       );
     }
 
-    const existingCode = query.get("SELECT id FROM portable_equipment WHERE UPPER(code) = ?", code.toUpperCase());
+    const existingCode = await postgres.get("SELECT id FROM portable_equipment WHERE UPPER(code) = ?", code.toUpperCase());
     if (existingCode) {
       throw new AppError("Já existe um equipamento portátil cadastrado com este código.", 409, "CODE_EXISTS");
     }
 
     const id = `eq-${crypto.randomUUID()}`;
 
-    query.run(
+    await postgres.run(
       `INSERT INTO portable_equipment (id, name, code, category, serial_number, location, condition, accessories, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'disponivel')`,
       id,
@@ -130,14 +130,14 @@ export class EquipmentService {
       data.accessories || ""
     );
 
-    return this.getEquipmentById(id);
+    return await this.getEquipmentById(id);
   }
 
-  static updateEquipment(
+  static async updateEquipment(
     id: string,
     data: { name?: string; code?: string; category?: string; serialNumber?: string; location?: string; condition?: string; accessories?: string }
   ) {
-    const current = this.getEquipmentById(id);
+    const current = await this.getEquipmentById(id);
 
     const name = data.name !== undefined ? String(data.name).trim() : current.name;
     const code = data.code !== undefined ? String(data.code).trim() : current.code;
@@ -145,7 +145,7 @@ export class EquipmentService {
       throw new AppError("Nome e código/TAG do equipamento portátil são obrigatórios.", 400);
     }
 
-    const fixedMachineConflict = query.get("SELECT id FROM machines WHERE UPPER(tag) = ?", code.toUpperCase());
+    const fixedMachineConflict = await postgres.get("SELECT id FROM machines WHERE UPPER(tag) = ?", code.toUpperCase());
     if (fixedMachineConflict) {
       throw new AppError(
         "Este código já pertence a uma máquina fixa do laboratório. Máquinas fixas não são portáteis e não podem ser cadastradas para empréstimo.",
@@ -154,14 +154,14 @@ export class EquipmentService {
       );
     }
 
-    const existingCode = query.get("SELECT id FROM portable_equipment WHERE UPPER(code) = ? AND id <> ?", code.toUpperCase(), id);
+    const existingCode = await postgres.get("SELECT id FROM portable_equipment WHERE UPPER(code) = ? AND id <> ?", code.toUpperCase(), id);
     if (existingCode) {
       throw new AppError("Já existe um equipamento portátil cadastrado com este código.", 409, "CODE_EXISTS");
     }
 
-    query.run(
+    await postgres.run(
       `UPDATE portable_equipment
-       SET name = ?, code = ?, category = ?, serial_number = ?, location = ?, condition = ?, accessories = ?, updated_at = datetime('now')
+       SET name = ?, code = ?, category = ?, serial_number = ?, location = ?, condition = ?, accessories = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS')
        WHERE id = ?`,
       name,
       code,
@@ -173,19 +173,19 @@ export class EquipmentService {
       id
     );
 
-    return this.getEquipmentById(id);
+    return await this.getEquipmentById(id);
   }
 
   // Status manual: disponível, em manutenção ou inativo. Enquanto houver empréstimo ativo, não pode mudar.
-  static setEquipmentStatus(id: string, status: string) {
+  static async setEquipmentStatus(id: string, status: string) {
     const MANUAL_STATUSES = ["disponivel", "manutencao", "inativo"];
     if (!MANUAL_STATUSES.includes(status)) {
       throw new AppError("Status de equipamento inválido.", 400, "INVALID_EQUIPMENT_STATUS");
     }
 
-    this.getEquipmentById(id);
+    await this.getEquipmentById(id);
 
-    const activeLoan = query.get(
+    const activeLoan = await postgres.get(
       `SELECT id FROM loans l WHERE l.equipment_id = ? AND ${ACTIVE_LOAN_SQL("l")}`,
       id
     );
@@ -197,8 +197,8 @@ export class EquipmentService {
       );
     }
 
-    query.run(`UPDATE portable_equipment SET status = ?, updated_at = datetime('now') WHERE id = ?`, status, id);
-    return this.getEquipmentById(id);
+    await postgres.run(`UPDATE portable_equipment SET status = ?, updated_at = to_char(timezone('UTC', now()), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, status, id);
+    return await this.getEquipmentById(id);
   }
 }
 
