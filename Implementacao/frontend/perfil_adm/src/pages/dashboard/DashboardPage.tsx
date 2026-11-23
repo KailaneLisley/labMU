@@ -31,11 +31,11 @@ interface Alert {
 }
 
 const quickActions: QuickAction[] = [
-  { id: "1", label: "Novo Cliente", icon: "👤", path: "/usuarios" },
-  { id: "2", label: "Novo Técnico", icon: "👥", path: "/usuarios" },
-  { id: "3", label: "Cadastrar Máquina", icon: "⚙️", path: "/maquinas" },
-  { id: "4", label: "Novo Suprimento", icon: "📦", path: "/estoque/registrar-entrada" },
-  { id: "5", label: "Exportar Relatório", icon: "📥", path: "/relatorios" },
+  { id: "1", label: "Novo Cliente", icon: "/user.svg", path: "/usuarios" },
+  { id: "2", label: "Novo Técnico", icon: "/users.svg", path: "/usuarios" },
+  { id: "3", label: "Cadastrar Máquina", icon: "/maquinas.svg", path: "/maquinas" },
+  { id: "4", label: "Novo Suprimento", icon: "/caixa.svg", path: "/estoque/registrar-entrada" },
+  { id: "5", label: "Exportar Relatório", icon: "/exportar.svg", path: "/relatorios" },
 ];
 
 interface Kpi {
@@ -67,7 +67,7 @@ async function loadDashboard(): Promise<DashboardView> {
         `${data.users?.admins ?? 0} Administradores`,
         `${data.users?.clients ?? 0} Clientes/Alunos`,
       ],
-      icon: "👥",
+      icon: "/users.svg",
     },
     {
       title: "MÁQUINAS OPERANTES",
@@ -76,14 +76,14 @@ async function loadDashboard(): Promise<DashboardView> {
       details: [
         data.machines?.maintenance ? `${data.machines.maintenance} em manutenção` : "Nenhuma em manutenção",
       ],
-      icon: "⚙️",
+      icon: "/maquinas.svg",
     },
     {
       title: "EMPRÉSTIMOS ATIVOS",
       value: String(data.loans?.active ?? 0),
       unit: "equipamentos em campo",
       details: [data.loans?.overdue ? `${data.loans.overdue} devolução(ões) em atraso` : "Nenhum atraso registrado"],
-      icon: "📦",
+      icon: "/caixa.svg",
     },
     {
       title: "FILAMENTO DISPONÍVEL",
@@ -92,7 +92,7 @@ async function loadDashboard(): Promise<DashboardView> {
       details: [
         data.supplies?.lowStockItems ? `${data.supplies.lowStockItems} insumo(s) em nível baixo ou crítico` : "Estoque balanceado",
       ],
-      icon: "📊",
+      icon: "/grafico.svg",
     },
   ];
 
@@ -205,7 +205,6 @@ export const DashboardPage = (): JSX.Element => {
       {/* Quick Actions */}
       <div className="max-w-7xl mx-auto px-6 mb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-lg">⚡</span>
           <h2 className="font-bold text-[#1f1a1b]">Atalhos Rápidos de Operação</h2>
           <span className="text-xs text-[#7a6e70]">Ações frequentes da coordenação</span>
         </div>
@@ -216,7 +215,9 @@ export const DashboardPage = (): JSX.Element => {
               onClick={() => navigate(action.path)}
               className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow flex flex-col items-center text-center gap-3"
             >
-              <div className="text-4xl">{action.icon}</div>
+              <div>
+                <img src={action.icon} alt="" className="h-10 w-10 object-contain" />
+              </div>
               <p className="text-sm font-semibold text-[#1f1a1b]">{action.label}</p>
             </button>
           ))}
@@ -229,7 +230,7 @@ export const DashboardPage = (): JSX.Element => {
           {dashboardKpis.map((kpi, idx) => (
             <div key={idx} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-2xl">{kpi.icon}</span>
+                <img src={kpi.icon} alt="" className="w-8 h-8 object-contain" />
                 <p className="text-xs font-semibold text-[#7a6e70] uppercase text-right">{kpi.title}</p>
               </div>
               <div className="mb-3">
@@ -264,7 +265,7 @@ export const DashboardPage = (): JSX.Element => {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">📋</span>
+                  <img src="/lista.svg" alt="" className="h-5 w-5 object-contain" />
                   <div>
                     <h3 className="font-bold text-[#1f1a1b]">Últimas Produções Registradas</h3>
                     <p className="text-xs text-[#7a6e70]">Atividades de usinagem, corte e impressão no parque</p>
@@ -276,7 +277,9 @@ export const DashboardPage = (): JSX.Element => {
               <div className="space-y-4">
                 {dashboardProductions.map((prod, idx) => (
                   <div key={prod.id} className={`pb-4 border-b border-[#efe6e6] last:border-0 ${idx === 0 ? "flex items-start gap-3" : ""}`}>
-                    {idx === 0 && <span className="text-2xl flex-shrink-0">🖨️</span>}
+                    {idx === 0 && (
+                      <img src="/calendario.svg" alt="" className="h-7 w-7 flex-shrink-0 object-contain" />
+                    )}
                     <div className="flex-1">
                       <p className="font-semibold text-[#1f1a1b]">{prod.name}</p>
                       <p className="text-xs text-[#7a6e70] mt-1">
@@ -305,7 +308,7 @@ export const DashboardPage = (): JSX.Element => {
                 <div className="flex items-center gap-2">
                   <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded">3 Pendências</span>
                 </div>
-                <span className="text-lg">⚠️</span>
+                <img src="/perigo.svg" alt="" className="h-5 w-5 object-contain" />
               </div>
 
               <h3 className="font-bold text-[#1f1a1b] mb-4 flex items-center gap-2">

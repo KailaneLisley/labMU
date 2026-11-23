@@ -162,7 +162,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm">
-              <span>📅 Histórico completo</span>
+              <span><img src="/calendario.svg" alt="" className="w-5 h-5 object-contain" /> Semestre 2024.2 (Jul - Dez)</span>
             </div>
             <button onClick={exportRecords} className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B1329] text-white rounded-lg font-semibold hover:bg-[#6b0f1f] transition-colors">
               <Download className="w-4 h-4" />
@@ -188,7 +188,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">{percent(activeMachines, machines.length)}%</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Status "ativa" sobre o total</p>
               </div>
-              <span className="text-3xl">⚙️</span>
+              <span className="text-3xl"><img src="/chave_ing.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">{activeMachines} de {machines.length} máquinas ativas</p>
           </div>
@@ -200,7 +200,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">{preventiveOnTime}<span className="text-lg">/{machines.length}</span></p>
                 <p className="text-xs text-[#7a6e70] mt-1">Máquinas</p>
               </div>
-              <span className="text-3xl">📋</span>
+              <span className="text-3xl"><img src="/preventivas.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">Próxima preventiva ainda não vencida</p>
           </div>
@@ -212,7 +212,7 @@ export const MaintenanceManagementPage = (): JSX.Element => {
                 <p className="text-4xl font-bold text-[#1f1a1b]">{String(data.metrics.correctiveCount).padStart(2, "0")}</p>
                 <p className="text-xs text-[#7a6e70] mt-1">Ocorrências</p>
               </div>
-              <span className="text-3xl">🔧</span>
+              <span className="text-3xl"><img src="/corretivas.svg" alt="" className="w-5 h-5 object-contain" /></span>
             </div>
             <p className="text-xs text-[#7a6e70]">{data.metrics.totalMaintenances} manutenções no total</p>
           </div>
