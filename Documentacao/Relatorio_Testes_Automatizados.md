@@ -1,5 +1,7 @@
 # labMU — Relatório de testes automatizados
 
+> **Documento histórico (escrito em 29/10/2026).** Os números e a lista de bugs abertos refletem aquela data. Na `main` de 23/11/2026, a contagem atual é 47 (backend) e 41 (frontend), e vários bugs listados aqui já foram corrigidos. Para a situação atual, consulte `Relatorio_Consolidado_de_Testes.md`.
+
 > **Escrito para:** equipe de desenvolvimento e revisores do PR.
 > **Data:** 2026-10-29. **Branches:** `feature/backend-proximos-passos` (backend) e `feature/front-testes` (SPA).
 

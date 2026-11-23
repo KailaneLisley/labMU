@@ -1,5 +1,7 @@
 # labMU — Testes não funcionais: carga, stress, segurança e smoke
 
+> **Documento histórico (medido em 12/11/2026, antes da migração para PostgreSQL).** Os números de carga, stress e segurança são desse dia, em execução local, e não foram refeitos na `main` de 23/11/2026. As pendências de deploy online continuam válidas. Para a situação atual, consulte `Relatorio_Consolidado_de_Testes.md`.
+
 **Data:** 12/11/2026
 **Ordem executada:** Loading → Stress → Security → correções → Smoke.
 **Onde:** carga e stress **localmente** (build de produção do backend, `NODE_ENV=production`, em uma máquina de 12 núcleos). Segurança **local** nesta rodada, porque as URLs online não responderam (ver seção 5).

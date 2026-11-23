@@ -8,7 +8,13 @@ Este diretório reúne todos os artefatos de engenharia de software, especifica�
 
 ### 1. Documentos Principais
 -  **[`Backend_Requisitos_e_Integracao.md`](Backend_Requisitos_e_Integracao.md):** Especificação detalhada dos requisitos funcionais e não funcionais do backend, modelo de dados relacional e contratos de integração com a SPA React.
--  **[`Relatorio_de_Testes_labMU.md`](Relatorio_de_Testes_labMU.md):** Relatório de qualidade de software contendo a cobertura dos testes de integração, testes unitários, validação dos fluxos de empréstimo, segurança e autenticação.
+-  **[`Relatorio_Consolidado_de_Testes.md`](Relatorio_Consolidado_de_Testes.md):** Visão atual dos testes (backend, frontend, ponta a ponta e não funcionais), bugs corrigidos e pendências, com números medidos em 23/11/2026. Use este documento como referência principal.
+-  **Relatórios históricos de teste** (cada um traz uma nota no início com a data e o que mudou depois):
+  - [`Relatorio_de_Testes_labMU.md`](Relatorio_de_Testes_labMU.md): requisitos x implementação, de 19/10/2026.
+  - [`Relatorio_Testes_Automatizados.md`](Relatorio_Testes_Automatizados.md): testes de backend e frontend, de 29/10/2026.
+  - [`Relatorio_Playwright.md`](Relatorio_Playwright.md): testes ponta a ponta, de 05/11/2026.
+  - [`Relatorio_Testes_Nao_Funcionais.md`](Relatorio_Testes_Nao_Funcionais.md): carga, stress, segurança e smoke, de 12/11/2026.
+  - [`Relatório de Otimização de Código e Smell Test - labMU.md`](Relatório%20de%20Otimização%20de%20Código%20e%20Smell%20Test%20-%20labMU.md): revisão de código, de 09/11/2026.
 -  **[`README_Sprints_e_Cérebro_Projeto.md`](README_Sprints_e_Cérebro_Projeto.md):** Visão geral da base de conhecimento do time e estrutura de sprints.
 
 ---

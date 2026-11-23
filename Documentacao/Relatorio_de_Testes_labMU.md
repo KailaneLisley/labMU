@@ -1,5 +1,7 @@
 # labMU — Relatório de testes: requisitos x implementação
 
+> **Documento histórico (escrito em 19/10/2026).** Muitos itens abaixo foram corrigidos depois: fallback offline de login e cadastro removido, logout revogando o token, limite de tentativas na resposta de segurança, e contas de desenvolvimento fora da produção. As contagens de testes citadas aqui também estão desatualizadas. Para a situação atual, consulte `Relatorio_Consolidado_de_Testes.md`.
+
 **Data do teste:** 19/10/2026
 **Escopo:** backend (`Implementacao/backend`) e SPA React (`Implementacao/frontend/perfil_adm`), comparados com os requisitos da pasta `Documentacao/` (principalmente `Projetos/Sprints/2`, `3`, `11`, `12`, `16`, `17`, `18` e `Backend_Requisitos_e_Integracao.md`).
 

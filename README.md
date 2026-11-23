@@ -1,215 +1,192 @@
-#  labMU — Sistema de Gestão de Equipamentos
-> **Laboratório de Prototipagem do MUSARQ — Universidade Católica de Pernambuco (UNICAP)**  
-> **Equipe 07** | **Metodologia:** Scrum | **Tecnologias:** React + Vite + Node.js + SQLite
+# labMU — Sistema de Gestão de Equipamentos
+
+> **Laboratório de Prototipagem do MUSARQ — Universidade Católica de Pernambuco (UNICAP)**
+> **Equipe 07** | **Metodologia:** Scrum | **Tecnologias:** React + Vite + Node.js + SQLite (migração para PostgreSQL em revisão, ver seção 8)
 
 ---
 
 ## 1. Sobre o Projeto
 
-O **labMU** é uma plataforma integrada de gestão desenvolvida para o Laboratório de Prototipagem do **MUSARQ (Museu de Arqueologia e Ciências Naturais da UNICAP)**. O sistema centraliza, automatiza e audita as operações diárias do laboratório, abrangendo:
+O **labMU** é uma plataforma de gestão desenvolvida para o Laboratório de Prototipagem do **MUSARQ (Museu de Arqueologia e Ciências Naturais da UNICAP)**. O sistema centraliza as operações diárias do laboratório:
 
-- **Controle de Acessos & Usuários:** Gestão de Administradores, Técnicos e Clientes.
-- **Inventário de Máquinas Fixas:** Acompanhamento de impressoras 3D e scanners fixos com rotinas preventivas e corretivas.
-- **Controle de Suprimentos & Estoque:** Entrada de matéria-prima (filamentos e resinas) em kg e baixa automática e fracionada em gramas/unidades por ordem de produção.
-- **Fluxo de Empréstimos de Equipamentos Portáteis:** Controle rigoroso de retirada e devolução de portáteis (tablets, celulares, mesas digitalizadoras), com bloqueio estrito para impedir empréstimo de máquinas fixas.
-- **Registro de Produções:** Histórico auditável de peças impressas e escaneamentos realizados.
-- **Relatórios Gerenciais & Dashboard:** Indicadores em tempo real, filtros dinâmicos e exportação de dados para relatórios operacionais.
+- **Controle de acessos e usuários:** administradores, técnicos e clientes.
+- **Inventário de máquinas fixas:** impressoras 3D e scanners, com manutenções preventivas e corretivas.
+- **Estoque de insumos:** entrada de matéria-prima (filamentos e resinas) em kg e baixa fracionada em gramas ou unidades por ordem de produção.
+- **Empréstimos de equipamentos portáteis:** retirada e devolução de tablets, celulares e mesas digitalizadoras. Máquinas fixas não podem ser emprestadas.
+- **Registro de produções:** histórico de peças impressas e escaneamentos, com cancelamento que devolve o insumo ao estoque.
+- **Relatórios e dashboard:** indicadores operacionais e relatórios por período.
 
 ---
 
-## 🏛️ 2. Arquitetura da Solução
+## 2. Arquitetura da Solução
 
-O sistema foi arquitetado em duas camadas independentes e integradas via API REST:
+O sistema tem duas camadas, integradas por uma API REST com autenticação JWT:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       CLIENTE (FRONTEND)                    │
 │                                                             │
-│   React 18 + Vite + TypeScript + Tailwind CSS + Lucide UI   │
-│   ├── SPA Modular com React Router                          │
-│   ├── Modo Híbrido: Conexão API REST + Fallback Offline     │
+│   React 18 + Vite + TypeScript + Tailwind CSS               │
+│   ├── SPA com React Router v6                               │
+│   ├── Comunicação somente com a API (sem modo offline)      │
 │   └── Localização: Implementacao/frontend/perfil_adm        │
 └──────────────────────────────┬──────────────────────────────┘
                                │
-                               │ Requisições HTTP / JSON
+                               │ HTTP / JSON
                                │ Header: Authorization: Bearer <JWT>
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       SERVIDOR (BACKEND)                    │
 │                                                             │
-│   Node.js 22 + Express 5 + TypeScript + node:sqlite         │
-│   ├── Arquitetura em Camadas: Routes -> Controllers -> Services
-│   ├── Criptografia com bcryptjs + Sessões Stateless com JWT │
-│   ├── Banco de Dados Relacional SQLite com Transações ACID  │
+│   Node.js 22.13+ + Express 5 + TypeScript                   │
+│   ├── Camadas: Routes -> Controllers -> Services            │
+│   ├── Senhas com scrypt nativo; JWT com revogação no logout │
+│   ├── Banco relacional SQLite (node:sqlite), com transações │
 │   └── Localização: Implementacao/backend                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+Em desenvolvimento, o Vite encaminha `/api` para o backend na porta 3001, então o navegador não precisa de CORS. Em produção, o backend aceita apenas as origens listadas em `CORS_ORIGINS`.
+
 ---
 
-##  3. Perfis de Usuário & Políticas de Segurança
+## 3. Perfis de Usuário e Políticas de Segurança
 
-| Perfil | Acesso ao Sistema | Cadastro / Criação | Política de Recuperação de Senha |
+| Perfil | Acesso ao sistema | Criação | Recuperação de senha |
 | :--- | :---: | :--- | :--- |
-| **Administrador** |  Sim (Login/Senha) | **Exclusivo via Banco de Dados** (cadastrado previamente pela coordenação/desenvolvedores). | **Restrita:** Por segurança institucional, administradores não utilizam recuperação automática. Devem contatar o suporte técnico (`musarq@unicap.br`). |
-| **Técnico** |  Sim (Login/Senha) | **Público Institucional** (`/cadastro`), exigindo e-mail `@unicap.br`, matrícula e definição de **Pergunta Secreta de Segurança**. | **Autônoma:** Validação em 3 etapas com verificação do e-mail institucional, resposta da pergunta secreta e definição de nova senha segura. |
-| **Cliente** |  Não possui login | Cadastrado por técnicos/administradores para fins de vínculo a ordens de produção e empréstimos. | Não aplicável. |
+| **Administrador** | Sim (login e senha) | Em desenvolvimento, pelo seed. Em produção, o primeiro administrador vem de `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`. Depois, novos administradores são criados por outro administrador. | **Restrita:** administradores não usam recuperação automática. Devem contatar o suporte (`musarq@unicap.br`). |
+| **Técnico** | Sim (login e senha) | Cadastro público em `/cadastro`, com e-mail `@unicap.br`, matrícula e pergunta secreta. | **Autônoma:** 3 etapas (e-mail, resposta da pergunta secreta e nova senha). |
+| **Cliente** | Não possui login | Cadastrado por técnicos ou administradores, para vincular produções e empréstimos. | Não se aplica. |
 
 ---
 
-##  4. Módulos e Funcionalidades Principais
+## 4. Módulos e Funcionalidades
 
-1. **Autenticação & Sessões:** Login com geração de JWT, rotas protegidas e validação de cargos (`role`).
-2. **Recuperação de Senha por Pergunta Secreta:** Fluxo em 3 passos para técnicos, com perguntas personalizadas ou pré-definidas e validação *case-insensitive*.
-3. **Gestão de Usuários:** Listagem paginada, filtros por perfil/status, ativação/inativação e auditoria.
-4. **Parque de Máquinas (Fixas):** Controle de impressoras 3D (FDM, Resina) e scanners. Cada equipamento possui TAG patrimonial e agenda de manutenção preventiva (30 dias).
-5. **Gestão de Manutenções:** Abertura de chamados preventivos e corretivos com registro de custos, técnico responsável e peças trocadas.
-6. **Controle de Estoque Fracionado:** Entrada de bobinas/resinas em quilogramas (kg) com abatimento automático e preciso em gramas (g) durante a produção.
-7. **Empréstimos de Equipamentos Portáteis:** Sistema de retirada e devolução com cálculo de status (em andamento, atrasado, devolvido).  
-   > ** Regra de Negócio Crucial:** Máquinas fixas de laboratório são **estritamente proibidas** de serem emprestadas. Apenas itens portáteis cadastrados no inventário de empréstimos podem ser retirados.
-8. **Relatórios Gerenciais:**
-   - Produção mensal consolidada por técnico.
-   - Consumo periódico de insumos do estoque.
-   - Estatísticas e movimentações de empréstimos.
-   - Indicadores de manutenção preventiva e corretiva.
-   - Exportação de dados operacionais em formato CSV.
-9. **Dashboard em Tempo Real:** Cards dinâmicos com contadores de máquinas ativas, alertas de suprimentos em nível crítico e devoluções pendentes.
+1. **Autenticação e sessões:** login com JWT, rotas protegidas por perfil e logout que revoga o token no servidor.
+2. **Recuperação de senha por pergunta secreta:** fluxo de 3 etapas para técnicos. A resposta é guardada com hash e tem limite de tentativas.
+3. **Gestão de usuários:** listagem paginada, filtros por perfil e status, ativação e inativação.
+4. **Parque de máquinas fixas:** impressoras 3D (FDM e resina) e scanners, cada um com TAG patrimonial única.
+5. **Manutenções:** registro de manutenções preventivas e corretivas, com custo e técnico responsável. A conclusão devolve a máquina à operação.
+6. **Estoque fracionado:** entradas em kg, com baixa automática em gramas ou unidades a cada produção. Ajustes manuais são restritos a administradores.
+7. **Empréstimos de portáteis:** retirada e devolução com status calculado pelo prazo (em campo, devolução hoje, atrasado, devolvido). Equipamento em manutenção ou inativo não é emprestado.
+   > **Regra de negócio:** máquinas fixas são **proibidas** de empréstimo. Só itens portáteis cadastrados podem ser retirados.
+8. **Relatórios:** produção por período e por técnico (com agrupamento mensal), consumo de insumos, empréstimos e manutenções. Os relatórios exibem no máximo 500 registros detalhados, com métricas calculadas sobre todos.
+9. **Dashboard:** contadores de máquinas, usuários e empréstimos, e alertas de suprimentos em nível crítico.
 
 ---
 
-## 5. Credenciais Padrão para Início Rápido
+## 5. Credenciais de Desenvolvimento
 
-O banco de dados SQLite inicializa com dados pré-carregados (*seed*):
+Somente em **desenvolvimento**, o seed cria as contas abaixo. Em produção essas contas não existem.
 
-| Perfil | E-mail Institucional | Senha Padrão | Pergunta Secreta | Resposta Secreta |
+| Perfil | E-mail | Senha | Pergunta secreta | Resposta |
 | :--- | :--- | :--- | :--- | :--- |
 | **Administrador** | `admin.musarq@unicap.br` | `Admin@123` | *Restrita* | *Restrita* |
 | **Técnico** | `tecnico.musarq@unicap.br` | `Tecnico@123` | *Qual o nome do seu primeiro animal de estimação?* | `Rex` |
 
 ---
 
-##  6. Como Executar o Projeto Localmente
+## 6. Como Executar Localmente
 
 ### Pré-requisitos
-- **Node.js:** Versão 22 ou superior *(obrigatório para suporte nativo ao módulo `node:sqlite`)*.
-- **npm:** Versão 10 ou superior.
-- **Git** instalado.
+- **Node.js** 22.13 ou superior.
+- **npm** 10 ou superior.
+- **Git**.
 
----
-
-### Passo 1: Executar o Backend
+### Passo 1: Backend
 
 ```bash
-# Acessar a pasta do backend
-cd labMU/Implementacao/backend
-
-# Instalar dependências
+cd Implementacao/backend
 npm install
-
-# Iniciar em modo de desenvolvimento (porta 3001)
 npm run dev
 ```
 
-> O backend criará automaticamente o banco de dados `data/labmu.sqlite` e aplicará as migrações e o seed de dados iniciais.
-> O endpoint de verificação estará disponível em: `http://localhost:3001/api/health`.
+- A API sobe em `http://localhost:3001`. Verificação: `http://localhost:3001/api/health`.
+- O banco SQLite é criado em `data/labmu.sqlite` e recebe o seed de desenvolvimento na primeira execução.
 
-Para rodar a suite de testes automatizados:
-```bash
-npm test
-```
+### Passo 2: Frontend
 
----
-
-### Passo 2: Executar o Frontend
-
-Em um novo terminal:
+Em outro terminal:
 
 ```bash
-# Acessar a pasta da SPA React
-cd labMU/Implementacao/frontend/perfil_adm
-
-# Instalar dependências
+cd Implementacao/frontend/perfil_adm
 npm install
-
-# Iniciar o servidor Vite (porta 5173 por padrão)
 npm run dev
 ```
 
-Abra seu navegador em: `http://localhost:5173`.
+- A SPA abre em `http://localhost:3000` (configurado em `vite.config.ts`).
+- Para usar outra URL de API, defina `VITE_API_URL`. Sem essa variável, a SPA usa `/api`, que é encaminhado para a porta 3001.
 
-> **Modo Híbrido:** A SPA se comunica diretamente com a API REST em `http://localhost:3001/api`. Caso o backend esteja indisponível, a aplicação possui um modo *fallback* que armazena os dados em `localStorage` para demonstração.
+> **Sem modo offline:** se a API estiver fora do ar, a SPA mostra a mensagem de erro. Ela não cria sessão nem grava dados localmente para contornar isso.
+
+### Testes
+
+| Camada | Comando | Testes |
+| :--- | :--- | :---: |
+| Backend (API) | `cd Implementacao/backend && npm test` | 47 |
+| Frontend (componentes e serviços) | `cd Implementacao/frontend/perfil_adm && npm test` | 41 |
+| Ponta a ponta (Playwright) | `cd Implementacao/e2e && npm test` | 32 |
+
+O e2e sobe seu próprio backend e frontend, com banco novo a cada execução. Os demais testes não estão ligados ao banco de desenvolvimento. Para o relatório completo, ver `Documentacao/Relatorio_Consolidado_de_Testes.md`.
 
 ---
 
-##  7. Estrutura do Repositório
-
-O repositório é organizado de forma modular. Cada pasta possui sua documentação técnica específica:
+## 7. Estrutura do Repositório
 
 ```
 labMU/
-├── README.md                                  # Este documento (Visão Geral e Guia Principal)
+├── README.md                                  # Este documento
 │
-├── Implementacao/                             # Código-fonte da aplicação
-│   ├── README.md                              # Guia da Camada de Implementação
-│   │
-│   ├── backend/                               # Servidor REST Node.js 22 + TypeScript + SQLite
-│   │   ├── README.md                          # Documentação completa da API e Endpoints
-│   │   ├── src/                               # Código-fonte do backend
-│   │   │   ├── README.md                      # Arquitetura interna e padrões do backend
-│   │   │   ├── config/                        # Variáveis de ambiente e configurações
-│   │   │   ├── database/                      # Schema SQL, migrações e seed
-│   │   │   ├── middlewares/                   # Autenticação JWT e tratamento centralizado de erros
-│   │   │   └── modules/                       # Módulos de domínio (auth, users, machines, etc.)
+├── Implementacao/                             # Código-fonte
+│   ├── README.md                              # Visão da camada de implementação
+│   ├── backend/                               # API REST (Express 5 + SQLite)
+│   │   ├── README.md                          # Endpoints e regras de negócio
+│   │   ├── src/README.md                      # Arquitetura interna
 │   │   └── tests/                             # Testes automatizados da API
-│   │
-│   └── frontend/                              # Aplicações e protótipos de interface
-│       ├── README.md                          # Visão geral do frontend e design system
-│       │
-│       ├── perfil_adm/                        # Aplicação SPA Oficial (React 18 + Vite + Tailwind)
-│       │   ├── README.md                      # Documentação completa da SPA
-│       │   └── src/                           # Código-fonte da SPA
-│       │       ├── README.md                  # Estrutura de páginas, componentes e serviços
-│       │       ├── components/                # Componentes compartilhados e Layout
-│       │       ├── pages/                     # Telas organizadas por módulo de negócio
-│       │       ├── services/                  # Cliente HTTP integrado à API
-│       │       └── lib/                       # Helpers, persistência e exportação CSV
-│       │
-│       ├── login_adm/                         # Protótipo estático original (HTML/CSS)
-│       │   └── README.md                      # Documentação e histórico do protótipo
-│       │
-│       └── cadastro_adm/                      # Protótipo de componente de cadastro
-│           └── README.md                      # Documentação do componente isolado
+│   ├── frontend/
+│   │   ├── README.md                          # Visão geral do frontend
+│   │   ├── perfil_adm/                        # SPA oficial (React 18 + Vite + Tailwind)
+│   │   ├── login_adm/                         # Protótipo estático de login (histórico)
+│   │   └── cadastro_adm/                      # Protótipo do componente de cadastro (histórico)
+│   ├── e2e/                                   # Testes ponta a ponta (Playwright)
+│   └── testes-nao-funcionais/                 # Carga, stress, segurança e smoke
 │
-└── Documentacao/                              # Documentos de especificação, Sprints e Testes
-    ├── README.md                              # Guia de documentações acadêmicas e Scrum
-    ├── Backend_Requisitos_e_Integracao.md      # Especificação formal dos requisitos e fluxos
-    ├── Relatorio_de_Testes_labMU.md           # Relatório detalhado dos testes de qualidade
-    └── Projetos/Sprints/                      # Documentação iterativa das Sprints da Equipe 07
+└── Documentacao/                              # Especificação, planejamento e relatórios
+    ├── README.md                              # Índice da documentação
+    ├── Backend_Requisitos_e_Integracao.md     # Requisitos, contratos e estado atual do backend
+    ├── Relatorio_Consolidado_de_Testes.md     # Visão atual dos testes (23/11/2026)
+    └── Projetos/Sprints/                      # Documentação das sprints da Equipe 07
 ```
 
 ---
 
-##  8. Opções de Deploy Gratuito
+## 8. Situação de Deploy e Migração
 
-O projeto foi preparado para deploy simplificado e gratuito:
+**Migração do banco (PR #120, em revisão):** o backend está sendo migrado de SQLite para PostgreSQL (Supabase). A migração já passa na CI (backend, frontend e e2e), mas ainda não foi mesclada na `main`. Até lá, esta documentação descreve o código da `main`, que usa SQLite.
 
-- **Backend no [Render](https://render.com/):** o arquivo `render.yaml` (na raiz) descreve o Web Service. Ao criar o serviço com "Blueprint", ele já define o build (`npm install && npm run build`), o start (`npm start`), a versão do Node (22.13.0 ou superior, necessária para o `node:sqlite` sem flag) e a checagem de saúde em `/api/health`. Você precisa preencher manualmente:
-  - `CORS_ORIGINS`: URL exata do frontend na Vercel, sem barra final (ex.: `https://labmu.vercel.app`).
-  - `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`: primeiro administrador (senha com ao menos 8 caracteres, letras e números). Só é criado se não houver nenhum administrador.
-  - `JWT_SECRET` é gerado automaticamente pelo blueprint; em produção o servidor não sobe sem ele.
-  - Atenção: o SQLite fica no disco do serviço. No plano gratuito o disco é efêmero e os dados são perdidos a cada novo deploy ou reinício. Para persistência, use um disco persistente pago ou outro banco.
-- **Frontend na [Vercel](https://vercel.com/):** importe o repositório e defina o *Root Directory* como `Implementacao/frontend/perfil_adm` (framework Vite, build `npm run build`, saída `dist`). Defina a variável `VITE_API_URL` com a URL do backend no Render (ex.: `https://labmu-api.onrender.com`), sem barra final. A variável é embutida no build: depois de alterá-la, faça um novo deploy. O arquivo `vercel.json` da pasta redireciona todas as rotas para `index.html`, para que recarregar páginas como `/dashboard` funcione.
-- **Ordem recomendada:** suba o backend primeiro, copie a URL do Render para `VITE_API_URL` na Vercel e, depois, copie a URL da Vercel para `CORS_ORIGINS` no Render.
+**Situação observada em 23/11/2026:**
+- Backend no Render (`labmu-api.onrender.com`): sem resposta.
+- Frontend de produção na Vercel (`labmu.vercel.app`): deployment não encontrado.
+- Preview da branch da migração: backend respondendo em `/api/health`.
+
+**Como publicar (quando o serviço estiver disponível):**
+
+- **Backend no Render:** o `render.yaml` na raiz descreve o Web Service (build `npm install && npm run build`, start `npm start`, Node 22.13 ou superior e health check em `/api/health`). Configure no painel:
+  - `CORS_ORIGINS`: URL exata do frontend, sem barra final (ex.: `https://labmu.vercel.app`).
+  - `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`: primeiro administrador. A senha precisa ter ao menos 8 caracteres, com letras e números. O administrador é criado só se ainda não existir nenhum.
+  - `JWT_SECRET` é gerado pelo blueprint. Em produção o servidor não sobe sem ele.
+  - Atenção: o SQLite fica no disco do serviço. No plano gratuito o disco é efêmero, e os dados se perdem a cada deploy ou reinício.
+- **Frontend na Vercel:** *Root Directory* `Implementacao/frontend/perfil_adm`, framework Vite, build `npm run build`, saída `dist`. Defina `VITE_API_URL` com a URL do backend (sem barra final). A variável é embutida no build, então é preciso fazer um novo deploy ao alterá-la. O `vercel.json` redireciona as rotas para `index.html`.
+- **Ordem:** suba o backend, copie a URL dele para `VITE_API_URL` na Vercel e, depois, copie a URL da Vercel para `CORS_ORIGINS` no Render.
 
 ---
 
 ## 9. Equipe de Desenvolvimento (Equipe 07)
 
-Projeto desenvolvido no âmbito das disciplinas de Engenharia de Software da Universidade Católica de Pernambuco:
+Projeto desenvolvido na disciplina de Engenharia de Software da Universidade Católica de Pernambuco:
 
-- **Arthur Amaral**
-- **Christian Araújo**
-- **Lucas Mendes**
-- **Quezia Costa**
-- **Kailane Lisley**
-
+- Arthur Amaral
+- Christian Araújo
+- Lucas Mendes
+- Quezia Costa
+- Kailane Lisley

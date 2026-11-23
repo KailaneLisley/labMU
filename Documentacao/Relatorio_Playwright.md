@@ -1,5 +1,7 @@
 # labMU — Relatório de testes end-to-end com Playwright
 
+> **Documento histórico (escrito em 05/11/2026).** Na `main` de 23/11/2026 a suíte tem 32 testes, todos passando, e o logout já revoga o token (o bug I foi corrigido). Para a situação atual, consulte `Relatorio_Consolidado_de_Testes.md`.
+
 > **Escrito para:** equipe de desenvolvimento e revisores do PR #106.
 > **Data:** 2026-11-05.
 > **Código:** `Implementacao/e2e` (branch `feature/e2e-playwright`).

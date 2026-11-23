@@ -1,143 +1,201 @@
-#  labMU — Backend API RESTful
+# labMU — Backend (API REST)
 
-API RESTful completa desenvolvida para a gestão operacional do Laboratório de Prototipagem do MUSARQ/UNICAP. Construída em **Node.js (v22+)** com **TypeScript**, **Express 5**, banco de dados relacional **SQLite nativo** (`node:sqlite`), autenticação **JWT** e criptografia de senhas com **bcryptjs**.
+API REST para a gestão operacional do Laboratório de Prototipagem do MUSARQ/UNICAP. Construída em **Node.js 22.13+** com **TypeScript**, **Express 5**, banco **SQLite** (`node:sqlite`), autenticação **JWT** e senhas com **scrypt nativo**.
 
----
-
-##  Credenciais Padrão Pré-carregadas
-
-Ao inicializar pela primeira vez, o sistema executa o *seed* automático do banco de dados criando as seguintes contas para testes e operação:
-
-| Perfil | E-mail Institucional | Senha Padrão | Pergunta de Segurança | Resposta | Responsabilidade |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Administrador** | `admin.musarq@unicap.br` | `Admin@123` | *Restrita* | *Restrita* | Gestão completa de usuários, máquinas, estoque, relatórios e auditorias |
-| **Técnico** | `tecnico.musarq@unicap.br` | `Tecnico@123` | *Qual o nome do seu primeiro animal de estimação?* | `Rex` | Registro de manutenções, produções, controle de insumos e empréstimos |
+> **Migração em revisão:** o PR #120 troca o SQLite por PostgreSQL (Supabase). Esta documentação descreve o código da branch `main`, que ainda usa SQLite.
 
 ---
 
-## Como Executar
+## 1. Como executar
 
-### 1. Pré-requisitos
-- **Node.js v22.5.0 ou superior** *(necessário para o módulo experimental nativo `node:sqlite`)*.
-- **npm v10+**.
-
-### 2. Instalação de dependências
 ```bash
 cd Implementacao/backend
 npm install
+npm run dev        # desenvolvimento, porta 3001
 ```
 
-### 3. Modo de Desenvolvimento
-```bash
-npm run dev
-```
-O servidor inicializa por padrão na porta **3001** (`http://localhost:3001`). O banco SQLite é criado automaticamente em `data/labmu.sqlite`.
+- Health check: `http://localhost:3001/api/health`.
+- Em desenvolvimento, o banco `data/labmu.sqlite` é criado e recebe o seed com as contas de teste.
+- Em produção (`NODE_ENV=production`) não há seed. Veja a seção 2.
 
-### 4. Executando os Testes Automatizados
 ```bash
-npm test
-```
-A suite de testes executa testes de integração de ponta a ponta:
-- Health check
-- Login válido e rejeição de credenciais incorretas
-- Cadastro público de técnicos
-- Fluxo de recuperação de senha (bloqueio de admin e sucesso do técnico por pergunta secreta)
-- Empréstimo com bloqueio transacional de duplicidade
-- Operações de estoque e dashboard
-
-### 5. Compilação e Produção
-```bash
-npm run build
-npm start
+npm test           # 47 testes (ver seção 5)
+npx tsc --noEmit   # verificação de tipos
+npm run build      # gera dist/
+npm start          # roda dist/server.js
 ```
 
 ---
 
-##  Regras de Negócio e Segurança
+## 2. Variáveis de ambiente
 
-1. **Restrição de Cadastro de Administrador:** Não existe rota pública para criar administradores. Contas gestoras devem ser inseridas previamente no banco de dados.
-2. **Recuperação de Senha Segura:**
-   - Técnicos recuperam senha informando o e-mail cadastrado e respondendo à pergunta secreta definida no cadastro.
-   - Administradores são bloqueados na rota automática com código `403 ADMIN_RECOVERY_RESTRICTED` e orientados a entrar em contato com os desenvolvedores/administração (`musarq@unicap.br`).
-3. **Impossibilidade de Empréstimo de Máquinas Fixas:** As impressoras 3D e scanners são máquinas patrimoniais de bancada. Apenas itens registrados na tabela `portable_equipment` podem participar de empréstimos. Tentativas de emprestar máquinas fixas são bloqueadas no banco e na camada de serviço.
-4. **Consumo Fracionado de Suprimentos:** Suprimentos são comprados e estocados em quilogramas (kg), mas debitados em frações (gramas/unidades) em cada ordem de produção via transação ACID imediata.
-
----
-
-##  Catálogo Completo de Endpoints
-
-### 1. Autenticação & Recuperação de Senha
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Autentica usuário com e-mail e senha. Retorna token JWT. | Público |
-| `POST` | `/api/auth/register` | Cadastra novo Técnico institucional (`@unicap.br`) com pergunta secreta. | Público |
-| `GET` | `/api/auth/me` | Retorna os dados do usuário autenticado. | Autenticado |
-| `POST` | `/api/auth/logout` | Invalida a sessão atual. | Autenticado |
-| `POST` | `/api/auth/forgot-password/verify-email` | Verifica e-mail, bloqueia admin e retorna a pergunta secreta do técnico. | Público |
-| `POST` | `/api/auth/forgot-password/verify-answer` | Valida resposta secreta e emite token temporário de redefinição. | Público |
-| `POST` | `/api/auth/forgot-password/reset` | Redefine a senha utilizando o token de recuperação. | Público |
-
-### 2. Gestão de Usuários
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/users` | Lista usuários com paginação e filtros (`q`, `role`, `status`). | Administrador |
-| `POST` | `/api/users` | Cadastra novo usuário (Administrador, Técnico ou Cliente). | Administrador |
-| `GET` | `/api/users/:id` | Retorna detalhes de um usuário específico. | Administrador |
-| `PATCH` | `/api/users/:id` | Atualiza dados cadastrais de um usuário. | Administrador |
-| `PATCH` | `/api/users/:id/status` | Altera status (`ativo`/`inativo`). | Administrador |
-| `PATCH` | `/api/users/me` | Atualiza o próprio perfil do usuário logado. | Autenticado |
-
-### 3. Parque de Máquinas (Fixas)
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/machines` | Lista impressoras 3D e scanners fixos com status e datas de manutenção. | Autenticado |
-| `POST` | `/api/machines` | Cadastra nova máquina com TAG patrimonial única. | Autenticado |
-| `GET` | `/api/machines/:id` | Retorna detalhes de uma máquina. | Autenticado |
-| `PATCH` | `/api/machines/:id` | Atualiza status, localização e observações da máquina. | Autenticado |
-| `DELETE` | `/api/machines/:id` | Desativa uma máquina de forma auditável. | Administrador |
-
-### 4. Manutenções
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/maintenances` | Histórico de manutenções com filtros por máquina, tipo e data. | Autenticado |
-| `POST` | `/api/maintenances` | Registra manutenção preventiva ou corretiva e recalcula agendamentos. | Autenticado |
-
-### 5. Estoque & Suprimentos
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/supplies` | Consulta saldos de filamentos e resinas em kg com nível de alerta. | Autenticado |
-| `POST` | `/api/supplies` | Cadastra novo insumo. | Autenticado |
-| `POST` | `/api/supplies/entries` | Registra entrada de lote com quantidade em kg e operador. | Autenticado |
-| `GET` | `/api/supplies/movements` | Extrato detalhado de movimentações (entradas e saídas por produção). | Autenticado |
-
-### 6. Equipamentos Portáteis & Empréstimos
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/equipment` | Inventário de equipamentos portáteis disponíveis para retirada. | Administrador |
-| `POST` | `/api/equipment` | Cadastra novo item portátil (bloqueia registro de máquinas fixas). | Administrador |
-| `GET` | `/api/loans` | Lista empréstimos em andamento, atrasados e concluídos. | Administrador |
-| `POST` | `/api/loans` | Registra retirada de equipamento portátil com bloqueio de duplicidade. | Administrador |
-| `POST` | `/api/loans/:id/return` | Registra devolução e libera o equipamento. | Administrador |
-
-### 7. Produção & Consumo Fracionado
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/productions` | Histórico de ordens de produção (impressões 3D e escaneamentos). | Autenticado |
-| `POST` | `/api/productions` | Registra produção com débito atômico e fracionado do estoque. | Autenticado |
-
-### 8. Relatórios & Dashboard
-| Método | Endpoint | Descrição | Acesso |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/dashboard/summary` | Contadores consolidados e alertas operacionais em tempo real. | Administrador |
-| `GET` | `/api/reports/production` | Relatório detalhado de produção com tempo médio e gasto de insumos. | Administrador |
-| `GET` | `/api/reports/production-by-technician` | Volume de produção consolidado por técnico. | Administrador |
-| `GET` | `/api/reports/stock-consumption` | Relatório periódico de consumo de insumos. | Administrador |
-| `GET` | `/api/reports/loans` | Estatísticas de empréstimos e devoluções. | Administrador |
-| `GET` | `/api/reports/maintenances` | Estatísticas de custos e manutenções preventivas/corretivas. | Autenticado (usado pela tela de Manutenção) |
+| Variável | Padrão | Uso |
+| :--- | :--- | :--- |
+| `PORT` | `3001` | Porta HTTP |
+| `NODE_ENV` | `development` | Em `production`: exige `JWT_SECRET` e não cria contas padrão |
+| `JWT_SECRET` | segredo de desenvolvimento | Obrigatório em produção |
+| `JWT_EXPIRES_IN` | `7d` | Validade do token |
+| `DATABASE_FILE` | `./data/labmu.sqlite` | Arquivo SQLite |
+| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Origens permitidas, separadas por vírgula |
+| `TRUST_PROXY` | `1` em produção, `0` fora | Número de proxies à frente (necessário no Render) |
+| `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD` | — | Primeiro administrador em produção. Só é criado se não houver nenhum administrador. A senha precisa ter 8 ou mais caracteres, com letras e números |
+| `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` (e `DEFAULT_TECH_*`) | contas padrão | Usadas só no seed de desenvolvimento |
 
 ---
 
-##  Estrutura de Código
+## 3. Contas de desenvolvimento
 
-Para entender como o código-fonte está estruturado internamente (controladores, serviços, banco de dados e middlewares), consulte:  
- **[`src/README.md`](src/README.md)**
+Criadas pelo seed quando o servidor sobe em modo de desenvolvimento:
+
+| Perfil | E-mail | Senha | Pergunta secreta | Resposta |
+| :--- | :--- | :--- | :--- | :--- |
+| Administrador | `admin.musarq@unicap.br` | `Admin@123` | Restrita | Restrita |
+| Técnico | `tecnico.musarq@unicap.br` | `Tecnico@123` | Qual o nome do seu primeiro animal de estimação? | `Rex` |
+
+Essas contas não existem em produção.
+
+---
+
+## 4. Regras de negócio e segurança
+
+1. **Administrador não se cadastra:** não há rota pública para criar administradores. O primeiro é criado pelo seed (desenvolvimento) ou por `INITIAL_ADMIN_*` (produção).
+2. **Recuperação de senha:**
+   - Técnicos informam o e-mail, respondem à pergunta secreta e definem nova senha. O token de redefinição é de uso único.
+   - Administradores recebem `403 ADMIN_RECOVERY_RESTRICTED` na rota automática e precisam pedir a redefinição ao suporte (`POST /api/auth/forgot-password/admin/request`).
+   - E-mails sem técnico recebem a mesma pergunta-isca e a mesma resposta de erro, para não revelar quais contas existem.
+3. **Limite de tentativas:** 5 falhas de login por conta ou 20 por IP em 15 minutos (`429 TOO_MANY_ATTEMPTS`). A resposta de segurança também tem limite próprio. Os contadores ficam em memória.
+4. **Sessão:** logout revoga o token no banco (`revoked_tokens`). Token revogado devolve `401 TOKEN_REVOKED`.
+5. **Perfis que autenticam:** só `administrador` e `tecnico`. Conta de aluno ou cliente devolve `403 ROLE_NOT_ALLOWED`.
+6. **Máquinas fixas não são emprestadas:** só itens de `portable_equipment` entram em empréstimos.
+7. **Consumo fracionado:** insumos são comprados em kg e debitados em gramas ou unidades por produção, em transação. Produção cancelada devolve o consumo com movimento `estorno`.
+8. **Senhas e respostas de segurança:** guardadas com scrypt. Hashes bcrypt antigos continuam válidos e são regravados em scrypt no primeiro login bem-sucedido.
+
+---
+
+## 5. Testes
+
+Arquivos em `tests/`:
+
+- **`api.test.ts` (45 testes):** sobe o app Express e chama as rotas por HTTP. Cobre:
+  - autenticação, cadastro, recuperação de senha e bloqueio por tentativas;
+  - segurança (S1 a S9): CORS, logout, conta inativa, `JWT_SECRET` obrigatório em produção, seed desligado em produção, migração de hash;
+  - estoque, produção e cancelamento, com validações de consumo, duração e máquina;
+  - empréstimos: data inválida, status pelo fuso de Recife, devolução, equipamento em manutenção;
+  - manutenção, máquinas, equipamentos e insumos (edição e inativação);
+  - permissões por perfil em cada rota e 401 sem token;
+  - relatórios e dashboard, incluindo filtro "até" inclusivo e agrupamento mensal;
+  - validação: enums, JSON malformado, valores negativos, mensagens de violação de `CHECK`.
+- **`errorHandler.test.ts` (2 testes):** tratamento de erros centralizado.
+
+`npm test` recria `data/test-labmu.sqlite` antes de cada execução. O banco de desenvolvimento não é usado.
+
+---
+
+## 6. Catálogo de endpoints
+
+Os acessos abaixo seguem o código das rotas. Quando um router tem `use(requireRole(...))`, a restrição vale para todas as suas rotas.
+
+### 6.1 Autenticação
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Login com e-mail e senha; devolve JWT | Público |
+| `POST` | `/api/auth/register` | Cadastro público de técnico (`@unicap.br`, com pergunta secreta) | Público |
+| `GET` | `/api/auth/me` | Dados do usuário autenticado | Autenticado |
+| `POST` | `/api/auth/logout` | Revoga o token atual | Autenticado |
+| `POST` | `/api/auth/forgot-password/verify-email` | Identifica o técnico e devolve a pergunta secreta | Público |
+| `POST` | `/api/auth/forgot-password/verify-answer` | Valida a resposta e emite o token de redefinição | Público |
+| `POST` | `/api/auth/forgot-password/reset` | Redefine a senha com o token de uso único | Público |
+| `POST` | `/api/auth/forgot-password/admin/request` | Pedido de redefinição para administrador | Público |
+
+### 6.2 Usuários
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `PATCH` | `/api/users/me` | Atualiza o próprio perfil | Autenticado |
+| `GET` | `/api/users` | Lista com paginação e filtros (`q`, `role`, `status`) | Administrador |
+| `GET` | `/api/users/:id` | Detalhe de um usuário | Administrador |
+| `POST` | `/api/users` | Cria usuário (administrador, técnico ou cliente) | Administrador |
+| `PATCH` | `/api/users/:id` | Atualiza dados cadastrais | Administrador |
+| `PATCH` | `/api/users/:id/status` | Ativa ou inativa | Administrador |
+
+### 6.3 Máquinas fixas
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/machines` | Lista máquinas, com filtros | Autenticado |
+| `GET` | `/api/machines/:id` | Detalhe de uma máquina | Autenticado |
+| `POST` | `/api/machines` | Cadastra máquina (TAG única) | Administrador ou técnico |
+| `PATCH` | `/api/machines/:id` | Atualiza status, local e observações | Administrador ou técnico |
+| `DELETE` | `/api/machines/:id` | Remove sem histórico; com histórico, só inativa | Administrador |
+
+### 6.4 Manutenções
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/maintenance` | Histórico com filtros | Autenticado |
+| `GET` | `/api/maintenance/:id` | Detalhe de uma manutenção | Autenticado |
+| `POST` | `/api/maintenance` | Registra manutenção preventiva ou corretiva | Administrador ou técnico |
+| `PATCH` | `/api/maintenance/:id` | Atualiza; a conclusão devolve a máquina à operação | Administrador ou técnico |
+
+### 6.5 Estoque e insumos
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/supplies` | Saldos em kg, com nível de alerta | Autenticado |
+| `GET` | `/api/supplies/movements` | Extrato de movimentações | Autenticado |
+| `GET` | `/api/supplies/:id` | Detalhe de um insumo | Autenticado |
+| `POST` | `/api/supplies` | Cadastra insumo | Administrador ou técnico |
+| `POST` | `/api/supplies/entries` | Registra entrada de lote em kg | Administrador ou técnico |
+| `PATCH` | `/api/supplies/:id` | Edita nome, tipo, cor, saldo mínimo; `active: false` inativa | Administrador |
+| `POST` | `/api/supplies/adjustments` | Ajuste manual de saldo, com motivo | Administrador |
+
+### 6.6 Equipamentos portáteis e empréstimos
+
+Em ambos os routers, todas as rotas são restritas a administradores.
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/equipment` | Lista equipamentos portáteis | Administrador |
+| `GET` | `/api/equipment/:id` | Detalhe de um equipamento | Administrador |
+| `POST` | `/api/equipment` | Cadastra item portátil (recusa código de máquina fixa) | Administrador |
+| `PATCH` | `/api/equipment/:id` | Edita dados | Administrador |
+| `PATCH` | `/api/equipment/:id/status` | Define `disponivel`, `manutencao` ou `inativo` | Administrador |
+| `GET` | `/api/loans` | Lista empréstimos (em campo, devolução hoje, atrasado, devolvido) | Administrador |
+| `GET` | `/api/loans/:id` | Detalhe de um empréstimo | Administrador |
+| `POST` | `/api/loans` | Retirada, com bloqueio de duplicidade | Administrador |
+| `POST` | `/api/loans/:id/return` | Devolução; libera o equipamento | Administrador |
+
+### 6.7 Produção
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/productions` | Lista ordens de produção | Autenticado |
+| `GET` | `/api/productions/:id` | Detalhe de uma produção | Autenticado |
+| `POST` | `/api/productions` | Registra produção com débito atômico no estoque. Técnico só registra em seu nome | Administrador ou técnico |
+| `POST` | `/api/productions/:id/cancel` | Cancela e devolve o consumo. Técnico só cancela as próprias | Administrador ou técnico |
+
+### 6.8 Relatórios e dashboard
+
+| Método | Endpoint | Descrição | Acesso |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/dashboard/summary` | Contadores e alertas | Administrador |
+| `GET` | `/api/reports/production` | Produção por período (métricas sobre todos; registros limitados a 500) | Administrador |
+| `GET` | `/api/reports/production-by-technician` | Produção por técnico; `groupBy=month` agrupa por mês | Administrador |
+| `GET` | `/api/reports/stock-consumption` | Consumo de insumos por período | Administrador |
+| `GET` | `/api/reports/loans` | Estatísticas de empréstimos | Administrador |
+| `GET` | `/api/reports/maintenances` | Custos e manutenções preventivas e corretivas | Autenticado |
+
+---
+
+## 7. Pendências conhecidas
+
+- **Relatórios e dashboard:** o dashboard não aceita período. Os relatórios de produção por técnico aceitam `groupBy=month`.
+- **Dados pessoais:** técnicos recebem e-mail, matrícula e telefone de todos os usuários em `GET /api/users`. A restrição depende de decisão do laboratório.
+- **Estorno:** o cancelamento devolve o consumo ao estoque. Não há cancelamento de empréstimo.
+
+---
+
+## 8. Estrutura do código
+
+Os detalhes de organização (controllers, services, banco e middlewares) estão em [`src/README.md`](src/README.md).

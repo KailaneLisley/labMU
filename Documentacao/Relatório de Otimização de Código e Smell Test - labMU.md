@@ -1,5 +1,7 @@
 # Relatório de Otimização de Código e Smell Test - labMU
 
+> **Documento histórico (escrito em 09/11/2026).** Para a situação dos testes em 23/11/2026, consulte `Relatorio_Consolidado_de_Testes.md`.
+
 Nov 9, 2026 · @Lucas
 
 ## Resumo executivo

@@ -1,15 +1,15 @@
-# 💻 labMU — SPA Oficial de Gestão (`perfil_adm`)
+# labMU — SPA Oficial de Gestão (`perfil_adm`)
 
 Aplicação web **Single Page Application (SPA)** oficial para operação e gestão do Laboratório de Prototipagem do MUSARQ. Desenvolvida em **React 18**, **TypeScript**, **Vite** e **Tailwind CSS**.
 
 ---
 
-## 🎯 Visão Geral e Características
+## Visão Geral e Características
 
 - **Roteamento Dinâmico:** Organizado com **React Router v6** com layout compartilhado (sidebar de navegação, cabeçalho e perfil de usuário).
-- **Modo Híbrido Resiliente:**
-  - **Online:** Comunica-se com a API REST (`http://localhost:3001/api`) enviando tokens JWT no cabeçalho `Authorization`.
-  - **Offline/Demonstração:** Caso a API backend esteja inacessível, a aplicação opera automaticamente com `localStorage`, permitindo testes visuais sem quebras.
+- **Comunicação com a API:** envia o token JWT no cabeçalho `Authorization` para a API REST. Em desenvolvimento, a API é acessada por `/api`, encaminhado pelo Vite para `http://localhost:3001`. Em produção, defina `VITE_API_URL`; sem ela, a primeira chamada à API mostra uma mensagem de configuração ausente.
+- **Sem modo offline:** se a API estiver fora do ar, a tela mostra o erro. Nenhuma sessão ou conta é criada localmente.
+- **Sessão expirada:** resposta 401 limpa a sessão e leva para o login.
 - **Segurança de Acesso:**
   - Login integrado para Administradores e Técnicos.
   - Cadastro público restrito a Técnicos institucionais (`@unicap.br`) com definição de **Pergunta Secreta de Segurança**.
@@ -17,7 +17,7 @@ Aplicação web **Single Page Application (SPA)** oficial para operação e gest
 
 ---
 
-## 🗺️ Mapa de Rotas do Sistema
+## Mapa de Rotas do Sistema
 
 | Rota | Componente | Layout | Descrição |
 | :--- | :--- | :---: | :--- |
@@ -49,7 +49,7 @@ O técnico entra em `/maquinas`; o administrador entra em `/dashboard`.
 
 ---
 
-## 🔐 Fluxos de Autenticação e Segurança
+## Fluxos de Autenticação e Segurança
 
 ### 1. Cadastro de Técnico (`/cadastro`)
 - Campos: Nome completo, E-mail institucional (`@unicap.br`), Matrícula, Telefone (opcional) e Senha forte (mínimo 8 caracteres com letras e números).
@@ -65,7 +65,7 @@ O técnico entra em `/maquinas`; o administrador entra em `/dashboard`.
 
 ---
 
-## 🚀 Como Executar
+## Como Executar
 
 ### 1. Instalação
 ```bash
@@ -77,7 +77,7 @@ npm install
 ```bash
 npm run dev
 ```
-Acesse no navegador: `http://localhost:5173`.
+Acesse no navegador: `http://localhost:3000`.
 
 ### 3. Verificação de Tipos TypeScript
 ```bash
@@ -92,7 +92,7 @@ npm run preview # Visualizar build de produção localmente
 
 ---
 
-## 📂 Estrutura de Código
+## Estrutura de Código
 
 Para entender a organização dos componentes React, páginas, hooks e serviços de API, consulte:  
-👉 **[`src/README.md`](src/README.md)**
+**[`src/README.md`](src/README.md)**

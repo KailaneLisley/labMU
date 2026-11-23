@@ -4,11 +4,11 @@ Este documento explica a estrutura existente, separa requisitos documentados de 
 
 ## 1. Resumo executivo
 
-- O repositório contém a API em `Implementacao/backend/` (Express 5, TypeScript, SQLite com `node:sqlite`), com módulos por domínio, transações nas operações de estoque e empréstimo e testes automatizados. A seção 13 descreve o estado atual.
-- Ainda há protótipos de frontend e documentação de produto. A SPA consome a API apenas em login, cadastro e recuperação de senha; as demais telas usam dados locais (ver seção 8).
+- O repositório contém a API em `Implementacao/backend/` (Express 5, TypeScript, SQLite com `node:sqlite`), com módulos por domínio, transações nas operações de estoque e empréstimo e testes automatizados. A seção 13 descreve o estado atual. Uma migração para PostgreSQL está em revisão (PR #120).
+- Ainda há protótipos de frontend e documentação de produto. A SPA já consome a API em login, cadastro, recuperação de senha, usuários, máquinas, manutenção, estoque, empréstimos, relatórios e dashboard. Algumas telas ainda usam dados locais de demonstração (ver seção 8).
 - A aplicação principal mais completa está em `Implementacao/frontend/perfil_adm`: React 18, TypeScript, Vite, React Router e Tailwind.
 - `login_adm` e `cadastro_adm` são protótipos separados; não fazem parte do build da aplicação React e não estão integrados entre si.
-- A aplicação React hoje simula autenticação e persiste cadastros no `localStorage`. A proteção de rotas acontece apenas no navegador e não é controle de segurança.
+- A autenticação é real: login, logout e recuperação de senha passam pela API, e o logout revoga o token no servidor. A proteção de rotas no navegador é apenas uma questão de experiência de uso; a API valida cada requisição.
 - Os requisitos de negócio incluem produção e relatórios operacionais mais completos do que as telas atuais entregam. A tela de manutenção e alguns indicadores ainda são dados fixos.
 - Para produção, a fonte de verdade deve ser uma API autenticada com regras no servidor e uma base relacional. Estoque, empréstimos e produção precisam de transações para evitar saldos ou estados inconsistentes.
 
@@ -48,9 +48,10 @@ src/
 │   └── Sidebar.tsx          # navegação e perfil da sessão
 ├── data/                    # tipos e registros iniciais demonstrativos
 ├── hooks/
-│   └── usePersistentState.ts # estado React persistido no localStorage
+│   ├── useApiData.ts        # carrega dados da API com estados de carregamento e erro
+│   └── usePagination.ts     # paginação compartilhada das listas
 ├── lib/
-│   ├── accounts.ts          # chave/contrato demonstrativo de conta
+│   ├── permissions.ts       # permissões por perfil
 │   ├── exportCsv.ts         # exportação CSV no navegador
 │   ├── session.ts           # sessão local demonstrativa
 │   └── storage.ts           # leitura de JSON local
@@ -63,8 +64,8 @@ O frontend usa React Router 6, TypeScript em modo estrito, Vite, Tailwind e `luc
 
 | Rota | Tela | Estado funcional atual e dependência de backend |
 |---|---|---|
-| `/login` | `LoginPage` | Login de demonstração. Aceita dois usuários fixos e contas do cadastro local; deve autenticar na API. |
-| `/cadastro` | `RegisterPage` | Cria um Técnico demonstrativo, guarda conta e senha em `localStorage` e o inclui no cadastro local. Deve ser substituído por cadastro controlado pelo servidor. |
+| `/login` | `LoginPage` | Autentica pela API (`POST /api/auth/login`). Usuários fixos e fallback offline foram removidos. |
+| `/cadastro` | `RegisterPage` | Cadastro público de técnico pela API (`POST /api/auth/register`). Senha não fica guardada localmente. |
 | `/dashboard` | `DashboardPage` | Atalhos e indicadores/listas predominantemente fixos. Os indicadores devem vir de um resumo agregado pela API. |
 | `/usuarios` | `UserManagementPage` | Busca, filtros, paginação, detalhe, criação/edição e ativação/desativação somente no navegador. |
 | `/maquinas` | `MachinesPage` | Cadastro/edição, TAG única no estado local, status, busca e remoção local. |
@@ -73,7 +74,7 @@ O frontend usa React Router 6, TypeScript em modo estrito, Vite, Tailwind e `luc
 | `/estoque/registrar-entrada` | `RegisterSupplyEntryPage` | Cadastra insumo e entrada em kg localmente; atualiza saldo no navegador. |
 | `/emprestimo` | `LoanEquipmentPage` | Lista equipamento, empresta e registra devolução em estado local. O responsável é texto livre e o histórico não é modelado como entidade própria. |
 | `/emprestimo/registrar` | `RegisterEquipmentPage` | Formulário coleta categoria, TAG, número de série, local, conservação e acessórios, mas o objeto persistido atualmente guarda apenas nome, TAG/código e estado inicial. A integração deve preservar todos os campos necessários. |
-| `/perfil` | `ProfilePage` | Exibe sessão/perfil, mas usa dados de demonstração como fallback. Logout local. |
+| `/perfil` | `ProfilePage` | Exibe sessão/perfil. O logout chama a API (`POST /api/auth/logout`) antes de limpar a sessão local. |
 | `/editar-perfil` | `EditProfilePage` | Edita nome, e-mail, telefone e foto localmente; a matrícula/lotação exibidas são demonstrativas/não editáveis. |
 
 `Layout.tsx` redireciona para `/login` quando não encontra uma sessão local. Isso melhora a navegação, mas uma chamada direta à API deve continuar bloqueada sem autenticação válida, mesmo que o usuário altere o JavaScript ou o estado do navegador.
@@ -229,7 +230,7 @@ O contrato atual da SPA espera algo parecido com `{ token, user: { name, email, 
 1. Criar um módulo `src/services/apiClient.ts` que use a base `VITE_API_URL`, timeout, JSON, credenciais de sessão e tratamento de erro tipado.
 2. Criar serviços por domínio (`authService`, `usersService`, `machinesService`, `loansService`, etc.), mantendo componentes responsáveis por interface e estado de carregamento.
 3. Substituir `usePersistentState` por consultas/mutações à API. Não migrar os arrays `initial*` para o servidor como se fossem cadastros reais; separar seeds de demonstração dos dados operacionais.
-4. Remover `MOCK_USERS`, `labmu:accounts` e a senha em texto puro de `RegisterPage`. As senhas só podem transitar por HTTPS para o servidor e nunca voltar na resposta.
+4. (Concluído) `MOCK_USERS`, `labmu:accounts` e a senha em texto puro de `RegisterPage` foram removidos. As senhas só transitam para o servidor e não voltam na resposta.
 5. Fazer a SPA consultar `GET /auth/me` na inicialização e tratar 401/403 centralmente. O servidor deve ser a autoridade final.
 6. Incluir estados visíveis de carregamento, lista vazia, erro, retry e conflito nos formulários.
 7. Usar dados de perfil de `/auth/me`/`/users/me` em Sidebar, Profile e EditProfile. Fazer a alteração de e-mail como fluxo verificado se o e-mail for identidade de login.
@@ -237,7 +238,7 @@ O contrato atual da SPA espera algo parecido com `{ token, user: { name, email, 
 9. Implementar a tela de registro de produção ou ajustar os requisitos antes de afirmar que o ciclo produtivo está funcional.
 10. Atualizar os tipos TypeScript a partir de contratos compartilhados/OpenAPI e testar o comportamento contra uma API de desenvolvimento.
 
-A SPA lê `VITE_API_URL` em `src/services/api.ts` (padrão `/api`) e já usa a API no login, no cadastro e na recuperação de senha. `VITE_API_TIMEOUT` aparece em `.env.example`, mas ainda não é usado. O login HTML separado (`login_adm`) continua sem integração: ele só chama `/api/auth/login` se `USE_MOCK` for desligado.
+A SPA lê `VITE_API_URL` em `src/services/api.ts` (padrão `/api`) e já usa a API em login, cadastro, recuperação de senha, usuários, máquinas, manutenção, entradas de estoque, devoluções de empréstimo, relatórios e dashboard. `VITE_API_TIMEOUT` não é lido em nenhum lugar do código, e não há timeout nas requisições. O login HTML separado (`login_adm`) continua sem integração: ele só chama `/api/auth/login` se `USE_MOCK` for desligado.
 
 ## 9. Sequência de implementação recomendada
 
@@ -313,8 +314,8 @@ Backend (`Implementacao/backend/`):
 - Testes: `tests/api.test.ts`.
 
 - Aplicação React: `Implementacao/frontend/perfil_adm/src/App.tsx`, `src/main.tsx`.
-- Sessão local: `src/lib/session.ts`; estado local: `src/hooks/usePersistentState.ts`; contas demonstrativas: `src/lib/accounts.ts`.
-- Login/cadastro: `src/pages/LoginPage.tsx`, `src/pages/RegisterPage.tsx`.
+- Sessão local: `src/lib/session.ts`; chamadas à API: `src/services/api.ts`; paginação: `src/hooks/usePagination.ts`.
+- Login/cadastro: `src/pages/auth/LoginPage.tsx`, `src/pages/auth/RegisterPage.tsx`.
 - Cadastros: `src/pages/UserManagementPage.tsx`, `src/pages/MachinesPage.tsx`, `src/pages/RegisterEquipmentPage.tsx`.
 - Estoque e empréstimo: `src/data/supplies.ts`, `src/data/loans.ts`, `src/pages/RegisterSupplyEntryPage.tsx`, `src/pages/LoanEquipmentPage.tsx`.
 - Módulos ainda demonstrativos: `src/pages/DashboardPage.tsx`, `src/pages/MaintenanceManagementPage.tsx`, `src/pages/ReportsPage.tsx`.
@@ -323,7 +324,7 @@ Backend (`Implementacao/backend/`):
 
 ## 13. Estado atual do backend
 
-Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de ausência de backend das seções 1 e 2.
+Esta seção descreve o que o código da `main` faz hoje (revisado em 23/11/2026). Ela substitui as afirmações de ausência de backend das seções 1 e 2.
 
 ### Regras de negócio e validação aplicadas
 
@@ -355,7 +356,7 @@ Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de
 | Token de recuperação | Uso único; revogado após a redefinição. | `INVALID_TOKEN` (401) |
 | CORS | Só as origens de `CORS_ORIGINS` (padrão: `localhost:3000`). | — |
 | Produção | `NODE_ENV=production` exige `JWT_SECRET` e não cria contas padrão. | — |
-| Recuperação de senha | E-mails sem técnico com pergunta recebem a mesma pergunta-isca e a mesma resposta de erro. A resposta de segurança fica em hash bcrypt. | `INCORRECT_ANSWER` (400) |
+| Recuperação de senha | E-mails sem técnico com pergunta recebem a mesma pergunta-isca e a mesma resposta de erro. A resposta de segurança fica em hash scrypt (hashes bcrypt antigos são migrados no primeiro uso). | `INCORRECT_ANSWER` (400) |
 
 ### Cancelamento, edição e inativação
 
@@ -369,7 +370,7 @@ Esta seção descreve o que o código faz hoje. Ela substitui as afirmações de
 | Produção com insumo inativo | Não consome. | `SUPPLY_INACTIVE` |
 | Relatório por técnico | `groupBy=month` agrupa por mês; sem o parâmetro, o formato é o de antes. | — |
 
-Pendência de segurança: a resposta de segurança não tem limite de tentativas (só o login tem limite). Em produção, o primeiro administrador ainda precisa de um procedimento próprio de criação, porque o seed foi desativado.
+Em produção, o primeiro administrador é criado pelas variáveis `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`, e só se ainda não houver nenhum administrador. A resposta de segurança também tem limite de tentativas, além do login.
 
 ### Pendências de regra (dependem do laboratório)
 

@@ -51,12 +51,14 @@ src/
 ├── lib/                           # Utilitários e Helpers
 │   ├── session.ts                 # Gerenciamento de sessão e token de autenticação
 │   ├── storage.ts                 # Leitura e escrita segura em localStorage com tratamento de JSON
-│   ├── accounts.ts                # Interfaces e tipagem das contas registradas
+│   ├── permissions.ts             # Permissões por perfil (quem vê cada tela e cada ação)
 │   └── exportCsv.ts               # Função utilitária para converter arrays em download de CSV
 │
 ├── hooks/                         # React Custom Hooks
+│   ├── useApiData.ts              # Carrega dados da API com estados de carregamento e erro
+│   └── usePagination.ts           # Paginação compartilhada das listas
 │
-└── data/                          # Dados estáticos para demonstração offline
+└── data/                          # Dados iniciais de demonstração, usados por telas ainda não conectadas à API
     ├── users.ts                   # Lista inicial de usuários padrão e seed
     ├── supplies.ts                # Insumos iniciais (PLA, ABS, PETG, Resinas)
     └── loans.ts                   # Portáteis e empréstimos simulados
